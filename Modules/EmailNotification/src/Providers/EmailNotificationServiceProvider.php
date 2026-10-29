@@ -5,7 +5,9 @@ namespace Modules\EmailNotification\Providers;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\ServiceProvider;
+use PDOException;
 use Modules\EmailNotification\Channels\EmailChannel;
 use Modules\Notifications\Models\NotificationChannel;
 use Modules\Notifications\Services\NotificationChannelManager;
@@ -50,20 +52,29 @@ class EmailNotificationServiceProvider extends ServiceProvider
      */
     protected function resgisterChannel()
     {
-        // Only register if the table exists
-        if (!Schema::hasTable('notification_channels')) {
+        // Composer scripts must be able to boot without a database.
+        if ($this->app->runningConsoleCommand('package:discover', 'vendor:publish')) {
             return;
         }
 
-        // Create or update the email channel in database
-        NotificationChannel::updateOrCreate(
-            ['name' => 'email'],
-            [
-                'channel_class' => EmailChannel::class,
-                'status' => true,
-                'config' => []
-            ]
-        );
+        try {
+            // Only register if the table exists
+            if (!Schema::hasTable('notification_channels')) {
+                return;
+            }
+
+            // Create or update the email channel in database
+            NotificationChannel::updateOrCreate(
+                ['name' => 'email'],
+                [
+                    'channel_class' => EmailChannel::class,
+                    'status' => true,
+                    'config' => []
+                ]
+            );
+        } catch (PDOException $e) {
+            Log::warning('Skipping EmailNotification channel registration: database unavailable.');
+        }
     }
 
     /**

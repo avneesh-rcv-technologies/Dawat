@@ -3,6 +3,8 @@
 namespace Modules\Payments\Services;
 
 use InvalidArgumentException;
+use PDOException;
+use Illuminate\Support\Facades\Log;
 use Modules\Payments\Models\Payment;
 use Illuminate\Support\Facades\Schema;
 use Modules\Payments\Models\PaymentMethod;
@@ -20,18 +22,25 @@ class PaymentsProcessorRegistry
      */
     public function register(string $code, $processor): void
     {   
-        if(Schema::hasTable('payment_methods')) {
-            // Save to database if not already registered
-            $paymentMethod = PaymentMethod::firstOrCreate(
-                ['code' => $code],
-                [
-                    'class_name' => get_class($processor),
-                    'name' => $processor->getName(), // Assuming the processor has a getName() method
-                    'template' => $processor->getTemplate(), // Assuming the processor has a getTemplate() method
-                    'processor' => $processor->getProcessorTemplate(), // Assuming the processor has a getTemplate() method
-                    'is_active' => true, // default active status
-                ]
-            );
+        // Composer scripts only need the in-memory processor registry.
+        if (!app()->runningConsoleCommand('package:discover', 'vendor:publish')) {
+            try {
+                if (Schema::hasTable('payment_methods')) {
+                    // Save to database if not already registered
+                    $paymentMethod = PaymentMethod::firstOrCreate(
+                        ['code' => $code],
+                        [
+                            'class_name' => get_class($processor),
+                            'name' => $processor->getName(), // Assuming the processor has a getName() method
+                            'template' => $processor->getTemplate(), // Assuming the processor has a getTemplate() method
+                            'processor' => $processor->getProcessorTemplate(), // Assuming the processor has a getTemplate() method
+                            'is_active' => true, // default active status
+                        ]
+                    );
+                }
+            } catch (PDOException $e) {
+                Log::warning('Skipping payment processor database registration: database unavailable.');
+            }
         }
 
         // Store in memory for easy access

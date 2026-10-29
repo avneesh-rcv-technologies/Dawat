@@ -5,7 +5,9 @@ namespace Modules\Notifications\Providers;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\ServiceProvider;
+use PDOException;
 use Modules\Notifications\Channels\SystemChannel;
 use Modules\Notifications\Services\NotificationChannelManager;
 
@@ -46,21 +48,30 @@ class NotificationsServiceProvider extends ServiceProvider
      */
     protected function registerNotificationChannel(): void
     {
-        // Only register if the table exists
-        if (!Schema::hasTable('notification_channels')) {
+        // Composer scripts must be able to boot without a database.
+        if ($this->app->runningConsoleCommand('package:discover', 'vendor:publish')) {
             return;
         }
 
-        $this->app->singleton(SystemChannel::class, function ($app) {
-            return new SystemChannel(config('services.system', []));
-        });
+        try {
+            // Only register if the table exists
+            if (!Schema::hasTable('notification_channels')) {
+                return;
+            }
 
-        $this->app->when(SystemChannel::class)
-            ->needs('$config')
-            ->giveConfig('services.system');
+            $this->app->singleton(SystemChannel::class, function ($app) {
+                return new SystemChannel(config('services.system', []));
+            });
 
-        $channelManager = $this->app->make(NotificationChannelManager::class);
-        $channelManager->registerChannel('system', SystemChannel::class);
+            $this->app->when(SystemChannel::class)
+                ->needs('$config')
+                ->giveConfig('services.system');
+
+            $channelManager = $this->app->make(NotificationChannelManager::class);
+            $channelManager->registerChannel('system', SystemChannel::class);
+        } catch (PDOException $e) {
+            Log::warning('Skipping Notifications channel registration: database unavailable.');
+        }
     }
 
     /**

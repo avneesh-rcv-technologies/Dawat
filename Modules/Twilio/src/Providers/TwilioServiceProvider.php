@@ -5,7 +5,9 @@ namespace Modules\Twilio\Providers;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\ServiceProvider;
+use PDOException;
 use Modules\Notifications\Models\NotificationChannel;
 use Modules\Twilio\Channels\TwilioChannel;
 
@@ -48,24 +50,33 @@ class TwilioServiceProvider extends ServiceProvider
      */
     protected function resgisterChannel()
     {
-        // Only register if the table exists
-        if (!Schema::hasTable('notification_channels')) {
+        // Composer scripts must be able to boot without a database.
+        if ($this->app->runningConsoleCommand('package:discover', 'vendor:publish')) {
             return;
         }
 
-        // Create or update the email channel in database
-        NotificationChannel::updateOrCreate(
-            ['name' => 'sms'],
-            [
-                'channel_class' => TwilioChannel::class,
-                'status' => true,
-                'config' => [
-                   'twilio_account_sid' => fn_get_setting('twilio.twilio_account_sid'),
-                   'twilio_auth_token' => fn_get_setting('twilio.twilio_auth_token'),
-                   'twilio_phone_number' => fn_get_setting('twilio.twilio_phone_number'),
+        try {
+            // Only register if the table exists
+            if (!Schema::hasTable('notification_channels')) {
+                return;
+            }
+
+            // Create or update the email channel in database
+            NotificationChannel::updateOrCreate(
+                ['name' => 'sms'],
+                [
+                    'channel_class' => TwilioChannel::class,
+                    'status' => true,
+                    'config' => [
+                       'twilio_account_sid' => fn_get_setting('twilio.twilio_account_sid'),
+                       'twilio_auth_token' => fn_get_setting('twilio.twilio_auth_token'),
+                       'twilio_phone_number' => fn_get_setting('twilio.twilio_phone_number'),
+                    ]
                 ]
-            ]
-        );
+            );
+        } catch (PDOException $e) {
+            Log::warning('Skipping Twilio channel registration: database unavailable.');
+        }
     }
 
     /**
