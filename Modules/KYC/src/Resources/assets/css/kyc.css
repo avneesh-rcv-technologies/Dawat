@@ -1,0 +1,60 @@
+/* KYC module styles moved into a dedicated CSS file so it can be built by Vite */
+.kyc-panel {
+    background: #fff;
+    border: 1px solid rgba(36, 27, 18, 0.12);
+    border-radius: 0.75rem;
+    box-shadow: 0 6px 18px rgba(36, 27, 18, 0.05);
+}
+.kyc-panel-header {
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid rgba(36, 27, 18, 0.08);
+    font-weight: 700;
+    color: #072B12;
+}
+.kyc-panel-body { padding: 1.25rem; }
+.kyc-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.2rem 0.65rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+.kyc-badge-pending { background: #fef3c7; color: #92400e; }
+.kyc-badge-review { background: #ffffff; color: #03502B; }
+.kyc-badge-approved { background: #dcfce7; color: #166534; }
+.kyc-badge-rejected { background: #fee2e2; color: #991b1b; }
+.kyc-link { color: #03502B; font-weight: 600; }
+.kyc-link:hover { color: #072B12; text-decoration: underline; }
+
+/* Scope to KYC panel so other pages are unaffected */
+.kyc-panel .dv-table {
+    --kyc-emerald-50: #ecfdf5;
+    --kyc-emerald-100: #d1fae5;
+    --kyc-emerald-600: #059669;
+    --kyc-emerald-700: #065f46;
+}
+
+.kyc-panel .dv-table thead .dv-table-head-row a:hover { color: var(--kyc-emerald-700) !important; }
+.kyc-panel .dv-table thead .dv-table-head-row a.text-\[\#03502B\] { color: var(--kyc-emerald-700) !important; }
+.kyc-panel .dv-table tbody tr:hover { background-color: var(--kyc-emerald-50) !important; }
+.kyc-panel .dv-table tbody tr.selected, .kyc-panel .dv-table tbody tr.group.selected { background-color: var(--kyc-emerald-100) !important; }
+
+.kyc-panel .dv-table .inline-flex.items-center.rounded-full,
+.kyc-panel .dv-table .inline-flex.items-center.gap-1\.5.rounded-full,
+.kyc-panel .dv-table .px-2.py-1.text-xs.font-medium.rounded-full {
+    background-color: var(--kyc-emerald-100) !important;
+    color: var(--kyc-emerald-700) !important;
+}
+
+.kyc-panel .dv-table .dropdown-menu button[type="submit"],
+.kyc-panel .dv-table .dropdown-menu .dropdown-btn {
+    background-color: var(--kyc-emerald-600) !important;
+    color: #fff !important;
+    border-color: transparent !important;
+}
+
+.kyc-panel .dv-table input[type="checkbox"],
+.kyc-panel .dv-table .row-checkbox {
+    accent-color: var(--kyc-emerald-700) !important;
+}

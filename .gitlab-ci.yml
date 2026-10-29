@@ -1,0 +1,101 @@
+variables:
+  IMAGE_TAG: $CI_COMMIT_SHORT_SHA
+
+stages:
+  - build
+  - push
+  - deploy
+
+# =======================
+# LOCAL PIPELINES
+# =======================
+
+build_local:
+  stage: build
+  tags:
+    - demo
+  before_script:
+    - echo "$ENV_FILE_DEV" > .env 
+  script:
+    - docker build -t $ECR_REPO_URI_DEV:$IMAGE_TAG .
+  only:
+    - development
+
+push_local:
+  stage: push
+  tags:
+    - demo 
+  script:
+    - docker images $ECR_REPO_URI_DEV:$IMAGE_TAG
+  only:
+    - development
+
+deploy_local:
+  stage: deploy
+  tags:
+    - demo
+  script:
+    - cd /home/gitlab-runner/builds/dawat && bash deployment.sh "$IMAGE_TAG"
+  after_script:
+    - |
+      if [ $CI_JOB_STATUS == 'failed' ]; then
+        echo "⚠️  Deployment failed! Check logs for rollback status."
+      fi
+  retry:
+    max: 1
+    when:
+      - script_failure
+  only:
+    - development
+# =======================
+# Staging     PIPELINES
+# =======================
+
+build_staging:
+  stage: build
+  tags:
+    - demo
+  before_script:
+    - echo "$ENV_FILE" > .env 
+  script:
+    - docker build -t $ECR_REPO_URI:$IMAGE_TAG .
+  only:
+    - staging
+
+push_staging:
+  stage: push
+  tags:
+    - demo 
+  script:
+    - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $ECR_REPO_URI
+    - docker push $ECR_REPO_URI:$IMAGE_TAG
+  only:
+    - staging
+
+
+deploy_staging:
+  stage: deploy
+  tags:
+    - demo
+  before_script:
+  - sudo apt-get update -y
+  - sudo apt-get install -y openssh-client
+  - eval $(ssh-agent -s)
+  # Save the key to a file
+  - echo "$SSH_PRIVATE_KEY" > id_rsa
+  - chmod 600 id_rsa
+  - ssh-add id_rsa
+
+  script:
+    - ssh -o StrictHostKeyChecking=no $EC2_USER@$EC2_HOST "bash deployment-dawat.sh $IMAGE_TAG"
+  after_script:
+    - |
+      if [ $CI_JOB_STATUS == 'failed' ]; then
+        echo "⚠️  Deployment failed! Check logs for rollback status."
+      fi
+  retry:
+    max: 1
+    when:
+      - script_failure
+  only:
+    - staging

@@ -1,0 +1,78 @@
+<?php
+
+namespace {{namespace}};
+
+use Modules\Acl\Models\{{modelName}};
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Password;
+
+class {{modelName}}AuthService
+{
+    /**
+     * Register a new user.
+     */
+    public function register(array $data): {{modelName}}
+    {
+        $data['password'] = Hash::make($data['password']);
+        return {{modelName}}::create($data);
+    }
+
+    /**
+     * Attempt to log the user in.
+     */
+    public function login(array $credentials, bool $remember = false): bool
+    {
+        return Auth::guard('{{guard}}')->attempt(
+            $credentials,
+            $remember
+        );
+    }
+
+    /**
+     * Log the user out.
+     */
+    public function logout(): void
+    {
+        Auth::guard('{{guard}}')->logout();
+    }
+
+    /**
+     * Get the authenticated user.
+     */
+    public function user(): ?{{modelName}}
+    {
+        return Auth::guard('{{guard}}')->user();
+    }
+
+    /**
+     * Send a password reset link to the user.
+     */
+    public function sendPasswordResetLink(string $email): string
+    {
+        $status = Password::broker('{{guard}}s')->sendResetLink(['email' => $email]);
+        
+        if ($status === Password::RESET_LINK_SENT) {
+            return 'success';
+        }
+        
+        return $status;
+    }
+
+    /**
+     * Reset the user's password.
+     */
+    public function resetPassword(array $credentials): string
+    {
+        $status = Password::broker('{{guard}}s')->reset(
+            $credentials,
+            function ($user, $password) {
+                $user->forceFill([
+                    'password' => Hash::make($password)
+                ])->save();
+            }
+        );
+
+        return $status === Password::PASSWORD_RESET ? 'success' : $status;
+    }
+}

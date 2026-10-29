@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KYC Document Request</title>
+</head>
+<body style="margin:0; padding:0; background:#f3f4f6; font-family: Arial, Helvetica, sans-serif; color:#1f2937;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f3f4f6; padding:24px 12px;">
+        <tr>
+            <td align="center">
+                <table role="presentation" width="640" cellpadding="0" cellspacing="0" style="max-width:640px; width:100%; background:#ffffff; border-radius:10px; overflow:hidden; border:1px solid #e5e7eb;">
+                    <tr>
+                        <td style="background:#0f766e; padding:20px 28px;">
+                            <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                                <tr>
+                                    <td style="vertical-align:middle;">
+                                        <img src="{{company_logo}}" alt="{{company_name}}" style="max-height:48px; max-width:160px; display:block; background:#ffffff; padding:6px; border-radius:6px;" />
+                                    </td>
+                                    <td style="vertical-align:middle; text-align:right; color:#ffffff;">
+                                        <div style="font-size:16px; font-weight:bold; margin:0;">{{company_name}}</div>
+                                        <div style="font-size:12px; opacity:0.95; margin-top:4px;">KYC Document Request</div>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding:28px;">
+                            <p style="margin:0 0 12px; font-size:15px;">Hello {{owner_name}},</p>
+                            <p style="margin:0 0 20px; font-size:14px; line-height:1.6; color:#374151;">
+                                You have been requested to submit your <strong>{{kyc_type_name}}</strong> documents for verification.
+                            </p>
+                            {{#request_message}}
+                            <div style="margin:0 0 20px; padding:14px 16px; background:#f0fdfa; border-left:4px solid #0f766e; font-size:14px; color:#374151;">
+                                <strong>Message from Admin:</strong><br>
+                                {{.}}
+                            </div>
+                            {{/request_message}}
+                            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse; margin:0 0 20px;">
+                                <tr>
+                                    <td colspan="2" style="padding:10px 12px; background:#0f766e; color:#ffffff; font-weight:bold; font-size:14px;">Request Details</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding:10px 12px; border:1px solid #e5e7eb; width:40%; background:#f9fafb;"><strong>Document Type</strong></td>
+                                    <td style="padding:10px 12px; border:1px solid #e5e7eb;">{{kyc_type_name}}</td>
+                                </tr>
+                                {{#due_date}}
+                                <tr>
+                                    <td style="padding:10px 12px; border:1px solid #e5e7eb; background:#f9fafb;"><strong>Due Date</strong></td>
+                                    <td style="padding:10px 12px; border:1px solid #e5e7eb;">{{.}}</td>
+                                </tr>
+                                {{/due_date}}
+                            </table>
+                            <p style="margin:0 0 20px; font-size:14px; line-height:1.6; color:#374151;">
+                                Please submit the required documents at your earliest convenience.
+                            </p>
+                            <p style="text-align:center; margin:24px 0;">
+                                <a href="{{submission_url}}" style="background-color:#0f766e; color:#ffffff; padding:14px 28px; text-decoration:none; border-radius:6px; font-weight:bold; display:inline-block;">Submit Documents Now</a>
+                            </p>
+                            <p style="margin:0; font-size:13px; color:#6b7280;">{{company_signature}}</p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="background:#f9fafb; border-top:1px solid #e5e7eb; padding:20px 28px; text-align:center;">
+                            <div style="font-size:12px; color:#6b7280;">
+                                &copy; {{current_year}} {{company_name}}. All rights reserved.
+                            </div>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

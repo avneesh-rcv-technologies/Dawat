@@ -1,0 +1,41 @@
+<?php
+
+use Illuminate\Support\Facades\Route;
+use Modules\Acl\Http\Controllers\{{guardStudly}}\{{guardStudly}}AuthController;
+
+/*
+|--------------------------------------------------------------------------
+| {{guardStudly}} Authentication Routes
+|--------------------------------------------------------------------------
+*/
+
+Route::middleware('web')->group(function () {
+    Route::prefix(config('acl::guards.guards.{{guard}}.prefix'))
+        ->name(config('acl::guards.guards.{{guard}}.prefix') . '.')
+        ->group(function () {
+
+        Route::middleware('guest:{{guard}}')->group(function () {
+            Route::get('/login', [{{guardStudly}}AuthController::class, 'showLoginForm'])->name('login.form');
+            Route::get('/register', [{{guardStudly}}AuthController::class, 'showRegisterForm'])->name('register.form');
+            Route::get('/forgot-password', [{{guardStudly}}AuthController::class, 'showForgotPasswordForm'])->name('password.request');
+            Route::get('/reset-password/{token}', [{{guardStudly}}AuthController::class, 'showResetPasswordForm'])->name('password.reset');
+        });
+
+        // API routes delegated to ACL Module (handles authentication logic)
+        Route::post('/login', [{{guardStudly}}AuthController::class, 'login'])->name('login');
+        Route::post('/register', [{{guardStudly}}AuthController::class, 'register'])->name('register');
+        Route::post('/logout', [{{guardStudly}}AuthController::class, 'logout'])->name('logout');
+        Route::post('/forgot-password', [{{guardStudly}}AuthController::class, 'sendResetLinkEmail'])->name('password.email');
+        Route::post('/reset-password', [{{guardStudly}}AuthController::class, 'resetPassword'])->name('password.update');
+    });
+    
+    Route::middleware(['web','check.permission'])->group(function () {
+        // Example protected routes:
+        // Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard.index');
+        // Route::resource('users', User{{guardStudly}}Controller::class);
+        // Route::post('/users/toggle-status', [User{{guardStudly}}Controller::class, 'toggleStatus'])->name('users.toggle-status');
+        // Route::post('/users/bulk-delete', [User{{guardStudly}}Controller::class, 'bulkDelete'])->name('users.bulk-delete');
+        // Route::get('profile', [ProfileController::class, 'edit'])->name('profile.edit');
+        // Route::put('profile', [ProfileController::class, 'update'])->name('profile.update');
+    });
+});

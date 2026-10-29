@@ -1,0 +1,12 @@
+{
+    "name": "Website",
+    "version": "1.0.0",
+    "enabled": true,
+    "last_enabled_at": "2026-10-27T05:31:06+00:00",
+    "last_disabled_at": null,
+    "applied_migrations": [],
+    "failed_migrations": [],
+    "dependencies": [],
+    "dependents": [],
+    "config": []
+}

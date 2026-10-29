@@ -1,0 +1,12 @@
+{
+    "name": "Activitylog",
+    "version": "1.0.0",
+    "enabled": true,
+    "last_enabled_at": "2025-09-12T06:13:28+00:00",
+    "last_disabled_at": null,
+    "applied_migrations": [],
+    "failed_migrations": [],
+    "dependencies": [],
+    "dependents": [],
+    "config": []
+}

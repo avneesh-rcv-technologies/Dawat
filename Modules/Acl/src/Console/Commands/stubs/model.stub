@@ -1,0 +1,48 @@
+<?php
+
+namespace Modules\Acl\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Notifications\Notifiable;
+use Laravel\Sanctum\HasApiTokens;
+
+class {{modelName}} extends Authenticatable
+{
+    use HasApiTokens, HasFactory, Notifiable;
+
+    protected $table = '{{tableName}}';
+    
+    protected $fillable = [
+        'name',
+        'email',
+        'password',
+        'status',
+        'role_id'
+    ];
+
+    protected $hidden = [
+        'password',
+        'remember_token',
+    ];
+
+    protected $casts = [
+        'email_verified_at' => 'datetime',
+        'password' => 'hashed',
+    ];
+
+    public function role()
+    {
+        return $this->belongsTo(Role::class, 'role_id', 'id')
+            ->where('guard', '{{guard}}' ?? 'web');
+    }
+
+    public function hasPermission(string $permission): bool
+    {
+        if ($this->role && $this->role->permission_type === 'all') {
+            return true;
+        }
+
+        return in_array($permission, $this->role->permissions ?? []);
+    }
+}

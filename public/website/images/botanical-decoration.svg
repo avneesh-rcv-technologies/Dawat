@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 380 518" fill="none">
+  <g transform="rotate(45 190 259)" stroke="#FFFFFF" stroke-opacity="0.2" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round">
+    <!-- The two Figma 45-degree rotations render this stem vertically. -->
+    <path d="M18 85C112 82 239 86 370 83"/>
+
+    <!-- Leaves grow on both sides of the main stem. -->
+    <path d="M38 84C20 68 14 49 20 28c17 10 25 27 23 48"/>
+    <path d="M42 83C55 64 73 55 95 56c-8 19-23 31-45 34"/>
+    <path d="M78 83C61 65 56 45 64 24c16 11 23 29 19 49"/>
+    <path d="M82 82C98 64 117 57 139 60c-10 18-27 29-49 29"/>
+    <path d="M119 83C104 64 101 44 111 24c14 13 19 31 13 50"/>
+    <path d="M123 83C141 67 161 62 182 68c-12 17-29 26-51 24"/>
+    <path d="M160 84C147 64 147 44 159 25c13 14 16 33 8 51"/>
+    <path d="M164 84C184 70 204 68 225 76c-14 15-32 22-53 17"/>
+    <path d="M201 84C190 64 192 44 206 27c11 15 12 34 2 51"/>
+    <path d="M205 84C226 72 247 72 267 82c-15 14-34 19-54 12"/>
+    <path d="M242 84C233 64 237 45 253 29c9 16 8 35-4 51"/>
+    <path d="M246 84C268 74 289 76 308 88c-17 12-36 15-55 6"/>
+    <path d="M283 84C276 64 282 46 300 32c7 17 4 35-10 50"/>
+    <path d="M287 84C310 77 331 81 348 95c-18 10-37 11-55 0"/>
+    <path d="M323 84C319 65 327 48 347 37c4 17-1 35-17 47"/>
+
+    <!-- The smaller spreading sprig near the lower end of the stem. -->
+    <path d="M218 84C217 67 212 48 204 29"/>
+    <path d="M216 70C202 66 191 57 185 43c15-1 27 6 34 19"/>
+    <path d="M213 61C224 48 239 42 256 44c-7 14-19 22-35 23"/>
+    <path d="M209 51C194 48 183 40 176 26c15-2 28 4 36 17"/>
+    <path d="M206 43C218 31 234 26 250 30c-8 13-21 19-37 18"/>
+  </g>
+</svg>

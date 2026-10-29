@@ -1,0 +1,12 @@
+{
+    "name": "MobileConfiguration",
+    "version": "1.0.0",
+    "enabled": true,
+    "last_enabled_at": "2026-03-06T11:50:25+05:30",
+    "last_disabled_at": null,
+    "applied_migrations": [],
+    "failed_migrations": [],
+    "dependencies": [],
+    "dependents": [],
+    "config": []
+}

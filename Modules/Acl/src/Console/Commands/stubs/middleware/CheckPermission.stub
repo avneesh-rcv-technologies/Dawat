@@ -1,0 +1,39 @@
+<?php
+
+namespace Modules\Acl\Http\Middleware;
+
+use Closure;
+use Illuminate\Support\Facades\Route;
+
+class {{guardStudly}}CheckPermission
+{
+    public function handle($request, Closure $next)
+    {
+        $user = auth()->guard('{{guard}}')->user();
+
+        if (!$user) {
+            return redirect()->route('{{guard}}.login');
+        }
+
+        if (!$user->status) {
+            auth('{{guard}}')->logout();
+            return redirect()->route('{{guard}}.login');
+        }
+
+        $role = $user->role;
+
+        if (!$role || ($role->permission_type !== 'all' && empty($role->permissions))) {
+            auth('{{guard}}')->logout();
+            session()->flash('error', 'Your account has no permissions assigned.');
+            return redirect()->route('{{guard}}.login');
+        }
+
+        $routeName = Route::currentRouteName();
+
+        if ($role->permission_type !== 'all' && !in_array($routeName, $role->permissions ?? [])) {
+            abort(403, 'Unauthorized route access');
+        }
+
+        return $next($request);
+    }
+}

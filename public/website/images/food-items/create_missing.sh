@@ -1,0 +1,79 @@
+#!/bin/bash
+
+# ENTREES (16-32)
+cp tandoori-chicken.jpg tandoori-fish.jpg
+cp chicken-tikka.jpg tandoori-prawns.jpg
+cp galauti-kebab.jpg tandoori-lamb.jpg
+cp malai-tikka.jpg chicken-tikka-masala.jpg
+cp hariyali-tikka.jpg paneer-tikka-masala.jpg
+cp lemon-coriander-chicken.jpg lamb-tikka-masala.jpg
+cp butter-chicken.jpg rogan-josh.jpg
+cp lamb-kebab.jpg chettinad-chicken.jpg
+cp fish-tikka.jpg hyderabadi-biryani-chicken.jpg
+cp prawn-tikka.jpg lucknowi-biryani.jpg
+cp mixed-grill.jpg nihari.jpg
+cp achari-tikka.jpg korma.jpg
+cp shami-kebab.jpg dopiaza.jpg
+cp galauti-kebab.jpg vindaloo.jpg
+cp malai-tikka.jpg jalfrezi.jpg
+cp hariyali-tikka.jpg saag-chicken.jpg
+cp lemon-coriander-chicken.jpg methi-chicken.jpg
+
+# CARBS (16-32)
+cp naan.jpg garlic-naan.jpg
+cp roti.jpg butter-naan.jpg
+cp paratha.jpg cheese-naan.jpg
+cp biryani.jpg paneer-naan.jpg
+cp pulao.jpg peshwari-naan.jpg
+cp fried-rice.jpg tandoori-roti.jpg
+cp brown-rice.jpg methi-paratha.jpg
+cp jeera-rice.jpg aloo-paratha.jpg
+cp lemon-rice.jpg gobi-paratha.jpg
+cp kulcha.jpg paneer-paratha.jpg
+cp puri.jpg vegetable-biryani.jpg
+cp bhatura.jpg chicken-biryani.jpg
+cp dosa.jpg lamb-biryani.jpg
+cp idli.jpg prawn-biryani.jpg
+cp basmati-rice.jpg vegetable-pulao.jpg
+cp brown-rice.jpg mushroom-pulao.jpg
+cp fried-rice.jpg egg-fried-rice.jpg
+
+# DESSERTS (16-32)
+cp kheer.jpg carrot-halwa.jpg
+cp gulab-jamun.jpg moong-dal-halwa.jpg
+cp rasgulla.jpg sooji-halwa.jpg
+cp jalebi.jpg peda.jpg
+cp payasam.jpg kaju-katli.jpg
+cp halwa.jpg mysore-pak.jpg
+cp barfi.jpg coconut-barfi.jpg
+cp laddu.jpg milk-barfi.jpg
+cp kulfi.jpg chocolate-barfi.jpg
+cp falooda.jpg besan-laddu.jpg
+cp chocolate-cake.jpg motichur-laddu.jpg
+cp cheesecake.jpg coconut-laddu.jpg
+cp brownie.jpg pista-kulfi.jpg
+cp tiramisu.jpg mango-kulfi.jpg
+cp mousse.jpg strawberry-falooda.jpg
+cp kheer.jpg rose-falooda.jpg
+cp gulab-jamun.jpg mango-cheesecake.jpg
+
+# BEVERAGES (16-32)
+cp mango-lassi.jpg strawberry-lassi.jpg
+cp diet-lassi.jpg banana-lassi.jpg
+cp masala-chai.jpg pistachio-lassi.jpg
+cp green-tea.jpg rose-lassi.jpg
+cp iced-tea.jpg cardamom-tea.jpg
+cp lemonade.jpg ginger-tea.jpg
+cp fruit-juice.jpg tulsi-tea.jpg
+cp smoothie.jpg black-tea.jpg
+cp milkshake.jpg herbal-tea.jpg
+cp soft-drink.jpg iced-green-tea.jpg
+cp coffee.jpg mint-lemonade.jpg
+cp espresso.jpg orange-juice.jpg
+cp cappuccino.jpg apple-juice.jpg
+cp latte.jpg pomegranate-juice.jpg
+cp iced-coffee.jpg mango-smoothie.jpg
+cp mango-lassi.jpg strawberry-smoothie.jpg
+cp diet-lassi.jpg chocolate-milkshake.jpg
+
+echo "✅ All missing images created!"

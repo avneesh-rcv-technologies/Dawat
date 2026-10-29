@@ -1,0 +1,12 @@
+{
+    "name": "KYC",
+    "version": "1.0.0",
+    "enabled": true,
+    "last_enabled_at": "2026-09-25T15:46:58+05:30",
+    "last_disabled_at": "2026-09-25T15:46:12+05:30",
+    "applied_migrations": [],
+    "failed_migrations": [],
+    "dependencies": [],
+    "dependents": [],
+    "config": []
+}
