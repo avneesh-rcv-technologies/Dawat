@@ -280,7 +280,7 @@
         <div class="text-center max-w-[960px] mx-auto mb-7 md:mb-14">
             <h2 data-aos="fade-down" class="font-newyork font-normal text-white leading-[123.4%] mb-4"
                 style="font-size: clamp(24px, 3.8vw, 48px);">
-                Restaurants in <br> York City and Long Island
+                Restaurants in <br> New York City and Long Island
             </h2>
             <p data-aos="fade-up" data-aos-delay="150" class="font-urbanist font-light text-[10px] md:text-[16px] text-white leading-[143.4%] max-w-[960px] mx-auto">
                 Discover great restaurants and find your next favourite meal with Dawat.
