@@ -1,0 +1,247 @@
+name: Dawat Eats - Laravel CI/CD
+
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+
+permissions:
+  contents: read
+
+
+concurrency:
+  group: dawat-production-deployment
+  cancel-in-progress: false
+
+
+jobs:
+
+
+  # =====================================
+  # STAGE 1: BUILD
+  # =====================================
+
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+
+    steps:
+      - name: Checkout main branch
+        uses: actions/checkout@v4
+
+
+      - name: Setup PHP 8.2
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, bcmath, curl, gd, intl, pdo_mysql, xml, zip, fileinfo, sodium
+          tools: composer
+
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+
+      - name: Validate Composer
+        run: composer validate --no-check-publish
+
+
+      - name: Validate deployment script
+        run: bash -n deploy.sh
+
+
+      - name: Install PHP dependencies
+        run: |
+          composer install \
+            --no-dev \
+            --no-interaction \
+            --prefer-dist \
+            --optimize-autoloader \
+            --no-progress
+
+
+      - name: Verify PHP platform requirements
+        run: composer check-platform-reqs --no-dev
+
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+
+      - name: Build frontend assets
+        run: npm run build
+
+
+      - name: Verify frontend build
+        run: test -f public/build/manifest.json
+
+
+      - name: Create deployment archive
+        run: |
+          tar -czf laravel-release.tar.gz \
+            --exclude='./.git' \
+            --exclude='./.env' \
+            --exclude='./storage' \
+            --exclude='./public/storage' \
+            --exclude='./node_modules' \
+            --exclude='./deploy.sh' \
+            --exclude='./.github' \
+            --exclude='./.htaccess' \
+            --exclude='./.htaccess.backup' \
+            .
+
+
+      - name: Upload deployment artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dawat-release
+          path: |
+            laravel-release.tar.gz
+            deploy.sh
+          if-no-files-found: error
+          retention-days: 2
+
+
+  # =====================================
+  # STAGE 2: PUSH
+  # =====================================
+
+
+  push:
+    name: Push to Hostinger
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: dawat-release
+          path: dist
+
+
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          set -e
+
+
+          : "${SSH_PRIVATE_KEY:?Missing SSH_PRIVATE_KEY secret}"
+          : "${SSH_KNOWN_HOSTS:?Missing SSH_KNOWN_HOSTS secret}"
+
+
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+
+      - name: Upload application and deployment script
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+        run: |
+          set -e
+
+
+          : "${SSH_HOST:?Missing SSH_HOST secret}"
+          : "${SSH_PORT:?Missing SSH_PORT secret}"
+          : "${SSH_USER:?Missing SSH_USER secret}"
+
+
+          scp \
+            -o StrictHostKeyChecking=yes \
+            -o IdentitiesOnly=yes \
+            -i ~/.ssh/deploy_key \
+            -P "$SSH_PORT" \
+            dist/laravel-release.tar.gz \
+            "$SSH_USER@$SSH_HOST:~/dawat-release.tar.gz"
+
+
+          scp \
+            -o StrictHostKeyChecking=yes \
+            -o IdentitiesOnly=yes \
+            -i ~/.ssh/deploy_key \
+            -P "$SSH_PORT" \
+            dist/deploy.sh \
+            "$SSH_USER@$SSH_HOST:~/deploy.sh"
+
+
+  # =====================================
+  # STAGE 3: DEPLOY
+  # =====================================
+
+
+  deploy:
+    name: Deploy to Production
+    needs: push
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+
+    steps:
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          set -e
+
+
+          : "${SSH_PRIVATE_KEY:?Missing SSH_PRIVATE_KEY secret}"
+          : "${SSH_KNOWN_HOSTS:?Missing SSH_KNOWN_HOSTS secret}"
+
+
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+
+      - name: Execute deployment
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+        run: |
+          set -e
+
+
+          : "${SSH_HOST:?Missing SSH_HOST secret}"
+          : "${SSH_PORT:?Missing SSH_PORT secret}"
+          : "${SSH_USER:?Missing SSH_USER secret}"
+
+
+          ssh \
+            -o StrictHostKeyChecking=yes \
+            -o IdentitiesOnly=yes \
+            -i ~/.ssh/deploy_key \
+            -p "$SSH_PORT" \
+            "$SSH_USER@$SSH_HOST" \
+            "bash ~/deploy.sh ~/dawat-release.tar.gz"
