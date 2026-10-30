@@ -117,9 +117,6 @@
             "pestphp/pest-plugin": true,
             "php-http/discovery": true,
             "tbachert/spi": true
-        },
-        "platform": {
-            "php": "8.2.35"
         }
     },
     "minimum-stability": "stable",
