@@ -1,0 +1,69 @@
+name: Dawat Eats - Laravel CI/CD
+
+
+on:
+  push:
+    branches:
+      - main
+
+
+  workflow_dispatch:
+
+
+permissions:
+  contents: read
+
+
+concurrency:
+  group: dawat-production-deployment
+  cancel-in-progress: false
+
+
+jobs:
+
+
+  deploy:
+    name: Deploy to Hostinger
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+
+    steps:
+
+
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          set -e
+
+
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+
+      - name: Execute deployment
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+        run: |
+          set -e
+
+
+          ssh \
+            -o StrictHostKeyChecking=yes \
+            -o IdentitiesOnly=yes \
+            -i ~/.ssh/deploy_key \
+            -p "$SSH_PORT" \
+            "$SSH_USER@$SSH_HOST" \
+            "bash ~/deploy.sh"
