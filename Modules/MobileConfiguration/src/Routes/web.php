@@ -16,8 +16,7 @@ use Modules\MobileConfiguration\Http\Controllers\Banner\BannersController;
 */
 
 Route::middleware('web')->group(function () {
-    foreach (array_column(config('acl::guards.guards'), 'prefix') as $prefix) {
-        Route::middleware(['check.permission'])->prefix($prefix)->group(function () {
+    Route::middleware(['check.permission'])->prefix(config('acl::guards.guards.admin.prefix', 'admin'))->group(function () {
 
         Route::prefix('mobile-configuration')->name('mobileconfiguration.')->group(function () {
 
@@ -68,5 +67,4 @@ Route::middleware('web')->group(function () {
             Route::post('homepage-layouts/{homepageLayout}/set-default', [\Modules\MobileConfiguration\Http\Controllers\HomepageLayout\HomepageLayoutsController::class, 'setAsDefault'])->name('homepage-layouts.set-default');
         });
     });
-    }
-}); 
+});

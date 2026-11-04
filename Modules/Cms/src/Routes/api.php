@@ -14,6 +14,6 @@ use Modules\Cms\Http\Controllers\Api\PageApiController;
 |
 */
 
-Route::prefix('cms')->name('cms.')->group(function () {
+Route::prefix('cms')->name('api.cms.')->group(function () {
     Route::get('pages/{slug}', [PageApiController::class, 'show'])->name('pages.show');
 });

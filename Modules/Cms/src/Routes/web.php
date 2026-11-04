@@ -16,20 +16,18 @@ use Modules\Cms\Http\Controllers\Page\PagesController;
 */
 
 Route::middleware('web')->group(function () {
-    foreach (array_column(config('acl::guards.guards'), 'prefix') as $prefix) {
-        Route::middleware(['check.permission'])->prefix($prefix)->group(function () {
-            Route::prefix('cms')->name('cms.')->group(function () {
-                
-                /*
-                |--------------------------------------------------------------------------
-                | CMS Pages
-                |--------------------------------------------------------------------------
-                */
-                Route::resource('pages', PagesController::class);
-                Route::post('pages/bulk-delete', [PagesController::class, 'bulkDelete'])->name('pages.bulk-delete');
-                Route::post('pages/toggle-status', [PagesController::class, 'toggleStatus'])->name('pages.toggle-status');
-                
-            });
+    Route::middleware(['check.permission'])->prefix(config('acl::guards.guards.admin.prefix', 'admin'))->group(function () {
+        Route::prefix('cms')->name('cms.')->group(function () {
+
+            /*
+            |--------------------------------------------------------------------------
+            | CMS Pages
+            |--------------------------------------------------------------------------
+            */
+            Route::resource('pages', PagesController::class);
+            Route::post('pages/bulk-delete', [PagesController::class, 'bulkDelete'])->name('pages.bulk-delete');
+            Route::post('pages/toggle-status', [PagesController::class, 'toggleStatus'])->name('pages.toggle-status');
+
         });
-    }
-}); 
+    });
+});

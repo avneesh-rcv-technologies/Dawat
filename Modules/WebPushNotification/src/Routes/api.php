@@ -19,7 +19,7 @@ Route::prefix('api/firebase')->middleware('web')->name('api.firebase.')->group(f
     Route::post('unsubscribe', [HomeController::class, 'unsubscribe'])->name('unsubscribe');
 });
 
-Route::prefix('api/app/firebase')->name('api.firebase.')->group(function () {
+Route::prefix('api/app/firebase')->name('api.app.firebase.')->group(function () {
     Route::post('subscribe', [HomeController::class, 'subscribe'])->name('subscribe');
     Route::post('unsubscribe', [HomeController::class, 'unsubscribe'])->name('unsubscribe');
 });
