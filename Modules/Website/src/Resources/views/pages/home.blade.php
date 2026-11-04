@@ -133,7 +133,7 @@
                 {{-- 1. Breakfast --}}
                 @include('website::components.category-chip', [
                     'title' => 'Breakfast',
-                    'subtitle' => 'Lorem Ipsum is simply dummy text',
+                    'subtitle' => 'The most important meal of the day, fresh.',
                     'image' => asset('website/images/Frames/7e71ba0e8dfe7cabd816d0b74f7d9d39a1e09712.png'),
                     'alt' => 'Breakfast Plate',
                     'delay' => 0
@@ -142,7 +142,7 @@
                 {{-- 2. Mexican --}}
                 @include('website::components.category-chip', [
                     'title' => 'Mexican',
-                    'subtitle' => 'Lorem Ipsum is simply dummy text',
+                    'subtitle' => 'Mexican cuisine that pops with spice and life.',
                     'image' => asset('website/images/Frames/eca1011c9ab7e87855b5231f7c8f5c44a60fe8e0.png'),
                     'alt' => 'Mexican Taco Pizza',
                     'delay' => 100
@@ -151,7 +151,7 @@
                 {{-- 3. Sandwiches --}}
                 @include('website::components.category-chip', [
                     'title' => 'Sandwiches',
-                    'subtitle' => 'Lorem Ipsum is simply dummy text',
+                    'subtitle' => 'Everything from BLT to the classic Philly Cheesesteak.',
                     'image' => asset('website/images/Frames/09f5c0334805df864a95c3fbd49314ca3d5bdf7f.png'),
                     'alt' => 'Artisan Sandwiches',
                     'delay' => 200
@@ -160,7 +160,7 @@
                 {{-- 4. Gluten-free --}}
                 @include('website::components.category-chip', [
                     'title' => 'Gluten-free',
-                    'subtitle' => 'Lorem Ipsum is simply dummy text',
+                    'subtitle' => 'Satisfy your cravings, guilt-free.',
                     'image' => asset('website/images/Frames/c7f3505b4dd05596862621bb8aac977b1d93d17a.png'),
                     'alt' => 'Gluten Free Bowl',
                     'delay' => 300
@@ -169,7 +169,7 @@
                 {{-- 5. Individual --}}
                 @include('website::components.category-chip', [
                     'title' => 'Individual',
-                    'subtitle' => 'Lorem Ipsum is simply dummy text',
+                    'subtitle' => 'Customize your own order according to your will.',
                     'image' => asset('website/images/Frames/da12cbdd41962b8137096d6f6e60746a9c586f60.png'),
                     'alt' => 'Individual Platter',
                     'delay' => 400
