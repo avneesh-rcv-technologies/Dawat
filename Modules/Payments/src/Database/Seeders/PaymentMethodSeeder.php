@@ -1,7 +1,5 @@
 <?php
-
-// database/seeders/PaymentMethodSeeder.php
-namespace Database\Seeders;
+namespace Modules\Payments\Database\Seeders;
 
 use Illuminate\Database\Seeder;
 use Modules\Payment\Models\PaymentMethod;
