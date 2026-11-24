@@ -4,86 +4,54 @@ namespace Modules\Orders\Database\Seeders;
 
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
+use Modules\Orders\Enums\OrderStatus;
+use Modules\Orders\Models\Order;
+use Modules\Orders\Models\Status;
+use Modules\Orders\Services\OrderCacheService;
 
 class StatusesTableSeeder extends Seeder
 {
     /**
-     * Run the database seeds.
+     * Canonical definitions shared by fresh installs and existing installations.
      */
+    public static function statuses(): array
+    {
+        return array_map(fn (array $definition) => [
+            'type_code' => 'O',
+            'status_code' => $definition[0],
+            'name' => $definition[1]->label(),
+            'color' => $definition[2],
+            'new' => $definition[0] === Order::STATUS_NEW,
+        ], [
+            [Order::STATUS_NEW, OrderStatus::RECEIVED, '#2563EB'],
+            [Order::STATUS_PENDING, OrderStatus::PENDING, '#D97706'],
+            [Order::STATUS_ACCEPTED, OrderStatus::CONFIRMED, '#0284C7'],
+            [Order::STATUS_PROCESSING, OrderStatus::PREPARING, '#7C3AED'],
+            [Order::STATUS_READY, OrderStatus::READY, '#059669'],
+            [Order::STATUS_OUT_FOR_DELIVERY, OrderStatus::OUT_FOR_DELIVERY, '#0891B2'],
+            [Order::STATUS_DELIVERED, OrderStatus::DELIVERED, '#16A34A'],
+            [Order::STATUS_CANCELLED, OrderStatus::CANCELLED, '#DC2626'],
+            [Order::STATUS_FAILED, OrderStatus::FAILED, '#B91C1C'],
+        ]);
+    }
+
     public function run(): void
     {
-        $statuses = [
-            [
-                'type_code' => 'O',
-                'status_code' => 'O',
-                'name' => 'New',
-                'color' => 'blue',
-                'new' => 1
-            ],
-            [
-                'type_code' => 'O',
-                'status_code' => 'N',
-                'name' => 'Incomplete',
-                'color' => 'yellow',
-                'new' => 0
-            ],
-            [
-                'type_code' => 'O',
-                'status_code' => 'P',
-                'name' => 'Pending',
-                'color' => 'red',
-                'new' => 0
-            ],
-            [
-                'type_code' => 'O',
-                'status_code' => 'H',
-                'name' => 'Processing',
-                'color' => 'yellow',
-                'new' => 0
-            ],
-            [
-                'type_code' => 'O',
-                'status_code' => 'Z',
-                'name' => 'Completed',
-                'color' => 'green',
-                'new' => 0
-            ],
-            [
-                'type_code' => 'O',
-                'status_code' => 'F',
-                'name' => 'Failed',
-                'color' => 'red',
-                'new' => 0
-            ],
-            [
-                'type_code' => 'O',
-                'status_code' => 'R',
-                'name' => 'Refunded',
-                'color' => 'purple',
-                'new' => 0
-            ],
-            [
-                'type_code' => 'O',
-                'status_code' => 'C',
-                'name' => 'Cancelled',
-                'color' => 'red',
-                'new' => 0
-            ],
-        ];
+        DB::transaction(function () {
+            foreach (self::statuses() as $status) {
+                Status::updateOrCreate([
+                    'type_code' => $status['type_code'],
+                    'status_code' => $status['status_code'],
+                ], [
+                    'name' => $status['name'],
+                    'color' => $status['color'],
+                    'new' => $status['new'],
+                ]);
+            }
+        });
 
-        // Add timestamps
-        $now = now();
-        foreach ($statuses as &$status) {
-            $status['created_at'] = $now;
-            $status['updated_at'] = $now;
-        }
+        app(OrderCacheService::class)->forgetOrderStatuses('O');
 
-        DB::table('statuses')->upsert(
-            $statuses,
-            ['type_code', 'status_code'], // Unique keys
-            ['name', 'color', 'new', 'updated_at'] // Columns to update
-        );
-
-        $this->command->info('Order statuses seeded successfully!');
+        $this->command?->info('All '.count(self::statuses()).' order statuses refreshed successfully.');
     }
 }

@@ -12,7 +12,6 @@ class NotificationEvent extends Model
         'event_name',
         'event_description',
         'notification_class',
-        'status'
     ];
 
     public function mappings(): HasMany

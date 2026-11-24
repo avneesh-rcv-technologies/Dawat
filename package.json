@@ -3,8 +3,10 @@
     "private": true,
     "type": "module",
     "scripts": {
-        "build": "vite build",
+        "build": "vite build && npm run build:website",
         "dev": "vite",
+        "build:website": "vite build --config vite.website.config.js",
+        "dev:website": "vite --config vite.website.config.js",
         "build:backend": "vite build --config vite.backend.config.js",
         "dev:backend": "vite --config vite.backend.config.js"
     },

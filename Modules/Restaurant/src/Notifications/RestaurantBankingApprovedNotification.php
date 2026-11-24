@@ -9,7 +9,7 @@ class RestaurantBankingApprovedNotification extends RestaurantBankingSubmittedNo
     public function getVariables(): array
     {
         return array_merge(parent::getVariables(), [
-            'reviewed_at' => $this->data['reviewed_at'] ?? '',
+            'reviewed_at' => $this->data['reviewed_at'] ?? 'Not recorded',
             'rejection_reason' => e($this->data['rejection_reason'] ?? ''),
         ]);
     }

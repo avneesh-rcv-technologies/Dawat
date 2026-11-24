@@ -10,7 +10,7 @@
         let statesRequest, citiesRequest;
         const message = text => {
             error.textContent = text;
-            error.classList.toggle('hidden', !text);
+            error.hidden = true;
             if (text) window.onboardingToast?.(text, 'error');
         };
         const reset = (select, label) => {

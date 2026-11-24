@@ -11,7 +11,7 @@ class RestaurantApprovalAccess
         if (!$admin) return false;
         $roleName = strtolower(trim(preg_replace('/[_\-\s]+/', ' ', (string) $admin->role?->name)));
 
-        return (int) $admin->role_id === 2 || in_array($roleName, ['restaurant owner', 'restaurantowner'], true);
+        return app(RestaurantOwnerRoleResolver::class)->isOwner($admin) || in_array($roleName, ['restaurant owner', 'restaurantowner'], true);
     }
 
     public function scope($query, ?Admin $admin, string $column = 'admin_id')

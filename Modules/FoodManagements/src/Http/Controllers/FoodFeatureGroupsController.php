@@ -11,9 +11,13 @@ use Modules\FoodManagements\Models\FoodCategory;
 use Modules\FoodManagements\Models\FoodFeature;
 use Modules\FoodManagements\Services\FoodFeatureService;
 use Modules\Activitylog\Exceptions\ApiExceptionHandler;
+use Modules\Restaurant\Models\Restaurant;
+use Modules\FoodManagements\Http\Controllers\Concerns\ScopesFeaturesToOwner;
 
 class FoodFeatureGroupsController extends Controller
 {
+    use ScopesFeaturesToOwner;
+
     public function __construct(
         protected FoodFeatureService $service
     ) {}
@@ -33,13 +37,22 @@ class FoodFeatureGroupsController extends Controller
     public function store(Request $request)
     {
         try {
-            $validator = Validator::make($request->all(), $this->rules());
+            $ownerRestaurantId = $this->ownerRestaurantId();
+            $rules = $this->rules();
+            if (!$ownerRestaurantId) {
+                $rules['restaurant_id'] = 'required|integer|exists:restaurants,id';
+            }
+            $validator = Validator::make($request->all(), $rules, ['restaurant_id.required' => 'Choose the restaurant this feature group belongs to.']);
 
             if ($validator->fails()) {
                 return response()->json(['errors' => $validator->errors()], 422);
             }
 
-            $this->service->create(array_merge($request->all(), ['feature_type' => 'G', 'parent_id' => 0]));
+            $this->service->create(array_merge($request->all(), [
+                'feature_type' => 'G',
+                'parent_id' => 0,
+                'restaurant_id' => $ownerRestaurantId ?: (int) $request->input('restaurant_id'),
+            ]));
 
             return response()->json([
                 'success' => true,
@@ -54,8 +67,9 @@ class FoodFeatureGroupsController extends Controller
     public function edit(FoodFeature $group)
     {
         if ($group->feature_type !== 'G') abort(404);
+        $this->authorizeOwner($group);
 
-        $group->load(['description', 'categories']);
+        $group->load(['description', 'categories', 'restaurant']);
 
         return view('foodmanagements::food_features.groups.form', array_merge(
             $this->formLookups(),
@@ -67,6 +81,7 @@ class FoodFeatureGroupsController extends Controller
     {
         try {
             if ($group->feature_type !== 'G') abort(404);
+            $this->authorizeOwner($group);
 
             $validator = Validator::make($request->all(), $this->rules());
 
@@ -90,6 +105,7 @@ class FoodFeatureGroupsController extends Controller
     {
         try {
             if ($group->feature_type !== 'G') abort(404);
+            $this->authorizeOwner($group);
 
             $this->service->delete($group);
 
@@ -111,7 +127,7 @@ class FoodFeatureGroupsController extends Controller
                 'ids.*' => 'exists:food_features,feature_id',
             ]);
 
-            $this->service->bulkDelete($request->ids);
+            $this->service->bulkDelete($this->ownedIds($request->ids));
 
             if ($request->input('is_ajax')) {
                 return response()->json([
@@ -146,10 +162,14 @@ class FoodFeatureGroupsController extends Controller
 
     private function formLookups(): array
     {
+        $ownerRestaurantId = $this->ownerRestaurantId();
+
         return [
-            'group'         => null,
-            'statusOptions' => ['A' => 'Active', 'H' => 'Hidden', 'D' => 'Disabled'],
-            'categories'    => FoodCategory::orderBy('name')->get(),
+            'group'             => null,
+            'statusOptions'     => ['A' => 'Active', 'H' => 'Hidden', 'D' => 'Disabled'],
+            'categories'        => FoodCategory::when($ownerRestaurantId, fn ($q) => $q->where('restaurant_id', $ownerRestaurantId))->orderBy('name')->get(),
+            'ownerRestaurantId' => $ownerRestaurantId,
+            'restaurants'       => $ownerRestaurantId ? collect() : Restaurant::orderBy('name')->get(['id', 'name']),
         ];
     }
 }

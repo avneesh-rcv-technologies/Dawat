@@ -202,6 +202,34 @@ class RestaurantController extends Controller
     }
 
     /**
+     * Get the admin platform commission percentage.
+     * Default is always 10 if the setting is missing or invalid.
+     */
+    public function getCommissionPercentage()
+    {
+        $value = fn_get_setting('general.platform_commission_percentage', 10);
+
+        if ($value === null || $value === '' || !is_numeric($value)) {
+            $value = 10;
+        }
+
+        $percentage = round(max(0, min(100, (float) $value)), 2);
+
+        $displayLabel = sprintf('%s%% platform fee on each order', rtrim(rtrim(number_format($percentage, 2, '.', ''), '0'), '.'));
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Commission percentage fetched successfully.',
+            'data' => [
+                'commission_percentage' => $percentage,
+                'default_percentage' => 10,
+                'setting_key' => 'general.platform_commission_percentage',
+                'label_text' => $displayLabel,
+            ],
+        ]);
+    }
+
+    /**
      * Get today's opening hours for a restaurant
      */
     private function getTodayHours($restaurant): ?array

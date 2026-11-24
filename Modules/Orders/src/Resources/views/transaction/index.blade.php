@@ -169,8 +169,8 @@
 
     .trans-tab-btn.trans-tab-active {
         background-color: #EFF6FF;
-        color: #2563EB;
-        border-bottom-color: #2563EB;
+        color: #C2470A;
+        border-bottom-color: #FF6210;
     }
 </style>
 <script>

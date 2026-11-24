@@ -40,9 +40,39 @@ class Transaction extends Model
     const STATUS_FAILED = 'failed';
     const STATUS_REVERSED = 'reversed';
 
+    public function getPaymentUrlAttribute(): ?string
+    {
+        return \Modules\Stripe\Services\OrderPaymentLink::activeUrl(
+            $this->metadata, $this->type, $this->status,
+            $this->order?->status, $this->order?->payment_status
+        );
+    }
+
+    public function collector()
+    {
+        return $this->belongsTo(\Modules\Acl\Models\Admin::class, 'processed_by');
+    }
+
+    public function getCollectorLabelAttribute(): string
+    {
+        $metadata = $this->metadata ?? [];
+        $name = $metadata['collected_by_name'] ?? $this->collector?->name;
+        $email = $metadata['collected_by_email'] ?? $this->collector?->email;
+        if ($name && $email) return $name.' ('.$email.')';
+        return $name ?: ($email ?: 'Admin #'.($metadata['collected_by'] ?? $this->processed_by ?? 'unknown'));
+    }
+
     public function getDisplayNotesAttribute(): ?string
     {
         $notes = $this->notes;
+        if (($this->metadata['collection_type'] ?? null) === 'cash' && is_string($notes)) {
+            $collectorId = $this->metadata['collected_by'] ?? $this->processed_by;
+            if ($collectorId) {
+                $notes = str_replace('Cash collected manually by admin #'.$collectorId.'.',
+                    'Cash collected manually by '.$this->collector_label.'.', $notes);
+            }
+            return $notes;
+        }
         if ($this->type !== self::TYPE_PAYMENT || !is_string($notes)
             || !preg_match('/^Payment (?:completed|failed|pending|authorized|processing|unpaid|refunded|cancelled|partially refunded) via ([a-zA-Z0-9_-]+)$/D', trim($notes), $matches)) {
             return $notes;

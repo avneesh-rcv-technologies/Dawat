@@ -137,11 +137,16 @@
 
     @push('scripts')
     <script>
-        document.getElementById('status-select').addEventListener('change', function() {
+        document.getElementById('status-select').addEventListener('change', async function() {
             const status = this.value;
             const messageId = {{ $message->id }};
             
-            if (confirm('Are you sure you want to update the status to "' + status + '"?')) {
+            const confirmed = await appConfirm({
+                title: 'Update status to "' + this.options[this.selectedIndex].text + '"?',
+                message: 'The support request status will be changed.',
+                confirmText: 'Update status',
+            });
+            if (confirmed) {
                 fetch(`/support/${messageId}/status`, {
                     method: 'PUT',
                     headers: {
@@ -155,12 +160,12 @@
                     if (data.success) {
                         window.location.reload();
                     } else {
-                        alert('Failed to update status');
+                        appAlert(data.message || 'The status could not be updated.', { tone: 'error', title: 'Status not updated' });
                     }
                 })
                 .catch(error => {
                     console.error('Error:', error);
-                    alert('An error occurred');
+                    appAlert('Something went wrong while updating the status. Please try again.', { tone: 'error', title: 'Status not updated' });
                 });
             } else {
                 // Reset select to current status

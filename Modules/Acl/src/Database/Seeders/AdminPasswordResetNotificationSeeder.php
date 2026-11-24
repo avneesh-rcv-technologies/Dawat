@@ -19,18 +19,15 @@ class AdminPasswordResetNotificationSeeder extends Seeder
             'event_description' => 'Send an expiring password reset link to the requesting account owner.',
             'notification_class' => AdminPasswordResetNotification::class,
         ]);
-        $template = NotificationTemplate::firstOrCreate(['name' => AdminPasswordResetNotification::EVENT], [
-            'subject' => 'Reset your password - {{app_name}}',
-            'content' => <<<'HTML'
-<div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;background:#fff;color:#103647;padding:32px;">
-    <h1 style="margin:0 0 24px;">Reset your password</h1>
-    <p>Hello {{admin_name}},</p>
-    <p>We received a request to reset your {{app_name}} account password.</p>
-    <p><a href="{{reset_url}}" style="display:inline-block;background:#103647;color:#fff;padding:14px 24px;border-radius:8px;text-decoration:none;">Reset Password</a></p>
-    <p>This link expires in {{expire_minutes}} minutes and can be used only once.</p>
-    <p>If you did not request a password reset, you can ignore this email.</p>
-</div>
-HTML,
+        $template = NotificationTemplate::updateOrCreate(['name' => AdminPasswordResetNotification::EVENT, 'locale' => 'en'], [
+            'subject' => 'Reset your password — Dawat',
+            'content' => view('acl::emails.admin-password-reset', [
+                'accountName' => '{{admin_name}}',
+                'resetUrl' => '{{reset_url}}',
+                'expireMinutes' => '{{expire_minutes}}',
+                'supportUrl' => '{{support_url}}',
+                'currentYear' => '{{current_year}}',
+            ])->render(),
             'status' => true,
             'locale' => 'en',
         ]);

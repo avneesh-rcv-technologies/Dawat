@@ -97,31 +97,33 @@
     .sidebar-brand-logo { min-width: 0; width: 100%; }
     .sidebar-brand-logo img { max-width: 100%; width: 170px; height: 60px; object-fit: contain; object-position: left center; }
     .sidebar-brand-name { display: block; font-size: 23px; font-weight: 600; overflow-wrap: anywhere; }
-    .sidebar-brand-initial { display: none; width: 40px; height: 40px; place-items: center; font-size: 23px; font-family: Georgia, serif; background: #ffffff14; border: 1px solid #ffffff24; border-radius: 12px; }
+    .sidebar-brand-initial { display: none; width: 40px; height: 40px; place-items: center; font-size: 22px; font-weight: 700; color: #fff; background: var(--color-primary, #FF6210); border-radius: 12px; box-shadow: 0 0 24px rgba(255, 98, 16, .35); }
     .sidebar-navigation { min-height: 0; flex: 1; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; padding: 20px 12px; scrollbar-width: thin; scrollbar-color: #ffffff30 transparent; }
     .sidebar-section-label { margin: 0 12px 14px; color: #a3a8b0; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .14em; }
-    #sidebar .sidebar-nav-link { display: flex; align-items: center; gap: 11px; width: 100%; min-height: 44px; margin-bottom: 4px; padding: 10px 12px; border: 0; border-radius: 9px; background: transparent; color: #d4d7dd; text-align: left; text-decoration: none; font-size: 13px; font-weight: 500; line-height: 1.4; cursor: pointer; transition: background-color 150ms, color 150ms; }
-    #sidebar .sidebar-nav-link:hover { color: #fff; background: var(--sidebar-bg-hover, #272b32); }
-    #sidebar .sidebar-nav-link.active, #sidebar .has-active-child > .sidebar-nav-link { color: #fff; background: var(--sidebar-bg-active, #252a33); }
+    #sidebar .sidebar-nav-link { position: relative; display: flex; align-items: center; gap: 11px; width: 100%; min-height: 44px; margin-bottom: 4px; padding: 10px 12px; border: 0; border-radius: 9px; background: transparent; color: #d4d7dd; text-align: left; text-decoration: none; font-size: 13px; font-weight: 500; line-height: 1.4; cursor: pointer; transition: background-color 150ms, color 150ms; }
+    #sidebar .sidebar-nav-link:hover { color: #fff; background: var(--sidebar-bg-hover, #1c1c1c); }
+    #sidebar .sidebar-nav-link:hover .sidebar-nav-icon { color: var(--color-primary, #FF6210); }
+    #sidebar .sidebar-nav-link.active, #sidebar .has-active-child > .sidebar-nav-link { color: #fff; background: var(--sidebar-bg-active, rgba(255, 98, 16, .14)); }
+    #sidebar .sidebar-nav-link.active::before { content: ''; position: absolute; left: -12px; top: 9px; bottom: 9px; width: 3px; border-radius: 0 3px 3px 0; background: var(--color-primary, #FF6210); }
     .sidebar-link-label { flex: 1; min-width: 0; overflow-wrap: anywhere; }
     #sidebar .sidebar-nav-icon { font-size: 21px; width: 22px; flex-shrink: 0; text-align: center; color: #aeb5c0; }
-    #sidebar .active .sidebar-nav-icon, #sidebar .has-active-child > button .sidebar-nav-icon { color: #fff; }
+    #sidebar .active .sidebar-nav-icon, #sidebar .has-active-child > button .sidebar-nav-icon { color: var(--color-primary, #FF6210); }
     #sidebar .toggle-icon { margin-left: auto; font-size: 18px; transition: transform 150ms; }
     #sidebar .sidebar-toggle-btn[aria-expanded="true"] .toggle-icon { transform: rotate(90deg); }
     #sidebar .submenu { margin: 6px 0 12px 23px; padding-left: 13px; border-left: 1px solid #ffffff20; }
     .sidebar-child-link { display: flex; align-items: center; gap: 9px; padding: 10px; margin: 3px 0; border-radius: 7px; color: #b7bec9; font-size: 12px; line-height: 1.5; text-decoration: none; overflow-wrap: anywhere; }
-    .sidebar-child-link:hover { background: var(--sidebar-submenu-hover, #252a33); color: #fff; }
-    .sidebar-child-link.active { background: var(--sidebar-bg-active, #252a33); color: #fff; font-weight: 600; }
+    .sidebar-child-link:hover { background: var(--sidebar-submenu-hover, #1c1c1c); color: #fff; }
+    .sidebar-child-link.active { background: transparent; color: #FF8B4D; font-weight: 600; }
     .sidebar-child-dot { width: 4px; height: 4px; border-radius: 50%; background: currentColor; flex-shrink: 0; opacity: .7; }
-    .sidebar-child-link.active .sidebar-child-dot { background: #d3b48d; opacity: 1; }
+    .sidebar-child-link.active .sidebar-child-dot { width: 6px; height: 6px; background: var(--color-primary, #FF6210); box-shadow: 0 0 0 3px rgba(255, 98, 16, .2); opacity: 1; }
     .sidebar-footer { padding: 12px; border-top: 1px solid #ffffff14; flex-shrink: 0; }
     .sidebar-footer .sidebar-nav-link { margin-bottom: 0 !important; color: #b7bec9 !important; font-size: 12px !important; }
     .sidebar-footer .sidebar-mobile-logout .sidebar-nav-link { color: #fca5a5 !important; min-height: 44px; }
     .sidebar-mobile-logout .sidebar-nav-icon { color: inherit !important; }
     .sidebar-mobile-logout { margin: 0; padding-bottom: env(safe-area-inset-bottom); }
-    .sidebar-badge { margin-left: auto; padding: 2px 6px; border-radius: 5px; background: #ffffff20; font-size: 10px; }
+    .sidebar-badge { margin-left: auto; padding: 2px 7px; border-radius: 999px; background: var(--color-primary, #FF6210); color: #fff; font-size: 10px; font-weight: 700; }
     .sidebar-empty { color: #a3a8b0; padding: 12px; font-size: 12px; }
-    #sidebar :is(a, button):focus-visible, .sidebar-popover a:focus-visible { outline: 2px solid #d3b48d; outline-offset: -2px; }
+    #sidebar :is(a, button):focus-visible, .sidebar-popover a:focus-visible { outline: 2px solid var(--color-primary, #FF6210); outline-offset: -2px; }
     .sidebar-popover { position: fixed; width: 240px; max-width: calc(100vw - 24px); max-height: calc(100vh - 24px); overflow-y: auto; padding: 8px; background: var(--sidebar-submenu-bg, #161a21); color: var(--sidebar-submenu-text, #fff); border: 1px solid #ffffff20; border-radius: 12px; box-shadow: 0 16px 40px #0004; z-index: 1000; }
     .sidebar-popover-heading { margin: 0 0 6px; padding: 8px 10px 12px; border-bottom: 1px solid #ffffff14; font-size: 12px; font-weight: 600; }
     #sidebar-mobile-close { display: flex; flex-shrink: 0; align-items: center; justify-content: center; width: 44px; height: 44px; border: 0; border-radius: 8px; background: #ffffff14; color: #fff; cursor: pointer; }

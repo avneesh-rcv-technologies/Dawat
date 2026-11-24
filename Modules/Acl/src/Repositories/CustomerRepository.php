@@ -64,11 +64,21 @@ class CustomerRepository
         return Customer::whereIn('id', $ids)->update(['status' => $status]);
     }
 
-    public function getCustomerView(int $id)
+    /**
+     * @param int|null $restaurantId Restaurant owner: only a customer of that restaurant, with
+     *                               only that restaurant's orders loaded. Null = platform admin.
+     */
+    public function getCustomerView(int $id, ?int $restaurantId = null)
     {
-        return Customer::with(['addresses', 'orders'])
+        $scope = app(\Modules\Restaurant\Services\RestaurantDataScope::class);
+
+        $query = Customer::with([
+            'addresses',
+            'orders' => fn ($orders) => $scope->scopeOrders($orders, $restaurantId),
+        ])
             ->select('customers.*')
-            ->where('customers.id', $id)
-            ->firstOrFail();
+            ->where('customers.id', $id);
+
+        return $scope->scopeCustomers($query, $restaurantId)->firstOrFail();
     }
 }

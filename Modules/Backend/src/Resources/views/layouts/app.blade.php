@@ -4,14 +4,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script>
+        // Hide a saved panel before navigation and recheck authentication on restoration.
+        window.addEventListener('pagehide', () => {
+            document.documentElement.style.visibility = 'hidden';
+        });
+        window.addEventListener('pageshow', (event) => {
+            if (event.persisted) {
+                document.documentElement.style.visibility = 'hidden';
+                window.location.reload();
+            } else {
+                document.documentElement.style.visibility = '';
+            }
+        });
+    </script>
     <title>@yield('title', 'Dashboard')</title>
-    <link rel="icon" type="image/png"
-        href="{{ fn_get_setting('general.company.favicon') ? asset('storage/' . fn_get_setting('general.company.favicon')) : 'https://via.placeholder.com/60?text=+' }}">
+    @include('partials.favicon')
 
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>    
+    <script src="{{ asset('js/app-popup.js') }}?v={{ filemtime(public_path('js/app-popup.js')) }}" defer></script>
     @vite(['Modules/Backend/src/Resources/assets/css/app.css', 'Modules/Backend/src/Resources/assets/js/app.js', 'Modules/Backend/src/Resources/assets/js/toast.js', 'Modules/Backend/src/Resources/assets/css/toast.css'])
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@200..800&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Urbanist:wght@400;500;600;700;800&family=Manrope:wght@200..800&display=swap" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <!-- Alpine.js for notification bell -->
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
@@ -27,22 +43,22 @@
         }
 
         ::-webkit-scrollbar-track {
-            background: #e5e7eb;
+            background: #F2EEEA;
             border-radius: 5px;
         }
 
         ::-webkit-scrollbar-thumb {
-            background: #9ca3af;
+            background: #CFC6BE;
             border-radius: 5px;
         }
 
         ::-webkit-scrollbar-thumb:hover {
-            background: #6b7280;
+            background: #FF6210;
         }
 
         * {
             scrollbar-width: thin;
-            scrollbar-color: #9ca3af #e5e7eb;
+            scrollbar-color: #CFC6BE #F2EEEA;
         }
 
         .password-wrapper {
@@ -57,7 +73,7 @@
             display: flex;
             align-items: center;
             pointer-events: none;
-            color: #ABAFB1;
+            color: #A39E99;
         }
 
         .password-wrapper .left-icon {
@@ -74,23 +90,23 @@
     @hook('backend:links.post')
 </head>
 
-<body class="bg-[var(--color-bg)] text-[var(--color-text-gray)] font-sans">
+<body class="backend-layout bg-[var(--color-bg)] text-[var(--color-text-gray)] font-sans">
     @hook('backend:body.pre')
     <div id="toast-container" class="toast-container"></div>
 
-    <div class="flex h-screen overflow-hidden">
+    <div class="backend-shell flex overflow-hidden">
         <!-- Sidebar -->
         @include('backend::layouts.sidebar')
 
         <!-- Main Area -->
-        <div id="backend-main-layout" class="flex-1 flex flex-col overflow-hidden bg-topbar" style="min-width: 0;">
+        <div id="backend-main-layout" class="min-h-0 min-w-0 flex-1 flex flex-col overflow-hidden bg-topbar">
             <!-- Topbar -->
             @hook('backend:top_bar.pre')
             @include('backend::layouts.topbar')
 
             <!-- Main Content -->
-            <main class="flex-1 overflow-y-auto">
-                <div class="bg-white min-h-screen">
+            <main class="backend-content min-h-0 min-w-0 flex-1 overflow-y-auto bg-[var(--color-surface-page)]">
+                <div class="min-h-full">
                     <div data-testid="breadcrumb-links">
                         @yield('breadcrumbs')
                     </div>
@@ -107,6 +123,7 @@
     <x-delete-modal />
     <x-status-modal />
 
+    <script src="/js/tinymce/tinymce.min.js"></script>
     @hook('backend:scripts.pre')
     <script src="{{ asset('js/toast.js') }}"></script>
     
@@ -243,7 +260,6 @@
             });
         });
     </script>
-
     @hook('backend:scripts.post')
 
     @hook('backend:body.post')

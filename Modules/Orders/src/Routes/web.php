@@ -1,11 +1,11 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use Modules\Orders\Http\Controllers\Transaction;
 use Modules\Orders\Http\Controllers\HomeController;
+use Modules\Orders\Http\Controllers\OrderCommissionController;
 use Modules\Orders\Http\Controllers\OrderController;
-use Modules\Orders\Http\Controllers\Orders\Productlists;
 use Modules\Orders\Http\Controllers\Statuses\OrdersStatusController;
+use Modules\Orders\Http\Controllers\Transaction;
 
 /*
 |--------------------------------------------------------------------------
@@ -19,12 +19,14 @@ use Modules\Orders\Http\Controllers\Statuses\OrdersStatusController;
 */
 Route::prefix(config('core::prefix.admin'))->middleware('web')->name('admin.')->group(function () {
     Route::middleware(['check.permission'])->group(function () {
-        
+
         Route::get('orders/analytics', [OrderController::class, 'analytics'])->name('orders.analytics');
         Route::resource('orders', OrderController::class);
         Route::post('orders/bulk-delete', [OrderController::class, 'bulkDelete'])->name('orders.bulk-delete');
         Route::post('orders/toggle-status', [OrderController::class, 'updateStatus'])->name('orders.toggle-status');
         Route::post('orders/{order}/update-status', [OrderController::class, 'updateSingleStatus'])->name('orders.update-status');
+        Route::post('orders/{order}/payment-status', [OrderController::class, 'updatePaymentStatus'])
+            ->middleware('auth:admin')->name('orders.update-payment-status');
 
         // order edit
         Route::get('transactions/analytics', [Transaction::class, 'analytics'])->name('transactions.analytics');
@@ -33,19 +35,24 @@ Route::prefix(config('core::prefix.admin'))->middleware('web')->name('admin.')->
         Route::get('transactions/reload/{id}', [Transaction::class, 'reload'])->name('transactions.reload');
         Route::post('transactions/toggle-status', [Transaction::class, 'updateStatus'])->name('transactions.toggle-status');
 
-
         Route::resource('orders-statuses', OrdersStatusController::class);
 
         Route::get('/orders/{order}/view-attachment', [OrderController::class, 'viewAttachment'])->name('orders.view-attachment');
         Route::post('/orders/{order}/store-attachment', [OrderController::class, 'storeAttachment'])->name('orders.store-attachment');
         Route::delete('/attachments/{id}', [OrderController::class, 'deleteAttachment'])->name('attachments.destroy');
-        
+
         // Update attachment status
         Route::put('/orders/{order}/attachment', [OrderController::class, 'updateAttachmentStatus'])
             ->name('orders.attachment.update');
 
-        Route::post('orders/{order}/set-payment-method',[OrderController::class,'updateMethod'])->name('orders.setPaymentMethod');
+        Route::post('orders/{order}/set-payment-method', [OrderController::class, 'updateMethod'])->name('orders.setPaymentMethod');
 
     });
 });
-// HomeController will be generated automatically by the module generator 
+// HomeController will be generated automatically by the module generator
+Route::prefix(config('core::prefix.admin'))->middleware(['web', 'auth:admin'])
+    ->name('admin.order-commissions.')->controller(OrderCommissionController::class)->group(function () {
+        Route::get('order-commissions', 'index')->name('index');
+        Route::get('order-commissions/{id}', 'show')->whereNumber('id')->name('show');
+        Route::patch('order-commissions/{id}', 'update')->whereNumber('id')->middleware('throttle:30,1')->name('update');
+    });

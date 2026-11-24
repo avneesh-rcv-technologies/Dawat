@@ -28,7 +28,7 @@ Route::prefix('api/checkout')->middleware(['optional.customer.auth'])->name('api
     Route::get('payment-methods', [CheckoutController::class, 'getPaymentMethods'])->name('payment-methods');
     Route::post('set-payment-method', [CheckoutController::class, 'setPaymentMethod'])->name('set-payment-method');
 
-    // Step 5: Review Order
+    // Step 5: Review Order (?restaurant_id=1, optional payment_method configuration ID)
     Route::get('review-order', [CheckoutController::class, 'reviewOrder'])->name('review-order');
 
     // Step 6: Place Order

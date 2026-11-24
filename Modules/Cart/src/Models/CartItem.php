@@ -14,6 +14,9 @@ class CartItem extends Model
 
     protected $fillable = [
         'cart_id',
+        'delivery_fee',
+        'estimated_delivery_minutes',
+        'estimated_delivery_at',
         'item_type',
         'item_id',
         'quantity',
@@ -27,9 +30,28 @@ class CartItem extends Model
         'tax_breakdown',
         'selected_options',
         'special_instructions',
+        'serving_option_id',
+        'serve_type',
+        'serving_name',
+        'guest_count',
+        'subtotal',
+        'tax_amount',
+        'final_price',
+        'discount_price',
+        'display_title',
+        'display_subtitle',
+        'display_price_label',
+        'display_unit_label',
+        'display_unit_price_text',
+        'display_per_person_price',
+        'selected_option_snapshot',
+        'note',
     ];
 
     protected $casts = [
+        'delivery_fee' => 'decimal:2',
+        'estimated_delivery_minutes' => 'integer',
+        'estimated_delivery_at' => 'datetime',
         'quantity' => 'integer',
         'unit_price' => 'decimal:2',
         'unit_display_price' => 'decimal:2',
@@ -40,6 +62,14 @@ class CartItem extends Model
         'is_tax_inclusive' => 'boolean',
         'tax_breakdown' => 'array',
         'selected_options' => 'array',
+        'serving_option_id' => 'integer',
+        'guest_count' => 'integer',
+        'subtotal' => 'decimal:2',
+        'tax_amount' => 'decimal:2',
+        'final_price' => 'decimal:2',
+        'discount_price' => 'decimal:2',
+        'display_per_person_price' => 'decimal:2',
+        'selected_option_snapshot' => 'array',
     ];
 
     /* ================= Relations ================= */
@@ -55,6 +85,11 @@ class CartItem extends Model
     public function item(): MorphTo
     {
         return $this->morphTo();
+    }
+
+    public function servingOption(): BelongsTo
+    {
+        return $this->belongsTo(\Modules\FoodManagements\Models\FoodItemServingOption::class, 'serving_option_id');
     }
 
     /**

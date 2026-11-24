@@ -3,13 +3,15 @@
 namespace Modules\FoodManagements\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Modules\FoodManagements\Http\Requests\SaveFoodItemRequest;
 use Illuminate\Routing\Controller;
 use Modules\FoodManagements\Services\FoodItemService;
+use Modules\FoodManagements\Services\FoodImageUploadPolicy;
 use Modules\FoodManagements\DataView\FoodItemsGrid;
 use Modules\FoodManagements\Models\FoodCategory;
 use Modules\FoodManagements\Models\FoodTag;
 use Modules\FoodManagements\Models\FoodOptionGroup;
-use Modules\FoodManagements\Models\FoodFeature;
 use App\Services\CacheService;
 
 
@@ -52,7 +54,7 @@ class FoodItemController extends Controller
         $item = $foodItemId ? $this->service->getById($foodItemId) : null;
 
         if ($item) {
-            $item->load(['categories', 'tags', 'optionGroups.options', 'featureValues']);
+            $item->load(['categories', 'tags', 'optionGroups.options', 'featureValues', 'servingOptions']);
         }
 
         // Filter categories by restaurant ownership
@@ -69,7 +71,7 @@ class FoodItemController extends Controller
 
             if ($restaurant) {
                 // Restaurant admin: show only their categories
-                $categories = $categories->where('restaurant_id', $restaurant->id);
+                $categories = $categories->where('restaurant_id', $item?->restaurant_id ?? $restaurantId ?? $sessionRestaurantId ?? $restaurant->id);
             } elseif ($sessionRestaurantId) {
                 // Super admin editing from restaurant context
                 $categories = $categories->where('restaurant_id', $sessionRestaurantId);
@@ -82,17 +84,15 @@ class FoodItemController extends Controller
 
         $tags = FoodTag::all();
         $optionGroups = FoodOptionGroup::with('options')->get();
-        $featureGroups = FoodFeature::with([
-            'description',
-            'children.description',
-            'children.variants.description',
-        ])
-            ->where('feature_type', 'G')
-            ->orderBy('position')
-            ->get();
+        $certificateRestaurantId = $item?->restaurant_id ?? $restaurantId ?? $sessionRestaurantId ?? ($restaurant->id ?? null);
+
+        // Features are restaurant-owned: only the item's restaurant's features apply.
+        $featureGroups = app(\Modules\FoodManagements\Services\FoodFeatureService::class)
+            ->itemFeatureSections($certificateRestaurantId ? (int) $certificateRestaurantId : null);
+        $labelEligibility = app(\Modules\DietaryManagment\Services\LabelCertificateEligibility::class)->forRestaurant($certificateRestaurantId ? (int) $certificateRestaurantId : null);
 
         return view('foodmanagements::food_items.create', compact(
-            'foodItemId',
+            'foodItemId', 'certificateRestaurantId', 'labelEligibility',
             'item',
             'categories',
             'tags',
@@ -101,25 +101,11 @@ class FoodItemController extends Controller
         ));
     }
 
-    public function storeGeneral(Request $request)
+    public function storeGeneral(SaveFoodItemRequest $request)
     {
         $restaurantId = $request->input('restaurant_id') ?? session('food_item_restaurant_id');
 
-        $data = $request->validate([
-            'restaurant_id'     => 'nullable|exists:restaurants,id',
-            'name'             => 'required|string|max:255',
-            'sale_price'       => 'required|numeric|min:0',
-            'cost_price'       => 'nullable|numeric|min:0',
-            'list_price'       => 'nullable|numeric|min:0',
-            'in_stock'         => 'boolean',
-            'quantity_type'    => 'required|in:manual,grouping,piece',
-            'quantity'         => 'nullable|integer|min:0',
-            'description'      => 'nullable|string',
-            'long_description' => 'nullable|string',
-            'is_active'        => 'boolean',
-            'is_available'     => 'boolean',
-            'food_type'        => 'required|in:veg,non_veg',
-        ]);
+        $data = $request->validated();
 
         if ($restaurantId) {
             $data['restaurant_id'] = $restaurantId;
@@ -135,29 +121,15 @@ class FoodItemController extends Controller
             'id' => $foodItem->id,
             'restaurant_id' => $restaurantId,
             'from_restaurant' => $restaurantId ? 1 : null,
-        ])->with('tab', 'categories')
+        ])->with('tab', 'general')
             ->with('success', 'Food item saved successfully');
     }
 
-    public function updateGeneral(Request $request, int $id)
+    public function updateGeneral(SaveFoodItemRequest $request, int $id)
     {
         $restaurantId = $request->input('restaurant_id') ?? session('food_item_restaurant_id');
 
-        $data = $request->validate([
-            'restaurant_id'     => 'nullable|exists:restaurants,id',
-            'name'             => 'required|string|max:255',
-            'sale_price'       => 'required|numeric|min:0',
-            'cost_price'       => 'nullable|numeric|min:0',
-            'list_price'       => 'nullable|numeric|min:0',
-            'in_stock'         => 'boolean',
-            'quantity_type'    => 'required|in:manual,grouping,piece',
-            'quantity'         => 'nullable|integer|min:0',
-            'description'      => 'nullable|string',
-            'long_description' => 'nullable|string',
-            'is_active'        => 'boolean',
-            'is_available'     => 'boolean',
-            'food_type'        => 'required|in:veg,non_veg',
-        ]);
+        $data = $request->validated();
 
         if ($restaurantId) {
             $data['restaurant_id'] = $restaurantId;
@@ -173,7 +145,7 @@ class FoodItemController extends Controller
             'id' => $foodItem->id,
             'restaurant_id' => $restaurantId,
             'from_restaurant' => $restaurantId ? 1 : null,
-        ])->with('tab', 'categories')
+        ])->with('tab', 'general')
             ->with('success', 'Food item updated successfully');
     }
 
@@ -262,34 +234,8 @@ class FoodItemController extends Controller
 
     public function updateFeatures(Request $request, int $foodItemId)
     {
-        $foodItem = $this->service->getById($foodItemId);
-
-        // Delete all existing feature values for this food item
-        \Modules\FoodManagements\Models\FoodFeatureValue::where('food_item_id', $foodItemId)->delete();
-
-        $featureValues = $request->input('features', []);
-
-        foreach ($featureValues as $featureId => $data) {
-            if (empty($data)) continue;
-            $values = is_array($data) ? $data : [$data];
-
-            foreach ($values as $val) {
-                if ($val === null || $val === '') continue;
-
-                // Determine if val is a variant_id (numeric) or a plain value (text/number)
-                $isVariant = is_numeric($val) && \Modules\FoodManagements\Models\FoodFeatureVariant::where('variant_id', $val)
-                    ->where('feature_id', $featureId)
-                    ->exists();
-
-                \Modules\FoodManagements\Models\FoodFeatureValue::create([
-                    'feature_id'   => $featureId,
-                    'food_item_id' => $foodItemId,
-                    'variant_id'   => $isVariant ? $val : null,
-                    'value'        => $isVariant ? '' : (string) $val,
-                    'lang_code'    => 'en',
-                ]);
-            }
-        }
+        $this->service->getById($foodItemId);
+        $this->service->syncFeatures($foodItemId, (array) $request->input('features', []));
         CacheService::forgetFoodItem($foodItemId);
 
 
@@ -304,20 +250,13 @@ class FoodItemController extends Controller
     public function updateImages(Request $request, int $foodItemId)
     {
         $request->validate([
-            'food_image' => 'nullable|array',
-            'food_image.*' => 'file|image|mimes:jpg,jpeg,png|max:2048',
-        ], [
-            'food_image.*.file' => 'Each food item image must be a valid file.',
-            'food_image.*.image' => 'Each uploaded file must be an image.',
-            'food_image.*.mimes' => 'Each food item image must be a JPG, JPEG, or PNG file.',
-            'food_image.*.max' => 'Each food item image may not be larger than 2 MB.',
-        ]);
+            'food_image' => ['nullable', 'array', 'list', 'max:'.FoodImageUploadPolicy::MAX_IMAGES],
+            'food_image.*' => FoodImageUploadPolicy::fileRules(),
+        ], FoodImageUploadPolicy::messages('food_image'));
 
         $foodItem = $this->service->getById($foodItemId);
         if ($request->hasFile('food_image')) {
-            foreach ($request->file('food_image') as $index => $image) {
-                fn_upload_image($image, 'food_image', $foodItem->id, $index === 0);
-            }
+            $this->service->appendImages($foodItem, $request->file('food_image'));
         }
 
         // Check if we should redirect back to restaurant page
@@ -345,22 +284,32 @@ class FoodItemController extends Controller
     {
         $item = $this->service->getById($id);
 
-        // Detect restaurant context from referer or session
-        $restaurantId = session('food_item_restaurant_id');
+        $item->loadMissing([
+            'restaurant', 'servingOptions', 'featureValues.feature.description',
+            'featureValues.feature.parent.description', 'featureValues.variant.description',
+        ]);
+        // The item's actual restaurant is authoritative, regardless of URL or session context.
+        $restaurant = $item->restaurant;
+        $dietaryLabels = $item->dietary_label_ids
+            ? DB::table('dietary_labels')->whereIn('id', $item->dietary_label_ids)->orderBy('display_order')->get()
+            : collect();
+        $images = collect($item->images)->filter(fn ($image) => !empty($image['url'])
+            && !in_array($image['url'], ['/dawat.png', asset('dawat.png')], true))->values();
+        $featureGroups = $item->featureValues->filter(fn ($value) => $value->feature)
+            ->groupBy(fn ($value) => $value->feature->parent?->description?->name ?: 'Other features')
+            ->map(fn ($values) => $values->groupBy('feature_id')->map(function ($entries) {
+                $feature = $entries->first()->feature;
+                $values = $entries->map(function ($entry) use ($feature) {
+                    if ($feature->feature_type === 'C') {
+                        return in_array(strtolower((string) $entry->value), ['y', 'yes', '1', 'true'], true) ? 'Yes' : 'No';
+                    }
+                    return $entry->variant?->description?->description
+                        ?? ($entry->value !== '' ? $entry->value : $entry->value_int);
+                })->filter(fn ($value) => $value !== null && $value !== '')->unique();
+                return ['name' => $feature->description?->name ?: $feature->feature_code, 'value' => $values->implode(', ')];
+            })->values());
 
-        if (!$restaurantId) {
-            $referer = $request->headers->get('referer');
-            if ($referer && preg_match('/restaurant\/(\d+)\/edit/', $referer, $matches)) {
-                $restaurantId = $matches[1];
-                // Set session for future use
-                session([
-                    'food_item_return_url' => route('admin.restaurant.edit', $restaurantId) . '?tab=food',
-                    'food_item_restaurant_id' => $restaurantId
-                ]);
-            }
-        }
-
-        return view('foodmanagements::food_items.show', compact('item'));
+        return view('foodmanagements::food_items.show', compact('item', 'restaurant', 'dietaryLabels', 'images', 'featureGroups'));
     }
     // public function edit(int $id)
     // {
@@ -370,7 +319,7 @@ class FoodItemController extends Controller
     public function edit(Request $request, int $id)
     {
         // Check referer to detect restaurant context (if not already in session)
-        $restaurantId = session('food_item_restaurant_id');
+        $restaurantId = $request->input('restaurant_id') ?? session('food_item_restaurant_id');
 
         if (!$restaurantId) {
             $referer = $request->headers->get('referer');

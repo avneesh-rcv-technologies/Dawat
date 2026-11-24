@@ -26,12 +26,20 @@ class FoodFeaturesApiController extends Controller
         $request->validate([
             'category_id' => 'nullable|integer|exists:food_categories,id',
             'purpose'     => 'nullable|string|max:64',
+            'restaurant_id' => 'nullable|integer|exists:restaurants,id',
         ]);
 
         try {
+            // Features belong to a restaurant; a category implies its restaurant.
+            $categoryId = $request->integer('category_id') ?: null;
+            $restaurantId = $request->integer('restaurant_id') ?: ($categoryId
+                ? \Modules\FoodManagements\Models\FoodCategory::whereKey($categoryId)->value('restaurant_id')
+                : null);
+
             $groups = $this->featureService->getGroupsForApi(
-                $request->integer('category_id') ?: null,
-                $request->query('purpose')
+                $categoryId,
+                $request->query('purpose'),
+                $restaurantId ? (int) $restaurantId : null
             );
 
             return response()->json([

@@ -8,6 +8,13 @@
     const viewLink = menu.querySelector('[data-correction-view-link]');
     const form = document.getElementById('correction-request-form');
     const reason = document.getElementById('correction-reason');
+    const documentSelect = document.getElementById('correction-document');
+    let targetTitle = '';
+    const updateDocumentTarget = () => {
+        const selection = !documentSelect.disabled ? documentSelect.selectedOptions[0]?.textContent : '';
+        document.getElementById('correction-target').textContent = targetTitle + (selection ? ' · ' + selection : '');
+    };
+    documentSelect.addEventListener('change', updateDocumentTarget);
     const submit = document.getElementById('correction-request-submit');
     const error = document.getElementById('correction-request-error');
     let activeTrigger = null, returnFocus = null, confirming = false, submitting = false, mode = 'form';
@@ -42,7 +49,12 @@
         step.value = data.correctionStep || '';
         step.disabled = mode === 'ajax';
         document.getElementById('correction-action').disabled = mode !== 'ajax';
-        document.getElementById('correction-target').textContent = data.correctionTitle;
+        targetTitle = data.correctionTitle;
+        const selectDocuments = step.value === 'kyc' && mode !== 'ajax';
+        document.getElementById('correction-document-field').hidden = !selectDocuments;
+        documentSelect.disabled = !selectDocuments;
+        documentSelect.value = '';
+        updateDocumentTarget();
         document.getElementById('correction-kyc-note').hidden = step.value !== 'kyc';
         reason.value = previousReason;
         countReason(); showError(''); setConfirmation(false);
@@ -62,6 +74,7 @@
             viewLink.textContent = data.correctionViewLabel || 'View submission';
             requestButton.hidden = data.correctionAllowed !== 'true';
             requestButton.disabled = data.correctionDisabled === 'true';
+            menu.querySelector('[data-correction-menu-note]').textContent = data.correctionDisabledNote || 'Available after this step is submitted.';
             menu.querySelector('[data-correction-menu-note]').hidden = requestButton.hidden || !requestButton.disabled;
             menu.hidden = false;
             trigger.setAttribute('aria-expanded', 'true');
@@ -132,6 +145,6 @@
     const previous = dialog.dataset.previousStep;
     if (dialog.dataset.hasErrors === 'true' && previous) {
         const trigger = [...document.querySelectorAll('[data-correction-menu]')].find(button => button.dataset.correctionStep === previous && button.dataset.correctionAllowed === 'true');
-        if (trigger) { openDialog(trigger, dialog.dataset.previousReason || ''); showError(dialog.dataset.previousError || 'Please check your request.'); }
+        if (trigger) { openDialog(trigger, dialog.dataset.previousReason || ''); documentSelect.value = dialog.dataset.previousDocument || ''; updateDocumentTarget(); showError(dialog.dataset.previousError || 'Please check your request.'); }
     }
 })();

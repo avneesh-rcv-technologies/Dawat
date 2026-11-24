@@ -4,16 +4,40 @@ class ModernToast {
     constructor() {
         this.container = document.getElementById('toast-container');
         this.toasts = [];
-        this.maxToasts = 5;
+        this.maxToasts = 3;
+        this.recentToasts = new Map(); // signature -> timestamp for deduplication
     }
 
     show(message, type = 'info', title = '', duration = 5000) {
-        // Remove oldest toast if we have too many
-        if (this.toasts.length >= this.maxToasts) {
-            this.remove(this.toasts[0]);
+        if (!this.container) {
+            this.container = document.getElementById('toast-container');
+            if (!this.container) {
+                this.container = document.createElement('div');
+                this.container.id = 'toast-container';
+                this.container.className = 'toast-container';
+                document.body.appendChild(this.container);
+            }
         }
 
-        // console.log(this.container);
+        // Deduplication: prevent identical messages appearing within 2.5s
+        const plainMsg = String(message || '').trim();
+        if (!plainMsg) return null;
+        const signature = `${type}:${title}:${plainMsg}`;
+        const now = Date.now();
+        if (this.recentToasts.has(signature) && (now - this.recentToasts.get(signature) < 2500)) {
+            return null;
+        }
+        this.recentToasts.set(signature, now);
+
+        // Clean up old entries from recentToasts map
+        for (const [key, time] of this.recentToasts.entries()) {
+            if (now - time > 10000) this.recentToasts.delete(key);
+        }
+
+        // Limit concurrent visible toasts to maxToasts (3)
+        while (this.toasts.length >= this.maxToasts) {
+            this.remove(this.toasts[0]);
+        }
 
         const toast = this.create(message, type, title, duration);
         this.container.appendChild(toast);
@@ -68,13 +92,21 @@ class ModernToast {
         <div class="toast-message">${message}</div>
     </div>
 
-    <button class="toast-close" onclick="toastSystem.remove(this.parentElement)">
-        <span class="material-icons-outlined">close</span>
+    <button type="button" class="toast-close" aria-label="Dismiss notification">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false">
+            <path d="m6 6 12 12M18 6 6 18" />
+        </svg>
     </button>
 
     ${duration > 0 ? `<div class="toast-progress" style="animation-duration:${duration}ms;"></div>` : ''}
 `;
 
+
+        toast.querySelector('.toast-close').addEventListener('click', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            this.remove(toast);
+        });
 
         // Click to dismiss
         toast.addEventListener('click', (e) => {
@@ -87,6 +119,8 @@ class ModernToast {
     }
 
     remove(toast) {
+        // Release the slot immediately; waiting for the animation blocks show()'s loop.
+        this.toasts = this.toasts.filter(t => t !== toast);
         if (!toast || !toast.parentElement) return;
 
         toast.classList.add('hide');
@@ -95,7 +129,6 @@ class ModernToast {
             if (toast.parentElement) {
                 toast.parentElement.removeChild(toast);
             }
-            this.toasts = this.toasts.filter(t => t !== toast);
         }, 300);
     }
 
@@ -136,3 +169,106 @@ function showInfo(message, title = 'Information', duration = 4000) {
 function clearAllToasts() {
     toastSystem.clear();
 }
+
+// Onboarding notifications use the same renderer as the rest of the application.
+(() => {
+    'use strict';
+    const onboardingData = document.getElementById('onboarding-toast-data');
+    if (!onboardingData) return;
+    const overviewUrl = new URL(onboardingData.dataset.overviewUrl, window.location.origin);
+    const storageKey = `dawat.onboarding.toast:${overviewUrl.pathname}${overviewUrl.search}`;
+    let lastToast = '', lastToastTime = 0, validationTimer = null;
+
+    // Show only the first field error using the shared toast.js renderer.
+    window.onboardingToasts = (messages, type = 'error') => {
+        const list = [...new Set((messages || []).flatMap(m => String(m || '').split('\n')).map(m => m.trim()).filter(Boolean))];
+        if (list.length) showOne(type === 'error' ? list[0] : list.join('\n'), type);
+    };
+
+    window.onboardingToast = (message, type = 'error') => {
+        const text = String(message || '').trim();
+        if (!text) return;
+        showOne(type === 'error' ? text.split('\n').find(line => line.trim()).trim() : text, type);
+    };
+
+    function showOne(text, type) {
+        clearTimeout(validationTimer);
+        validationTimer = null;
+        const signature = `${type}:${text}`;
+        if (signature === lastToast && Date.now() - lastToastTime < 750) return;
+        lastToast = signature; lastToastTime = Date.now();
+        // The project's toast renderer accepts HTML; onboarding messages are plain text.
+        const encoded = document.createElement('span');
+        encoded.textContent = text;
+        const toast = window.showToast(encoded.innerHTML, type, type === 'success' ? 'Success' : 'Please check your details', type === 'success' ? 4500 : 6500);
+        if (toast) {
+            toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
+            toast.setAttribute('aria-atomic', 'true');
+            const close = toast.querySelector('.toast-close');
+            if (close) {
+                close.type = 'button';
+                close.textContent = '×';
+                close.setAttribute('aria-label', 'Dismiss notification');
+            }
+        }
+    }
+
+    window.onboardingComplete = message => {
+        const text = String(message || 'Your information was submitted successfully for review.');
+        try {
+            sessionStorage.setItem(storageKey, JSON.stringify({ message: text, createdAt: Date.now() }));
+        } catch (_) {
+            // Server flash messages remain available when browser storage is disabled.
+        }
+        window.location.assign(overviewUrl.href);
+    };
+
+    // Highlight invalid fields and summarize them in one shared toast.
+    let invalidControls = [];
+    document.addEventListener('invalid', event => {
+        if (!event.target.closest('form')) return;
+        event.preventDefault();
+        const control = event.target;
+        control.setAttribute('aria-invalid', 'true');
+        const clear = () => { if (control.checkValidity()) control.removeAttribute('aria-invalid'); };
+        control.addEventListener('input', clear, { once: true });
+        control.addEventListener('change', clear, { once: true });
+        if (!invalidControls.includes(control)) invalidControls.push(control);
+        if (validationTimer) return;
+        validationTimer = setTimeout(() => {
+            validationTimer = null;
+            const batch = invalidControls;
+            invalidControls = [];
+            batch[0]?.focus();
+            window.onboardingToasts(batch.map(item => {
+                const label = (item.labels?.[0]?.textContent || '').trim().replace(/\s+/g, ' ').replace(/\s*\*$/, '');
+                return `${label ? label + ': ' : ''}${item.validationMessage}`;
+            }), 'error');
+        }, 100);
+    }, true);
+
+    document.addEventListener('DOMContentLoaded', () => {
+        let pending = null;
+        try {
+            pending = JSON.parse(sessionStorage.getItem(storageKey) || 'null');
+            sessionStorage.removeItem(storageKey);
+        } catch (_) { /* Server flash messages also cover normal redirects. */ }
+        let flash = { success: [], errors: [] };
+        try { flash = JSON.parse(onboardingData.textContent); } catch (_) { /* No flash data. */ }
+        if (pending?.message && Date.now() - pending.createdAt < 60000) {
+            window.onboardingToast(pending.message, 'success');
+        } else {
+            const uniqueSuccess = [...new Set((flash.success || []).map(s => String(s).trim()).filter(Boolean))];
+            if (uniqueSuccess.length > 0) {
+                // Show only the latest/single relevant success message instead of looping all session keys
+                window.onboardingToast(uniqueSuccess[uniqueSuccess.length - 1], 'success');
+            }
+        }
+        if (flash.errors?.length) {
+            const uniqueErrors = [...new Set(flash.errors.map(e => String(e).trim()).filter(Boolean))];
+            if (uniqueErrors.length > 0) {
+                window.onboardingToasts(uniqueErrors, 'error');
+            }
+        }
+    });
+})();

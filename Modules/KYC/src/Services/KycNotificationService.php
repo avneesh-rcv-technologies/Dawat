@@ -176,7 +176,7 @@ class KycNotificationService
                 'status' => $submission->status,
                 'status_message' => $this->getStatusMessage($submission->status),
                 'rejection_reason' => $submission->rejection_reason,
-                'reviewed_at' => $submission->reviewed_at?->format('Y-m-d H:i:s'),
+                'reviewed_at' => $submission->reviewed_at?->format('M d, Y h:i A T'),
                 'company_name' => config('app.name', 'Our Company'),
                 'current_year' => date('Y')
             ];
@@ -259,7 +259,8 @@ class KycNotificationService
                 'owner_name' => $ownerName,
                 'kyc_type_name' => $submission->kycType->name ?? 'KYC Documents',
                 'message_content' => $message->message,
-                'submission_url' => url('/restaurant/kyc/history'),
+                'sent_at' => $message->created_at?->format('M d, Y h:i A T'),
+                'submission_url' => route('restaurant.onboarding.kyc', ['step' => 'kyc']),
                 'company_name' => config('app.name', 'Our Company'),
                 'current_year' => date('Y'),
                 'data' => [

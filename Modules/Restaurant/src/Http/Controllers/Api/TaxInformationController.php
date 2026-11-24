@@ -31,10 +31,11 @@ class TaxInformationController
                 'business' => $this->taxData($information->get('business')),
             ];
         }
-
+        $restaurantAddress = $this->restaurantAddress($restaurant);
         return response()->json([
             'success' => true,
             'data' => $data,
+            'restaurant_address' => $restaurantAddress,
             'tax_type' => $restaurant->tax_type ?? 'individual',
             'tax_type_locked' => false,
             'onboarding_step' => $restaurant->onboardingSteps()->where('step_key', 'tax')->first(),
@@ -89,5 +90,25 @@ class TaxInformationController
         ))), [
             'tax_identifier_masked' => filled($identifier) ? '•••• ' . substr($identifier, -4) : null,
         ]);
+    }
+
+    /**
+     * The W-9 form uses these values when the partner elects to use the
+     * restaurant address as its mailing address.
+     */
+    private function restaurantAddress($restaurant): array
+    {
+        $address = $restaurant->addresses()
+            ->orderByDesc('is_default')
+            ->orderBy('id')
+            ->first();
+
+        return [
+            'address' => $address?->address_line_1 ?? $restaurant->address_line1,
+            'country_id' => $address?->country_id ?? $restaurant->country_id,
+            'state_id' => $address?->state_id ?? $restaurant->state_id,
+            'city_id' => $address?->city_id ?? $restaurant->city_id,
+            'zip_code' => $address?->zip_code ?? $restaurant->postal_code,
+        ];
     }
 }

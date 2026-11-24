@@ -6,11 +6,9 @@ use App\Models\User;
 
 use Illuminate\Database\Eloquent\Model;
 use Modules\Acl\Models\Admin;
-use Modules\Activitylog\Traits\LogsActivity;
 
 class PhoneUpload extends Model
 {
-    use LogsActivity;
 
     protected $table = 'twilio_phone_uploads';
     protected $fillable = [

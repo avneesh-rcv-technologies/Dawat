@@ -1,3 +1,6 @@
+@once('onboarding-status-markers')
+<link rel="stylesheet" href="{{ asset('css/onboarding-timeline-markers.css') }}">
+@endonce
 {{-- Reuse with @include('restaurant::admin.partials.onboarding-timeline', ['timeline' => $onboardingTimeline]).
      Data is provided by RestaurantOnboardingDetailsService::build($restaurant). --}}
 @php
@@ -38,28 +41,8 @@
                     $timelineIsCurrent = $timelineCurrentKey === $timelineStep['key'];
                 @endphp
                 <li class="rot-step rot-step-{{ $timelineState }} {{ $timelineIsCurrent ? 'rot-step-current' : '' }}" @if($timelineIsCurrent) aria-current="step" @endif>
-                    <div class="rot-marker" aria-hidden="true">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" focusable="false">
-                            @switch($timelineState)
-                                @case('approved')
-                                    <path d="m5 12 4 4L19 6" />
-                                    @break
-                                @case('rejected')
-                                    <path d="m6 6 12 12M18 6 6 18" />
-                                    @break
-                                @case('attention')
-                                    <circle cx="12" cy="12" r="9"/><path d="M12 7v6m0 4h.01"/>
-                                    @break
-                                @case('review')
-                                    <circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 5 5" />
-                                    @break
-                                @case('pending')
-                                    <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" />
-                                    @break
-                                @default
-                                    <path d="M7 3h7l5 5v13H7zM14 3v5h5M10 13h6M10 17h4" />
-                            @endswitch
-                        </svg>
+                    <div class="rot-marker onboarding-status-marker" data-timeline-status="{{ $timelineStep['status'] }}" aria-hidden="true">
+                        @include('restaurant::admin.partials.onboarding-status-icon', ['markerStatus' => $timelineStep['status']])
                     </div>
                     <div class="rot-card">
                         <p class="rot-step-number">Step {{ $timelineStep['number'] }}@if($timelineStep['can_skip'])<span class="rot-optional">Optional</span>@endif</p>
@@ -109,7 +92,7 @@
     .restaurant-onboarding-timeline .rot-step-attention { --rot-color: #92400e; --rot-bg: #fef3c7; }
     .restaurant-onboarding-timeline .rot-step-review { --rot-color: #1d4ed8; --rot-bg: #dbeafe; }
     .restaurant-onboarding-timeline .rot-step-pending { --rot-color: #b45309; --rot-bg: #fef3c7; }
-    .restaurant-onboarding-timeline .rot-marker { position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; border: 2px solid #fff; border-radius: 50%; background: var(--rot-bg); color: var(--rot-color); }
+    .restaurant-onboarding-timeline .rot-marker { position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; border: 1px solid var(--timeline-marker-border); border-radius: 50%; background: var(--timeline-marker-bg); color: var(--timeline-marker-ink); box-shadow: 0 0 0 3px #fff; }
     .restaurant-onboarding-timeline .rot-card { margin-top: 12px; padding: 12px; border: 1px solid #edf0f3; border-radius: 9px; }
     .restaurant-onboarding-timeline .rot-step-current .rot-card { border-color: #93c5fd; background: #f8fbff; }
     .restaurant-onboarding-timeline .rot-step-number { display: flex; align-items: center; gap: 6px; margin: 0 0 6px; color: #64748b; font-size: 10px; }
@@ -118,7 +101,7 @@
     .restaurant-onboarding-timeline .rot-badges { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; font-size: 10px; font-weight: 600; }
     .restaurant-onboarding-timeline .rot-status { padding: 3px 6px; border-radius: 5px; color: var(--rot-color); background: var(--rot-bg); }
     .restaurant-onboarding-timeline .rot-resubmitted { padding: 3px 6px; border-radius: 5px; color: #92400e; background: #fef3c7; }
-    .restaurant-onboarding-timeline .rot-current-label { padding: 3px 6px; color: #2563eb; }
+    .restaurant-onboarding-timeline .rot-current-label { padding: 3px 6px; color: #C2470A; }
     .restaurant-onboarding-timeline .rot-dates { display: grid; gap: 8px; margin: 12px 0 0; font-size: 10px; line-height: 1.6; }
     .restaurant-onboarding-timeline dt { color: #64748b; }
     .restaurant-onboarding-timeline dd { margin: 0; }

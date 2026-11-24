@@ -3,6 +3,8 @@
 namespace Modules\Restaurant\Database\Seeders;
 
 use Illuminate\Database\Seeder;
+use Modules\EmailNotification\Support\DawatEmail;
+use Modules\EmailNotification\Support\SeederEmailView;
 use Modules\EmailNotification\Models\NotificationTemplate as EmailTemplate;
 use Modules\Notifications\Models\NotificationChannel;
 use Modules\Notifications\Models\NotificationEvent;
@@ -19,15 +21,21 @@ class RestaurantBankingNotificationSeeder extends Seeder
             $code = 'restaurant_banking_' . $action;
             $isReview = in_array($action, ['approved', 'rejected'], true);
             $recipients = ['notify_restaurant' => true, 'notify_admin' => !$isReview];
-            $notification = $isReview ? new RestaurantBankingApprovedNotification() : new RestaurantBankingSubmittedNotification();
+            $notificationClass = 'Modules\\Restaurant\\Notifications\\RestaurantBanking'.ucfirst($action).'Notification';
+            $notification = new $notificationClass();
             $event = NotificationEvent::updateOrCreate(['event_code' => $code], [
+                'notification_class' => $notificationClass,
                 'event_name' => 'Restaurant Banking ' . $label,
                 'event_description' => 'Notifies ' . ($isReview ? 'the owner' : 'the owner and admin') . ' when banking and company details are ' . $action . '.',
             ]);
-            $template = EmailTemplate::updateOrCreate(['name' => $code], [
-                'subject' => 'Banking Information ' . $label . ' - {{app_name}}',
-                'content' => $this->template($label, $action), 'status' => true, 'locale' => 'en',
-            ]);
+            $template = match ($action) {
+                'submitted' => $this->seedSubmittedEmailTemplate(),
+                'approved', 'rejected' => $this->seedReviewEmailTemplate($action),
+                default => EmailTemplate::updateOrCreate(['name' => $code, 'locale' => 'en'], [
+                    'subject' => 'Banking Information ' . $label . ' - {{app_name}}',
+                    'content' => $this->template($label, $action), 'status' => true, 'locale' => 'en',
+                ]),
+            };
             $pushTemplate = WebPushTemplate::updateOrCreate(['name' => $code], [
                 'subject' => 'Banking Information ' . $label,
                 'body' => match ($action) {
@@ -58,35 +66,67 @@ class RestaurantBankingNotificationSeeder extends Seeder
         }
     }
 
+    public function seedSubmittedEmailTemplate(): EmailTemplate
+    {
+        return EmailTemplate::updateOrCreate(['name' => 'restaurant_banking_submitted', 'locale' => 'en'], [
+            'subject' => 'Banking information received — Dawat',
+            'content' => SeederEmailView::make('restaurant::emails.banking-submitted', [
+                'restaurantName' => '{{restaurant_name}}',
+                'submittedAt' => '{{submitted_at}}',
+                'loginUrl' => '{{login_url}}',
+                'supportUrl' => '{{support_url}}',
+                'currentYear' => '{{current_year}}',
+            ])->render(),
+            'status' => true,
+        ]);
+    }
+
+    public function seedReviewEmailTemplate(string $action): EmailTemplate
+    {
+        $approved = match ($action) {
+            'approved' => true,
+            'rejected' => false,
+            default => throw new \InvalidArgumentException('Expected an approved or rejected banking review.'),
+        };
+
+        return EmailTemplate::updateOrCreate(['name' => 'restaurant_banking_'.$action, 'locale' => 'en'], [
+            'subject' => $approved ? 'Banking information approved — Dawat' : 'Banking information rejected — Action required | Dawat',
+            'content' => SeederEmailView::make('restaurant::emails.banking-reviewed', [
+                'approved' => $approved,
+                'restaurantName' => '{{restaurant_name}}',
+                'reviewedAt' => '{{reviewed_at}}',
+                'rejectionReason' => '{{rejection_reason}}',
+                'loginUrl' => '{{login_url}}',
+                'supportUrl' => '{{support_url}}',
+                'currentYear' => '{{current_year}}',
+            ])->render(),
+            'status' => true,
+        ]);
+    }
+
     private function template(string $label, string $action): string
     {
         $summary = match ($action) {
-            'approved' => 'The banking and company information for <strong>{{restaurant_name}}</strong> (application #{{restaurant_id}}) was approved on {{reviewed_at}}.',
-            'rejected' => 'The banking and company information for <strong>{{restaurant_name}}</strong> (application #{{restaurant_id}}) was rejected on {{reviewed_at}}.',
-            default => 'The banking and company information for <strong>{{restaurant_name}}</strong> (application #{{restaurant_id}}) was successfully saved on {{updated_at}}.',
+            'approved' => 'The banking and company information for <strong style="color:#ffffff;">{{restaurant_name}}</strong> (application #{{restaurant_id}}) was approved on {{reviewed_at}}.',
+            'rejected' => 'The banking and company information for <strong style="color:#ffffff;">{{restaurant_name}}</strong> (application #{{restaurant_id}}) was rejected on {{reviewed_at}}.',
+            default => 'The banking and company information for <strong style="color:#ffffff;">{{restaurant_name}}</strong> (application #{{restaurant_id}}) was saved on {{updated_at}}.',
         };
         $details = match ($action) {
-            'approved' => 'Your banking step is approved. You can continue with the remaining onboarding steps.',
-            'rejected' => '<strong>Rejection reason:</strong> {{rejection_reason}}<br>Please correct your banking or company details and resubmit them for review.',
-            default => 'The banking step has been submitted for review. This confirmation does not mean the bank account or application has been approved.',
+            'approved' => DawatEmail::callout('Banking step approved', 'You can continue with the remaining onboarding steps.'),
+            'rejected' => DawatEmail::callout('Rejection reason', '{{rejection_reason}}'."\n".'Please correct your banking or company details and resubmit them for review.'),
+            default => DawatEmail::callout('Awaiting review', 'The banking step has been resubmitted for review. This confirmation does not mean the bank account or application has been approved.'),
         };
 
-        return str_replace(['%%ACTION%%', '%%SUMMARY%%', '%%DETAILS%%'], [$label, $summary, $details], <<<'HTML'
-<!DOCTYPE html>
-<html lang="en">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Banking Information %%ACTION%%</title></head>
-<body style="margin:0;padding:0;background:#f4f7fa;font-family:Arial,sans-serif;">
-<table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td style="padding:40px 20px;">
-<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:600px;margin:auto;background:#fff;border-radius:12px;">
-<tr><td style="padding:32px;background:#0f766e;color:#fff;border-radius:12px 12px 0 0;"><h1 style="margin:0;font-size:24px;">Banking Information %%ACTION%%</h1></td></tr>
-<tr><td style="padding:32px;color:#334155;font-size:15px;line-height:1.7;">
-<p>%%SUMMARY%%</p>
-<p>%%DETAILS%%</p>
-<p>If you did not make this change, contact support immediately.</p>
-</td></tr>
-<tr><td style="padding:24px;background:#f8fafc;color:#64748b;text-align:center;border-radius:0 0 12px 12px;">{{app_name}} Team</td></tr>
-</table></td></tr></table>
-</body></html>
-HTML);
+        return DawatEmail::render([
+            'title' => 'Banking information '.strtolower($label).' — Dawat',
+            'preheader' => 'Banking information for {{restaurant_name}} was '.$action.'.',
+            'badge' => 'BANKING '.strtoupper($label),
+            'headline' => 'Banking information<br>'.strtolower($label),
+            'greeting' => 'Hello,',
+            'intro' => $summary,
+            'blocks' => [$details],
+            'notes' => 'If you did not make this change, contact support immediately.',
+            'footer' => 'You received this email because banking details changed for a restaurant on Dawat.',
+        ]);
     }
 }

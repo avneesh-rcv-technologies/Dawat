@@ -17,7 +17,7 @@
 
 @section('styles')
 <style>
-    .firebase-config-page { --firebase-ink: #103647; --firebase-muted: #667987; --firebase-border: #dce5ea; }
+    .firebase-config-page { --firebase-ink: #141414; --firebase-muted: #667987; --firebase-border: #dce5ea; }
     .firebase-config-card { overflow: hidden; border: 1px solid var(--firebase-border); border-radius: 14px; background: #fff; box-shadow: 0 4px 16px rgba(16, 54, 71, .06); }
     .firebase-config-header { display: flex; align-items: center; gap: 14px; padding: 22px 24px; background: linear-gradient(135deg, #fbfdfd, #f5f9fa); }
     .firebase-config-header-icon { display: grid; place-items: center; width: 44px; height: 44px; flex: 0 0 44px; border-radius: 12px; background: #e8f8f1; color: #008b5d; font-size: 23px; }
@@ -25,10 +25,10 @@
     .firebase-config-header p { margin-top: 4px; color: var(--firebase-muted); font-size: 12px; }
     .firebase-config-tabs { gap: 24px; padding-inline: 24px; background: #fff; }
     .firebase-config-tabs .tab-btn { position: relative; min-height: 48px; padding: 0 3px; border: 0; border-bottom: 2px solid transparent; background: transparent; font-size: 13px; font-weight: 650; cursor: pointer; transition: color .15s ease, border-color .15s ease; }
-    .firebase-config-tabs .tab-btn-active { border-bottom-color: #00a86b; color: #087b57; }
+    .firebase-config-tabs .tab-btn-active { border-bottom-color: #FF6210; color: #C2470A; }
     .firebase-config-tabs .tab-btn-inactive { color: #667987; }
-    .firebase-config-tabs .tab-btn-inactive:hover { border-bottom-color: #c6d8d1; color: #294653; }
-    .firebase-config-tabs .tab-btn:focus-visible { outline: 3px solid rgba(0, 168, 107, .18); outline-offset: 2px; }
+    .firebase-config-tabs .tab-btn-inactive:hover { border-bottom-color: #c6d8d1; color: #1F1F1F; }
+    .firebase-config-tabs .tab-btn:focus-visible { outline: 3px solid rgba(255, 98, 16, .18); outline-offset: 2px; }
     .firebase-config-form { padding: 24px; }
     .firebase-config-form .tab-section { display: flex; flex-direction: column; gap: 0; }
     .firebase-config-form .tab-section.hidden { display: none !important; }
@@ -37,18 +37,18 @@
     .firebase-config-form .tab-section > .grid { grid-template-columns: minmax(190px, .8fr) minmax(0, 2fr); align-items: start; gap: 12px 24px; padding: 14px 0; border-bottom: 1px solid #edf1f3; }
     .firebase-config-form .tab-section > .grid > div { grid-column: auto; }
     .firebase-config-form .tab-section > .grid:last-child { border-bottom: 0; }
-    .firebase-config-form .custom-label { display: block; margin: 2px 0 0; color: #294653; font-size: 13px; font-weight: 650; }
+    .firebase-config-form .custom-label { display: block; margin: 2px 0 0; color: #1F1F1F; font-size: 13px; font-weight: 650; }
     .firebase-config-form .tab-section > .grid p { margin-top: 5px; color: var(--firebase-muted); font-size: 11px; line-height: 1.5; }
-    .firebase-config-form .input-field { width: 100%; min-height: 42px; border: 1px solid #cbd7de; border-radius: 8px; background: #fff; color: var(--firebase-ink); }
-    .firebase-config-form .input-field:focus { border-color: #00a86b; outline: 3px solid rgba(0, 168, 107, .12); }
+    .firebase-config-form .input-field { width: 100%; min-height: 42px; border: 1px solid #cbd7de; border-radius: 8px; background-color: #fff; color: var(--firebase-ink); }
+    .firebase-config-form .input-field:focus { border-color: #FF6210; outline: 3px solid rgba(255, 98, 16, .12); }
     .firebase-config-form .firebase-json-field { min-height: 190px; padding: 12px; background: #f8fafb; font: 12px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; resize: vertical; }
     .firebase-config-form > .mt-8 { margin-top: 22px; padding-top: 18px; border-top: 1px solid #e8eef1; }
     .firebase-config-form > .mt-8 button { min-width: 120px; min-height: 42px; border: 0; border-radius: 8px; background: #101820; font-weight: 650; transition: background .15s ease, transform .15s ease; }
-    .firebase-config-form > .mt-8 button:hover { background: #087b57; transform: translateY(-1px); }
+    .firebase-config-form > .mt-8 button:hover { background: #C2470A; transform: translateY(-1px); }
     .firebase-test-actions { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 24px; border-top: 1px solid var(--firebase-border); background: #fbfcfd; }
     .firebase-test-actions-copy strong { display: block; color: var(--firebase-ink); font-size: 13px; }
     .firebase-test-actions-copy span { color: var(--firebase-muted); font-size: 11px; }
-    #sendTestNotification { flex: 0 0 auto; min-height: 40px; border-radius: 8px; background: #087b57; font-weight: 650; }
+    #sendTestNotification { flex: 0 0 auto; min-height: 40px; border-radius: 8px; background: #C2470A; font-weight: 650; }
     #sendTestNotification:hover { background: #066b4b; }
     #sendTestNotification:disabled { cursor: wait; opacity: .65; }
     #testNotificationStatus { margin: 0 24px 18px; }

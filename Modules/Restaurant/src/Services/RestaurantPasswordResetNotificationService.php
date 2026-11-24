@@ -19,8 +19,9 @@ class RestaurantPasswordResetNotificationService
 
             $queued = $this->notifications->trigger('Restaurant', 'RestaurantPasswordReset', $admin, [
                 'restaurant_name' => $restaurant->name,
+                'owner_name' => $admin->name,
                 'restaurant_email' => $admin->email,
-                'reset_time' => now()->format('Y-m-d H:i:s'),
+                'reset_time' => $admin->updated_at?->format('M d, Y h:i A T') ?? 'Not recorded',
             ]);
             if (!$queued) {
                 Log::warning('Unable to queue restaurant password reset confirmation.', ['admin_id' => $admin->id]);

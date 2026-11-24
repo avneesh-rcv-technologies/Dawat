@@ -3,6 +3,7 @@
 namespace Modules\Restaurant\Database\Seeders;
 
 use Illuminate\Database\Seeder;
+use Modules\EmailNotification\Support\SeederEmailView;
 use Modules\EmailNotification\Models\NotificationTemplate as EmailTemplate;
 use Modules\Notifications\Models\NotificationChannel;
 use Modules\Notifications\Models\NotificationEvent;
@@ -19,15 +20,13 @@ class RestaurantResubmittedDetailsNotificationSeeder extends Seeder
             $code = $notification->getEventCode();
             $label = ucfirst($kind) . ' Information';
             $event = NotificationEvent::updateOrCreate(['event_code' => $code], [
+                'notification_class' => get_class($notification),
                 'event_name' => $label . ' — Resubmitted Details',
                 'event_description' => 'Notifies the owner and admin when ' . $kind . ' details are resubmitted for review.',
             ]);
             $message = $label . ' for {{restaurant_name}} was resubmitted on {{updated_at}}. The step is awaiting a new admin review.';
-            $email = EmailTemplate::updateOrCreate(['name' => $code], [
-                'subject' => 'Resubmitted Details - ' . $label . ' - {{app_name}}',
-                'content' => '<!DOCTYPE html><html lang="en"><body style="font-family:Arial,sans-serif;color:#334155"><h1>Resubmitted Details</h1><p>' . $message . '</p><p>This submission requires another approval or rejection by an administrator.</p><p>{{app_name}} Team</p></body></html>',
-                'status' => true, 'locale' => 'en',
-            ]);
+            $email = $kind === 'banking' ? $this->seedBankingEmailTemplate()
+                : (new RestaurantTaxNotificationSeeder())->seedEmailTemplate('resubmitted');
             $push = WebPushTemplate::updateOrCreate(['name' => $code], [
                 'subject' => 'Resubmitted Details - ' . $label,
                 'body' => $message,
@@ -45,5 +44,21 @@ class RestaurantResubmittedDetailsNotificationSeeder extends Seeder
                 }
             }
         }
+    }
+
+    public function seedBankingEmailTemplate(): EmailTemplate
+    {
+        return EmailTemplate::updateOrCreate(['name' => 'restaurant_banking_resubmitted', 'locale' => 'en'], [
+            'subject' => 'Banking information resubmitted — Dawat',
+            'content' => SeederEmailView::make('restaurant::emails.banking-submitted', [
+                'resubmitted' => true,
+                'restaurantName' => '{{restaurant_name}}',
+                'submittedAt' => '{{submitted_at}}',
+                'loginUrl' => '{{login_url}}',
+                'supportUrl' => '{{support_url}}',
+                'currentYear' => '{{current_year}}',
+            ])->render(),
+            'status' => true,
+        ]);
     }
 }

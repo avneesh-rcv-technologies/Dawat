@@ -1,5 +1,11 @@
 (() => {
     'use strict';
+    document.querySelectorAll('[data-kyc-reject-open]').forEach(button => {
+        button.addEventListener('click', () => document.getElementById(button.dataset.kycRejectOpen)?.showModal());
+    });
+    document.querySelectorAll('[data-kyc-reject-close]').forEach(button => {
+        button.addEventListener('click', () => button.closest('dialog')?.close());
+    });
     document.querySelectorAll('form[data-kyc-review]').forEach(form => {
         let submitting = false;
         form.addEventListener('submit', async event => {
@@ -10,7 +16,15 @@
                 reason.value = reason.value.trim();
                 reason.setCustomValidity(reason.value ? '' : 'Enter a rejection reason.');
             }
-            if (!form.reportValidity() || !window.confirm(form.dataset.kycReviewConfirm)) return;
+            if (!form.reportValidity()) return;
+            const isReject = form.elements.namedItem('action')?.value === 'reject';
+            const confirmed = await window.appConfirm({
+                title: form.dataset.kycReviewConfirm,
+                message: isReject ? 'The owner will be asked to correct and resubmit this document.' : 'The owner will be notified that this document has been approved.',
+                confirmText: isReject ? 'Reject document' : 'Approve',
+                tone: isReject ? 'danger' : 'primary',
+            });
+            if (!confirmed || submitting) return;
             const button = event.submitter || form.querySelector('button[type="submit"]');
             const error = form.querySelector('[data-kyc-review-error]');
             const originalLabel = button.textContent;

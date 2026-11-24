@@ -8,6 +8,28 @@ server {
 
     client_max_body_size 100M;
 
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_types text/css text/plain application/javascript application/json image/svg+xml;
+
+    # Only content-versioned assets get immutable caching.
+    location ~* ^/(build-website/assets|build/assets|website/optimized)/.+\.(css|js|webp|avif|otf|woff2?|png|jpe?g)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        try_files $uri =404;
+        log_not_found off;
+    }
+
+    # Keep SEO documents dynamic even when legacy files exist in public/.
+    location = /sitemap.xml {
+        rewrite ^ /index.php last;
+    }
+
+    location = /robots.txt {
+        rewrite ^ /index.php last;
+    }
+
     location / {
         try_files $uri $uri/ /index.php?$query_string;
     }
@@ -23,8 +45,8 @@ server {
 
     }
 
-    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
-        expires max;
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|webp|avif|otf|woff|woff2|ttf|eot)$ {
+        expires 7d;
         log_not_found off;
     }
 

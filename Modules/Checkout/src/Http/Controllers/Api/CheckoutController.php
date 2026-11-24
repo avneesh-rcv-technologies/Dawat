@@ -13,7 +13,6 @@ use Modules\Checkout\Services\PaymentMethodService;
 use Modules\Checkout\Services\OrderPlacementService;
 use Modules\Checkout\Services\CheckoutCacheService;
 use Modules\FoodManagements\Models\FoodCategory;
-use Modules\Cart\Models\Cart;
 use Modules\Payments\Models\PaymentConfiguration;
 use Modules\Restaurant\Services\RestaurantService;
 
@@ -37,7 +36,7 @@ class CheckoutController extends Controller
                 'preferred_delivery_time' => 'required|date_format:h:i A',
                 'number_of_guests'        => 'required|integer|min:1',
                 'phone'                   => 'nullable|string|max:20',
-                'restaurant_id'           => 'nullable|integer',
+                'restaurant_id'           => 'bail|required|integer|min:1|exists:restaurants,id',
                 'saved_address_id'        => 'nullable|integer|exists:addresses,id',
                 'is_default'              => 'nullable|boolean', 
                 'address_line_1'          => 'required_without:saved_address_id|string|max:255',
@@ -61,18 +60,19 @@ class CheckoutController extends Controller
                 return response()->json(['success' => false, 'message' => 'Authentication required'], 401);
             }
 
-            DB::transaction(function () use ($customer, $validated, $deliveryDateTime) {
+            $deliveryCarts = DB::transaction(function () use ($customer, $validated, $deliveryDateTime) {
+                \Modules\Acl\Models\Customer::whereKey($customer->id)->lockForUpdate()->firstOrFail();
                 $customer->update([
                     'guest_method'             => 'Delivery',
                     'preferred_delivery_date'  => $deliveryDateTime,
                     'number_of_guests'         => $validated['number_of_guests'],
-                    'phone'                    => $validated['phone'],
+                    'phone'                    => $validated['phone'] ?? $customer->phone,
                 ]);
 
                 // Check if using saved address
                 if (isset($validated['saved_address_id'])) {
 
-                    $savedAddress = $customer->addresses()->find($validated['saved_address_id']);
+                    $savedAddress = $customer->addresses()->findOrFail($validated['saved_address_id']);
 
                     if (!$savedAddress) {
                         throw new Exception('Saved address not found or does not belong to you');
@@ -89,23 +89,22 @@ class CheckoutController extends Controller
                         $customer->addresses()->update(['is_default' => false]);
                     }
 
-                    $customer->addresses()->create([
-                        'addressable_id'   => $customer->id,
-                        'addressable_type' => get_class($customer),
+                    $result = app(\Modules\Acl\Services\CustomerAddressService::class)->save($customer, [
                         'address_type'     => 'delivery',
                         'address_line_1' => $validated['address_line_1'],
-                        'address_line_2' => $validated['address_line_2'],
-                        'city_id'        => $validated['city_id'],
-                        'state_id'       => $validated['state_id'],
-                        'country_id'     => $validated['country_id'],
+                        'address_line_2' => $validated['address_line_2'] ?? null,
+                        'city_id'        => $validated['city_id'] ?? null,
+                        'state_id'       => $validated['state_id'] ?? null,
+                        'country_id'     => $validated['country_id'] ?? null,
                         'zip_code'       => $validated['zip_code'],
-                        'latitude'       => $validated['latitude'],
-                        'longitude'      => $validated['longitude'],
+                        'latitude'       => $validated['latitude'] ?? null,
+                        'longitude'      => $validated['longitude'] ?? null,
                         'is_default'     => $isDefault,
-                        'city_name'      => $validated['city_name'],
-                        'state_id'      => $validated['state_name'],
+                        'city_name'      => $validated['city_name'] ?? null,
                     ]);
+                    $savedAddress = $result['address'];
                 }
+                return app(\Modules\Cart\Services\CartDeliveryService::class)->refreshCustomer($customer, $savedAddress->id);
             });
 
             // Invalidate caches
@@ -122,10 +121,16 @@ class CheckoutController extends Controller
                     'preferred_delivery_date'  => $deliveryDateTime,
                     'number_of_guests'         => $validated['number_of_guests'],
                     'address_saved'            => true,
+                    'delivery_carts'           => $deliveryCarts,
                 ],
             ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage(), 'errors' => $e->errors()], 422);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json(['success' => false, 'message' => 'Saved address not found.'], 404);
         } catch (Exception $e) {
-            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+            Log::error('Unable to save delivery details.', ['exception_class' => get_class($e)]);
+            return response()->json(['success' => false, 'message' => 'Unable to save delivery details. Please try again.'], 500);
         }
     }
 
@@ -138,7 +143,7 @@ class CheckoutController extends Controller
                 'preferred_delivery_time' => 'required|date_format:h:i A',
                 'number_of_guests'        => 'required|integer|min:1',
                 'phone'                   => 'nullable|string|max:20',
-                'restaurant_id'           => 'nullable|integer',
+                'restaurant_id'           => 'bail|required|integer|min:1|exists:restaurants,id',
             ]);
 
             $customer         = Auth::guard('customer')->user();
@@ -154,8 +159,9 @@ class CheckoutController extends Controller
                 'guest_method'            => 'Pickup',
                 'preferred_delivery_date' => $deliveryDateTime,
                 'number_of_guests'        => $validated['number_of_guests'],
-                'phone'                   => $validated['phone'],
+                'phone'                   => $validated['phone'] ?? $customer->phone,
             ]);
+            $deliveryCarts = app(\Modules\Cart\Services\CartDeliveryService::class)->refreshCustomer($customer);
 
             // Invalidate caches
             $this->cacheService->forgetCustomerAddresses($customer->id);
@@ -168,10 +174,13 @@ class CheckoutController extends Controller
                 'message' => 'Pickup details saved',
                 'data'    => [
                     'delivery_method'         => 'Pickup',
+                    'delivery_carts'          => $deliveryCarts,
                     'preferred_delivery_date' => $deliveryDateTime,
                     'number_of_guests'        => $validated['number_of_guests'],
                 ],
             ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage(), 'errors' => $e->errors()], 422);
         } catch (Exception $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
@@ -355,6 +364,8 @@ class CheckoutController extends Controller
             ])
                 ->where('status', 'A')
                 ->where('feature_type', '!=', 'G')
+                // Features are restaurant-owned: only those of the categories' restaurants.
+                ->whereIn('restaurant_id', \Modules\FoodManagements\Models\FoodCategory::whereIn('id', $categoryIds)->pluck('restaurant_id')->filter())
                 ->where('display_on_catalog', 'Y')
                 ->where(function ($q) use ($categoryIds) {
                     $q->whereDoesntHave('categories')
@@ -488,7 +499,8 @@ class CheckoutController extends Controller
                 ->map(function ($config) {
                     return [
                         // 'id' => $config->id,
-                        'id' => $config->payment_method_id,
+                        'id' => $config->id,
+                        'payment_method_id' => $config->payment_method_id,
                         'name' => $config->merchant_name,
                         'is_active' => (bool) $config->is_active,
                     ];
@@ -518,129 +530,135 @@ class CheckoutController extends Controller
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
     }
-    // shows cart summary 
+    // GET /api/checkout/review-order?restaurant_id=1
     public function reviewOrder(Request $request): JsonResponse
     {
+        $customer = Auth::guard('customer')->user();
+        if (!$customer) {
+            return response()->json(['success' => false, 'message' => 'Authentication required'], 401);
+        }
+
         try {
-            $request->validate([
-                'restaurant_id' => 'required|integer|exists:restaurants,id',
+            $validated = $request->validate([
+                'restaurant_id' => 'bail|required|integer|min:1|exists:restaurants,id',
+                'payment_method' => ['nullable', 'integer', \Illuminate\Validation\Rule::exists('payment_configurations', 'id')->where('is_active', true)],
             ]);
+            $restaurantId = (int) $validated['restaurant_id'];
 
-            $customer       = Auth::guard('customer')->user();
-            $restaurantId   = $request->integer('restaurant_id');
-            // Get restaurant gallery images
-            $fileService = app(\Modules\Filemanager\Services\FileService::class);
-            $restaurantGalleryRaw = $fileService->getFiles('restaurant_gallery', $restaurantId);
-
-            // Format restaurant gallery - only image URLs
-            $restaurantGallery = collect($restaurantGalleryRaw)->map(function ($image) {
-                return [
-                    'id' => $image['id'],
-                    'url' => $image['url'],
-                    'thumbnail_url' => $image['thumbnail_url'],
-                    'position' => $image['position'] ?? 0,
-                ];
-            })->values()->all();
-
-            // Verify customer is authenticated via token
-            if (!$customer) {
-                return response()->json(['success' => false, 'message' => 'Authentication required'], 401);
-            }
-
-            $deliveryMethod = $customer->guest_method;
-
-            if (!$deliveryMethod) {
+            if (!in_array($customer->guest_method, ['Delivery', 'Pickup'], true)) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Please save delivery or pickup details first'
+                    'message' => 'Please save delivery or pickup details first',
                 ], 400);
             }
 
-            // Get cart - works for both authenticated and guest
-            $cart = Cart::where('owner_type', get_class($customer))
-                ->where('owner_id', $customer->id)
-                ->where('cartable_type', \Modules\Restaurant\Models\Restaurant::class)
-                ->where('cartable_id', $restaurantId)
-                ->with(['items.item.categories'])
-                ->first();
+            $cart = DB::transaction(function () use ($customer, $restaurantId) {
+                \Modules\Acl\Models\Customer::whereKey($customer->id)->lockForUpdate()->firstOrFail();
+                // Use the same session-first, latest-cart fallback as order placement.
+                $cart = $customer->getCart($restaurantId)
+                    ?? $customer->ownedCarts()->forRestaurant($restaurantId)->latest()->first();
+                if ($cart && $cart->items()->exists()) {
+                    $cart->updateTotals();
+                    // updateTotals reloads items; load presentation relations afterwards.
+                    $cart->load(['items.item.categories', 'items.servingOption']);
+                }
+
+                return $cart;
+            });
 
             if (!$cart || $cart->items->isEmpty()) {
                 return response()->json(['success' => false, 'message' => 'Cart is empty'], 400);
             }
 
-            $restaurant      = \Modules\Restaurant\Models\Restaurant::find($restaurantId);
-            $restaurantImage = fn_get_image('restaurant', $restaurantId);
+            $restaurant = \Modules\Restaurant\Models\Restaurant::with([
+                'addresses.city', 'addresses.state', 'addresses.country',
+            ])->findOrFail($restaurantId);
+            $deliveryAddress = $customer->guest_method === 'Delivery' && $cart->delivery_address_id
+                ? $customer->addresses()->with(['city', 'state', 'country'])->find($cart->delivery_address_id)
+                : null;
+            $pickupAddress = $restaurant->addresses->firstWhere('address_type', 'primary');
+            $payment = !empty($validated['payment_method'])
+                ? PaymentConfiguration::with('method')->find($validated['payment_method']) : null;
+            $image = fn_get_image('restaurant', $restaurantId);
+            $gallery = app(\Modules\Filemanager\Services\FileService::class)->getFiles('restaurant_gallery', $restaurantId);
 
-            // group items by category - filter by restaurant
-            $itemsByCategory = [];
-            foreach ($cart->items as $cartItem) {
-                $foodItem = $cartItem->item;
-                if (!$foodItem) continue;
-
-                // Get categories that belong to THIS restaurant only
-                $categories = $foodItem->categories()
-                    ->where('restaurant_id', $restaurantId)
-                    ->get();
-
-                foreach ($categories as $category) {
-                    if (!isset($itemsByCategory[$category->id])) {
-                        $itemsByCategory[$category->id] = [
-                            'category_id'   => $category->id,
-                            'category_name' => $category->name,
-                            'item_count'    => 0,
-                            'items'         => [],
-                        ];
-                    }
-
-                    $itemsByCategory[$category->id]['items'][] = [
-                        'id'          => $foodItem->id,
-                        'name'        => $foodItem->name,
-                        'quantity'    => $cartItem->quantity,
-                        'guest_count' => $customer->number_of_guests,
-                        'unit_price'  => $cartItem->unit_price,
-                        'total_price' => $cartItem->total_price,
-                        'currency'    => fn_format_default_currency(),
-                    ];
-
-                    $itemsByCategory[$category->id]['item_count']++;
-                }
-            }
-
-            $deliveryFee = $deliveryMethod === 'Delivery'
-                ? (float) (fn_get_setting('checkout.delivery_fee') ?? 0)
-                : 0;
-
-            $serviceFee = (float) (fn_get_setting('checkout.service_fee') ?? 0);
-            $grandTotal = $cart->total + $deliveryFee + $serviceFee;
+            $data = app(\Modules\Checkout\Services\ReviewOrderSummary::class)->build(
+                $cart, $customer, $request, fn_format_default_currency(),
+                (float) (fn_get_setting('general.default_service_charge') ?? 0)
+            );
 
             return response()->json([
                 'success' => true,
-                'data'    => [
-                    'restaurant'        => [
-                        'id'    => $restaurant->id,
-                        'name'  => $restaurant->name,
-                        'image' => $restaurantImage ? $restaurantImage['url'] : null,
+                'message' => 'Order review retrieved successfully',
+                'data' => array_merge($data, [
+                    'restaurant' => [
+                        'id' => $restaurant->id,
+                        'name' => $restaurant->name,
+                        'phone' => $restaurant->phone,
+                        'image' => $image['url'] ?? null,
                     ],
-                    'order_ref'         => 'ORD-' . str_pad($cart->id, 6, '0', STR_PAD_LEFT),
-                    'delivery_method'   => $deliveryMethod,
-                    'guest_count'       => $customer->number_of_guests,
-                    'currency' => fn_format_default_currency(),
-                    'items_by_category' => array_values($itemsByCategory),
-                    'pricing'           => [
-                        'subtotal'     => $cart->subtotal,
-                        'tax'          => $cart->tax_amount,
-                        'delivery_fee' => $deliveryFee,
-                        'service_fee'  => $serviceFee,
-                        'discount'     => $cart->discount_amount,
-                        'total'        => round($grandTotal, 2),
-                        'currency' => fn_format_default_currency(),
-                    ],
-                    "restaurant_gallery" => $restaurantGallery,
-                ],
+                    'delivery_address' => $this->reviewAddress($deliveryAddress),
+                    'pickup_address' => $customer->guest_method === 'Pickup'
+                        ? ($this->reviewAddress($pickupAddress) ?? [
+                            'address_line_1' => $restaurant->address_line1,
+                            'address_line_2' => $restaurant->address_line2,
+                            'city' => $restaurant->city,
+                            'state' => $restaurant->state,
+                            'country' => $restaurant->country,
+                            'zip_code' => $restaurant->postal_code,
+                            'full_address' => implode(', ', array_filter([
+                                $restaurant->address_line1, $restaurant->address_line2, $restaurant->city,
+                                $restaurant->state, $restaurant->country, $restaurant->postal_code,
+                            ])),
+                        ]) : null,
+                    'payment_method' => $payment ? [
+                        'id' => $payment->id,
+                        'payment_method_id' => $payment->payment_method_id,
+                        'name' => $payment->merchant_name,
+                        'code' => $payment->method?->code,
+                    ] : null,
+                    'restaurant_gallery' => collect($gallery)->map(fn ($image) => [
+                        'id' => $image['id'],
+                        'url' => $image['url'] ?? null,
+                        'thumbnail_url' => $image['thumbnail_url'] ?? $image['url'] ?? null,
+                        'position' => $image['position'] ?? 0,
+                    ])->values()->all(),
+                ]),
             ]);
-        } catch (Exception $e) {
-            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage(), 'errors' => $e->errors()], 422);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json(['success' => false, 'message' => 'Checkout details no longer available. Please refresh your cart.'], 404);
+        } catch (\Throwable $e) {
+            Log::error('Unable to review order.', ['exception_class' => get_class($e)]);
+
+            return response()->json(['success' => false, 'message' => 'Unable to review order. Please try again.'], 500);
         }
+    }
+
+    private function reviewAddress(?\Modules\Countries\Models\Address $address): ?array
+    {
+        if (!$address) {
+            return null;
+        }
+
+        $city = $address->city?->name ?? $address->city_name;
+
+        return [
+            'id' => $address->id,
+            'address_line_1' => $address->address_line_1,
+            'address_line_2' => $address->address_line_2,
+            'city' => $city,
+            'state' => $address->state?->name,
+            'country' => $address->country?->name,
+            'zip_code' => $address->zip_code,
+            'latitude' => $address->latitude,
+            'longitude' => $address->longitude,
+            'full_address' => implode(', ', array_filter([
+                $address->address_line_1, $address->address_line_2, $city,
+                $address->state?->name, $address->country?->name, $address->zip_code,
+            ])),
+        ];
     }
 
 
@@ -651,7 +669,7 @@ class CheckoutController extends Controller
             $validated = $request->validate([
                 'restaurant_id'  => 'required|integer|exists:restaurants,id',
                 // 'payment_method' => 'required|string',
-                'payment_method' => 'required|integer',
+                'payment_method' => 'required|integer|exists:payment_configurations,id',
             ]);
 
         log::info('Placing order for restaurant_id: ' . $validated['restaurant_id'] . ' with payment_method: ' . $validated['payment_method']);
@@ -680,8 +698,17 @@ class CheckoutController extends Controller
                 'message' => 'Order placed successfully',
                 'data'    => ['order' => $order],
             ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage(), 'errors' => $e->errors()], 422);
         } catch (Exception $e) {
-            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+            Log::error('Unable to place order.', [
+                'exception_class' => get_class($e),
+                'exception_file' => $e->getFile(),
+                'exception_line' => $e->getLine(),
+                'sql_state' => $e instanceof \Illuminate\Database\QueryException ? ($e->errorInfo[0] ?? null) : null,
+                'database_error_code' => $e instanceof \Illuminate\Database\QueryException ? ($e->errorInfo[1] ?? null) : null,
+            ]);
+            return response()->json(['success' => false, 'message' => 'Unable to place order. Please try again.'], 500);
         }
     }
 

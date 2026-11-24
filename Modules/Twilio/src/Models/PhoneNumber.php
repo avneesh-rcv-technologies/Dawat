@@ -4,11 +4,9 @@ namespace Modules\Twilio\Models;
 
 use Modules\Acl\Models\Admin;
 use Illuminate\Database\Eloquent\Model;
-use Modules\Activitylog\Traits\LogsActivity;
 
 class PhoneNumber extends Model
 {
-    use LogsActivity;
 
     protected $table = 'twilio_phone_numbers';
     protected $fillable = [

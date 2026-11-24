@@ -8,6 +8,12 @@ class RegisterOrderPermissions
 {
     public function handle(RegisterPermissions $event)
     {
+        $event->registerArray([
+            'name' => 'Order Management', 'code' => 'order_commissions', 'guard' => ['admin'],
+            'key' => ['admin.order-commissions.index' => 'View Payouts and Commissions',
+                'admin.order-commissions.show' => 'View Commission Details',
+                'admin.order-commissions.update' => 'Update Commission Processing Status'],
+        ]);
         /**
          * Order Management → Orders
          */
@@ -22,13 +28,14 @@ class RegisterOrderPermissions
                 'admin.orders.show' => 'View Order Details',
                 'admin.orders.edit' => 'Edit Order',
                 'admin.orders.update' => 'Update Order',
+                'admin.orders.update-payment-status' => 'Record COD Payment',
                 'admin.orders.destroy' => 'Delete Order',
                 'admin.orders.bulk-delete' => 'Bulk Delete Orders',
                 'admin.orders.toggle-status' => 'Update Order Status',
                 'admin.orders.view-attachment' => 'View Order Attachments',
                 'admin.orders.store-attachment' => 'Upload Order Attachments',
                 'admin.orders.setPaymentMethod' => 'Set Payment Method',
-            ]
+            ],
         ]);
 
         /**
@@ -49,7 +56,7 @@ class RegisterOrderPermissions
                 'admin.transactions.reload' => 'Reload Transaction',
                 'admin.transactions.bulk-delete' => 'Bulk Delete Transactions',
                 'admin.transactions.toggle-status' => 'Update Transaction Status',
-            ]
+            ],
         ]);
 
         /**
@@ -68,8 +75,8 @@ class RegisterOrderPermissions
                 'admin.orders-statuses.update' => 'Update Order Status',
                 'admin.orders-statuses.destroy' => 'Delete Order Status',
                 'admin.orders.update-status' => 'Update Order Status from detail',
-                
-            ]
+
+            ],
         ]);
     }
 }

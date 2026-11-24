@@ -159,29 +159,33 @@ class DiscountsSeeder extends Seeder
             // Create coupons for this discount
             if (isset($discountData['coupons'])) {
                 foreach ($discountData['coupons'] as $couponData) {
-                    $coupon = Coupon::create([
-                        'discount_id' => $discount->id,
-                        'code' => $couponData['code'],
-                        'description' => "Coupon for {$discount->name}",
-                        'starts_at' => $discount->starts_at,
-                        'expires_at' => $discount->expires_at,
-                        'usage_limit' => $couponData['usage_limit'] ?? null,
-                        'usage_limit_per_user' => $couponData['usage_limit_per_user'] ?? null,
-                        'min_order_amount' => $couponData['min_order_amount'] ?? null,
-                        'times_used' => 0,
-                        'is_active' => $discount->is_active,
-                    ]);
+
+                    $coupon = Coupon::firstOrCreate(
+                        ['code' => $couponData['code']],
+                        [
+                            'discount_id' => $discount->id,
+                            'description' => "Coupon for {$discount->name}",
+                            'starts_at' => $discount->starts_at,
+                            'expires_at' => $discount->expires_at,
+                            'usage_limit' => $couponData['usage_limit'] ?? null,
+                            'usage_limit_per_user' => $couponData['usage_limit_per_user'] ?? null,
+                            'min_order_amount' => $couponData['min_order_amount'] ?? null,
+                            'times_used' => 0,
+                            'is_active' => $discount->is_active,
+                        ]
+                    );
+
 
                     $this->command->info("  - Created coupon: {$coupon->code}");
 
                     // Create some usage records for active coupons
                     if ($discount->is_active && $discount->starts_at <= now()) {
                         $usageCount = rand(0, min(5, $coupon->usage_limit ?? 5));
-                        
+
                         for ($i = 0; $i < $usageCount; $i++) {
                             // Randomly assign to user or admin
                             $usable = rand(0, 1) === 0 ? $users->random() : $admins->random();
-                            
+
                             CouponUsage::create([
                                 'coupon_id' => $coupon->id,
                                 'usable_type' => get_class($usable),
@@ -233,10 +237,10 @@ class DiscountsSeeder extends Seeder
         switch ($discount->type) {
             case DiscountType::PERCENTAGE:
                 return round($orderTotal * ($discount->amount / 100), 2);
-            
+
             case DiscountType::FIXED:
                 return min($discount->amount, $orderTotal);
-            
+
             default:
                 return 0;
         }

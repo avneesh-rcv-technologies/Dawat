@@ -2,9 +2,7 @@
 
 namespace Modules\Notifications\Services;
 
-use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Log;
-use Modules\Activitylog\Exceptions\ApiExceptionHandler;
 use Modules\Notifications\Services\NotificationDispatcher;
 
 class NotificationService
@@ -24,7 +22,7 @@ class NotificationService
      * @param mixed $entity (The related entity)
      * @return bool
      */
-    public function trigger(string $modulename, string $eventType, $notifiable, $entity): bool
+    public function trigger(string $modulename, string $eventType, $notifiable, $entity, ?array $channels = null): bool
     {
         try {
 
@@ -32,7 +30,8 @@ class NotificationService
             $notificationClass = "Modules\\{$modulename}\\Notifications\\{$eventType}Notification";
 
             if (!class_exists($notificationClass)) {
-                throw new \Exception("Notification class {$notificationClass} not found");
+                Log::warning('Notification class is unavailable.', ['notification_class' => $notificationClass]);
+                return false;
             }
             $notification = new $notificationClass($entity);
 
@@ -42,15 +41,18 @@ class NotificationService
 
 
             // Dispatch notification
-            $this->dispatcher->dispatch(
+            return $this->dispatcher->dispatch(
                 $notification->getEventCode(),
                 [$notifiable],
-                $notification
+                $notification,
+                $channels
             );
 
-            return true;
-        } catch (\Exception $e) {
-            ApiExceptionHandler::handle($e);
+        } catch (\Throwable $e) {
+            Log::warning('Notification could not be sent.', [
+                'module' => $modulename, 'event_type' => $eventType,
+                'exception_type' => get_class($e),
+            ]);
             return false;
         }
     }

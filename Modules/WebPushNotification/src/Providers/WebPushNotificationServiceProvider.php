@@ -7,7 +7,6 @@ use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\ServiceProvider;
-use PDOException;
 use Illuminate\Console\View\Components\Alert;
 use Modules\WebPushNotification\Channels\WebPushChannel;
 use Modules\Notifications\Services\NotificationChannelManager;
@@ -52,30 +51,21 @@ class WebPushNotificationServiceProvider extends ServiceProvider
      */
     protected function registerNotificationChannel(): void
     {
-        // Composer scripts must be able to boot without a database.
-        if ($this->app->runningConsoleCommand('package:discover', 'vendor:publish')) {
+        // Only register if the table exists
+        if (!Schema::hasTable('notification_channels')) {
             return;
         }
 
-        try {
-            // Only register if the table exists
-            if (!Schema::hasTable('notification_channels')) {
-                return;
-            }
+        $this->app->singleton(WebPushChannel::class, function ($app) {
+            return new WebPushChannel(config('services.webpush', []));
+        });
 
-            $this->app->singleton(WebPushChannel::class, function ($app) {
-                return new WebPushChannel(config('services.webpush', []));
-            });
+        $this->app->when(WebPushChannel::class)
+            ->needs('$config')
+            ->giveConfig('services.webpush');
 
-            $this->app->when(WebPushChannel::class)
-                ->needs('$config')
-                ->giveConfig('services.webpush');
-
-            $channelManager = $this->app->make(NotificationChannelManager::class);
-            $channelManager->registerChannel('webpush', WebPushChannel::class);
-        } catch (PDOException $e) {
-            Log::warning('Skipping WebPushNotification channel registration: database unavailable.');
-        }
+        $channelManager = $this->app->make(NotificationChannelManager::class);
+        $channelManager->registerChannel('webpush', WebPushChannel::class);
     }
 
     protected function registerModuleConfigs(): void

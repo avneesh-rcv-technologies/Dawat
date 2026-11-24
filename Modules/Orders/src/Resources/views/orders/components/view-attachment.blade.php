@@ -195,7 +195,7 @@
                 })
                 .catch(error => {
                     console.error('Error:', error);
-                    alert('An error occurred while uploading the files. Please try again.');
+                    appAlert('An error occurred while uploading the files. Please try again.', { tone: 'error', title: 'Upload failed' });
 
                     // Reset button state
                     submitBtn.disabled = false;

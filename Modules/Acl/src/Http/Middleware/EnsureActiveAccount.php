@@ -24,12 +24,14 @@ class EnsureActiveAccount
                 continue;
             }
 
+            $redirects = app(\Modules\Acl\Services\LoginRedirector::class);
+            $url = $name === 'admin' && $user instanceof \Modules\Acl\Models\Admin
+                ? $redirects->url($request, $user)
+                : route(Route::has("{$name}.login.form") ? "{$name}.login.form" : 'admin.login.form');
             $guard->logout();
             $request->session()->invalidate();
             $request->session()->regenerateToken();
 
-            $loginRoute = Route::has("{$name}.login.form") ? "{$name}.login.form" : 'admin.login.form';
-            $url = route($loginRoute);
 
             if ($request->expectsJson()) {
                 return response()->json([

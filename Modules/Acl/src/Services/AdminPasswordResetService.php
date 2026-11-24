@@ -13,7 +13,7 @@ class AdminPasswordResetService
 {
     public function __construct(private NotificationService $notifications) {}
 
-    public function send(Admin $admin, string $token): void
+    public function send(Admin $admin, string $token, string $resetRoute = 'admin.password.reset'): void
     {
         $mapping = (new AdminPasswordResetNotification())->getTemplateIdentifier();
         if (empty($mapping['email']) || empty($mapping['notify_account_owner'])
@@ -26,7 +26,7 @@ class AdminPasswordResetService
 
         if (!$this->notifications->trigger('Acl', 'AdminPasswordReset', $admin, [
             'admin_name' => $admin->name,
-            'reset_url' => route('admin.password.reset', ['token' => $token, 'email' => $admin->email]),
+            'reset_url' => route($resetRoute, ['token' => $token, 'email' => $admin->email]),
         ])) {
             throw ValidationException::withMessages([
                 'email' => ['Unable to queue the password reset email. Please try again later.'],

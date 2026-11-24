@@ -35,7 +35,7 @@ class AddressResource extends JsonResource
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
             'city_name' => $this->city_name, 
-            'state_name' => $this->state_id, 
+            'state_name' => $this->state?->name,
         ];
     }
 }

@@ -23,6 +23,6 @@ class TwilioDatabaseSeeder extends Seeder
 
         // Seed Twilio notification events
         // $this->call(TwilioNotificationsSeeder::class);
-        $this->call(OtpNotificationSeeder::class);
+        // $this->call(OtpNotificationSeeder::class);
     }
 }

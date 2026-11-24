@@ -129,9 +129,10 @@ class OrderStatusUpdateNotification implements Notification
 
         $customer = $order->customer;
         $vendor = $order->vendor;
-        $currencyCode = fn_get_setting('general.currency') ?? 'USD';
+        $currencyCode = $order->currency ?: 'USD';
 
         $variables = [
+            ...app(\Modules\Orders\Services\OrderNotificationDetails::class)->variables($order),
             "customer_id" => $customer->id ?? null,
             'customer_name' => $customer->name ?? 'Guest',
             'user_name' => $customer->name ?? 'Guest',
@@ -173,6 +174,7 @@ class OrderStatusUpdateNotification implements Notification
     public function getAvailableVariables(): array
     {
         return [
+            ...\Modules\Orders\Services\OrderNotificationDetails::availableVariables(),
             'customer_name' => 'Full name of the customer',
             'customer_email' => 'Customer email address',
             'order_id' => 'Unique ID of the order',

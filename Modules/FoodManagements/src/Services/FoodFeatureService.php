@@ -4,7 +4,10 @@ namespace Modules\FoodManagements\Services;
 
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
+use Modules\FoodManagements\Models\FoodCategory;
 use Modules\FoodManagements\Models\FoodFeature;
+use Modules\Restaurant\Models\Restaurant;
 use Modules\FoodManagements\Repositories\FoodFeatureRepository;
 
 class FoodFeatureService
@@ -59,7 +62,7 @@ class FoodFeatureService
      * Get feature groups with children + variants for the API.
      * Used by FoodFeaturesApiController.
      */
-    public function getGroupsForApi(?int $categoryId = null, ?string $purpose = null): \Illuminate\Support\Collection
+    public function getGroupsForApi(?int $categoryId = null, ?string $purpose = null, ?int $restaurantId = null): \Illuminate\Support\Collection
     {
         $query = \Modules\FoodManagements\Models\FoodFeature::with([
                 'description',
@@ -80,10 +83,11 @@ class FoodFeatureService
                     }
                 },
                 'children.description',
-                'children.variants' => fn ($q) => $q->where('status', true)->orderBy('position'),
+                'children.variants' => fn ($q) => $q->where('status', 'A')->orderBy('position'),
                 'children.variants.description',
             ])
             ->where('feature_type', self::TYPE_GROUP)
+            ->when($restaurantId, fn ($q) => $q->forRestaurant($restaurantId))
             ->where('status', "A")
             ->orderBy('position')
             ->get();
@@ -104,13 +108,47 @@ class FoodFeatureService
                     'position'      => $feature->position,
                     'variants'      => $feature->variants->map(fn ($v) => [
                         'variant_id' => $v->variant_id,
-                        'name'       => $v->description->name ?? null,
+                        'name'       => $v->description->description ?? null,
                         'position'   => $v->position,
                     ])->values(),
                 ])->values(),
             ])
             ->filter(fn ($g) => collect($g['features'])->isNotEmpty())
-            ->values();
+            ->values()
+            ->when(true, function ($groups) use ($categoryId, $purpose, $restaurantId) {
+                // Standalone features (no group) are returned as one "Features" section.
+                $standalone = FoodFeature::with(['description', 'variants' => fn ($q) => $q->where('status', 'A')->orderBy('position'), 'variants.description'])
+                    ->where('feature_type', '!=', self::TYPE_GROUP)
+                    ->where('parent_id', 0)
+                    ->where('status', 'A')
+                    ->when($restaurantId, fn ($q) => $q->forRestaurant($restaurantId))
+                    ->when($purpose, fn ($q) => $q->where('purpose', $purpose))
+                    ->when($categoryId, fn ($q) => $q->where(fn ($fq) => $fq->whereDoesntHave('categories')
+                        ->orWhereHas('categories', fn ($cq) => $cq->where('food_categories.id', $categoryId))))
+                    ->orderBy('position')
+                    ->get();
+
+                return $standalone->isEmpty() ? $groups : $groups->push([
+                    'group_id' => null,
+                    'name'     => 'Features',
+                    'position' => null,
+                    'features' => $standalone->map(fn ($feature) => [
+                        'feature_id'    => $feature->feature_id,
+                        'name'          => $feature->description->name ?? null,
+                        'feature_code'  => $feature->feature_code,
+                        'feature_type'  => $feature->feature_type,
+                        'feature_style' => $feature->feature_style,
+                        'filter_style'  => $feature->filter_style,
+                        'purpose'       => $feature->purpose,
+                        'position'      => $feature->position,
+                        'variants'      => $feature->variants->map(fn ($v) => [
+                            'variant_id' => $v->variant_id,
+                            'name'       => $v->description->description ?? null,
+                            'position'   => $v->position,
+                        ])->values(),
+                    ])->values(),
+                ]);
+            });
     }
 
     public function create(array $data): FoodFeature
@@ -185,6 +223,7 @@ class FoodFeatureService
         }
 
         $normalized = [
+            'restaurant_id'      => $this->resolveRestaurantId($data, $featureType, $parentId, $feature),
             'feature_code'       => (string) ($data['feature_code'] ?? $feature?->feature_code ?? ''),
             'purpose'            => $purpose,
             'feature_style'      => $featureStyle,
@@ -207,6 +246,72 @@ class FoodFeatureService
         return $normalized;
     }
 
+    /**
+     * Every feature belongs to one restaurant. Groups take it from the request when created;
+     * features always use their group's restaurant. It cannot be changed afterwards.
+     */
+    private function resolveRestaurantId(array $data, string $featureType, int $parentId, ?FoodFeature $feature): int
+    {
+        // A feature in a group (optional) always belongs to the group's restaurant.
+        if ($featureType !== self::TYPE_GROUP && $parentId) {
+            $parent = FoodFeature::where('feature_type', self::TYPE_GROUP)->find($parentId);
+            if (!$parent || !$parent->restaurant_id) {
+                throw ValidationException::withMessages(['parent_id' => 'Choose a valid feature group.']);
+            }
+            $owner = (int) ($feature?->restaurant_id ?: ($data['restaurant_id'] ?? 0));
+            if ($owner && $owner !== (int) $parent->restaurant_id) {
+                throw ValidationException::withMessages(['parent_id' => 'This group belongs to another restaurant.']);
+            }
+
+            return (int) $parent->restaurant_id;
+        }
+
+        // Standalone features and groups: set when created, never changed afterwards.
+        $restaurantId = (int) ($feature?->restaurant_id ?: ($data['restaurant_id'] ?? 0));
+        if ($restaurantId <= 0 || !Restaurant::whereKey($restaurantId)->exists()) {
+            throw ValidationException::withMessages(['restaurant_id' => 'Choose the restaurant this feature belongs to.']);
+        }
+
+        return $restaurantId;
+    }
+
+    /**
+     * Active features a restaurant can set on its food items, as display sections:
+     * each feature group with its features, then standalone features under "Features".
+     * Each section is a FoodFeature group with a loaded `children` relation.
+     */
+    public function itemFeatureSections(?int $restaurantId): \Illuminate\Support\Collection
+    {
+        $with = ['description', 'variants' => fn ($q) => $q->where('status', 'A')->orderBy('position'), 'variants.description'];
+        $features = FoodFeature::forRestaurant($restaurantId)
+            ->where('feature_type', '!=', self::TYPE_GROUP)
+            ->where('status', 'A')
+            ->with($with)
+            ->orderBy('position')->orderBy('feature_id')
+            ->get();
+        $groups = FoodFeature::forRestaurant($restaurantId)
+            ->where('feature_type', self::TYPE_GROUP)
+            ->where('status', 'A')
+            ->with('description')
+            ->orderBy('position')->orderBy('feature_id')
+            ->get()->keyBy('feature_id');
+
+        $sections = $groups->map(fn (FoodFeature $group) => $group->setRelation(
+            'children', $features->where('parent_id', $group->feature_id)->values()
+        ))->filter(fn (FoodFeature $group) => $group->children->isNotEmpty())->values();
+
+        // Standalone features, plus any whose group is hidden or missing.
+        $standalone = $features->reject(fn (FoodFeature $feature) => $groups->has($feature->parent_id))->values();
+        if ($standalone->isNotEmpty()) {
+            $section = new FoodFeature(['feature_type' => self::TYPE_GROUP]);
+            $section->setRelation('description', new \Modules\FoodManagements\Models\FoodFeatureDescription(['name' => 'Features']));
+            $section->setRelation('children', $standalone);
+            $sections->push($section);
+        }
+
+        return $sections;
+    }
+
     private function upsertDescription(FoodFeature $feature, array $data): void
     {
         $feature->descriptions()->updateOrCreate(
@@ -227,6 +332,9 @@ class FoodFeatureService
             }
         }
 
+        // Only the owning restaurant's categories can be linked.
+        $categoryIds = FoodCategory::where('restaurant_id', $feature->restaurant_id)
+            ->whereIn('id', $categoryIds)->pluck('id')->all();
         $feature->categories()->sync($categoryIds);
 
         if ($feature->feature_type === self::TYPE_GROUP) {

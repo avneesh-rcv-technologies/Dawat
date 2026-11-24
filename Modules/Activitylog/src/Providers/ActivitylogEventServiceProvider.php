@@ -3,20 +3,24 @@
 namespace Modules\Activitylog\Providers;
 
 use Modules\Core\Events\RegisterSettingsMenu;
+use Modules\Core\Events\RegisterPermissions;
 use Modules\Activitylog\Listeners\RegisterSettings;
+use Modules\Activitylog\Listeners\RegisterActivitylogPermissions;
+use Modules\Activitylog\Listeners\LogAuthenticationToSpatieAudit;
+use Illuminate\Auth\Events\Login;
 use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
 
 class ActivitylogEventServiceProvider extends ServiceProvider
 {
-    /**
-     * The event listener mappings for the application.
-     *
-     * @var array
-     */
     protected $listen = [
         RegisterSettingsMenu::class => [
             RegisterSettings::class,
-            // add more listeners from other modules
+        ],
+        RegisterPermissions::class => [
+            RegisterActivitylogPermissions::class,
+        ],
+        Login::class => [
+            LogAuthenticationToSpatieAudit::class,
         ],
     ];
 

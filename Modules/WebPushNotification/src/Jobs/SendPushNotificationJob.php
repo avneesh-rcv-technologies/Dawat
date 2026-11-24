@@ -10,7 +10,6 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Modules\Notifications\Models\NotificationLog;
-use Modules\Activitylog\Exceptions\ApiExceptionHandler;
 use Modules\WebPushNotification\Services\FirebaseNotificationService;
 
 class SendPushNotificationJob implements ShouldQueue
@@ -67,7 +66,6 @@ class SendPushNotificationJob implements ShouldQueue
 
         } catch (Exception $e) {
 
-            ApiExceptionHandler::handle($e);
             Log::error("Push notification failed", [
                 'log_id' => $this->logId,
                 'error'  => $e->getMessage(),

@@ -1,0 +1,13 @@
+.home-page [data-aos][data-aos][data-aos] {
+    transition-duration: 700ms !important;
+}
+
+.home-page .home-botanical-art { width: 250px; height: auto; top: 1348.11px; left: 0; opacity: 1; }
+
+.home-page .home-mobile-gradient { background: linear-gradient( to bottom, transparent 40%, rgba(0, 0, 0, 0.85) 60%, #000000 76%, #000000 100% ); }
+
+.home-page .home-orders-heading { font-size: clamp(28px, 5.5vw, 88px); }
+
+.home-page .home-restaurants-heading { font-size: clamp(24px, 3.8vw, 48px); }
+
+.home-page .home-features-heading { font-size: clamp(32px, 5.2vw, 75px); }

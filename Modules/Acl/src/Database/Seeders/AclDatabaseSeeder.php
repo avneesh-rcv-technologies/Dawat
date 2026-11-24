@@ -14,9 +14,9 @@ class AclDatabaseSeeder extends Seeder
     public function run(): void
     {
         // $this->call(AdminSeeder::class);
-        $this->call(CustomerNotificationSeeder::class);
-        $this->call(CustomerPasswordResetNotificationSeeder::class);
-        $this->call(AdminEmailVerificationSeeder::class);
-        $this->call(AdminPasswordResetNotificationSeeder::class);
+        // $this->call(CustomerNotificationSeeder::class);
+        // $this->call(CustomerPasswordResetNotificationSeeder::class);
+        // $this->call(AdminEmailVerificationSeeder::class);
+        // $this->call(AdminPasswordResetNotificationSeeder::class);
     }
 }

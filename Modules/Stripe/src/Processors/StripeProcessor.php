@@ -175,7 +175,7 @@ class StripeProcessor implements PaymentProcessor
 
     public function charge(array $payload): PaymentResponse
     {
-        Log::info('Stripe charge called', ['payload' => $payload]);
+        Log::info('Stripe charge called', ['order_id' => $payload['id'] ?? $payload['order_id'] ?? null]);
         $secretKey = $this->resolveSecretKey();
 
         if (empty($secretKey)) {
@@ -183,7 +183,7 @@ class StripeProcessor implements PaymentProcessor
         }
 
         $amount = (float) ($payload['total'] ?? $payload['amount'] ?? 0);
-        if ($amount <= 0) {
+        if (!is_finite($amount) || $amount <= 0) {
             throw new Exception('Invalid payment amount.');
         }
 
@@ -191,6 +191,7 @@ class StripeProcessor implements PaymentProcessor
         $orderNumber = trim((string) ($payload['order_number'] ?? ''));
         // $orderId    = (int) ($payload['order_id'] ?? 0);
         $orderId = (int) ($payload['id'] ?? $payload['order_id'] ?? 0);
+        if ($orderId <= 0) throw new \InvalidArgumentException('A saved order is required for payment.');
 
         Stripe::setApiKey($secretKey);
 
@@ -203,7 +204,7 @@ class StripeProcessor implements PaymentProcessor
                 'order_id'     => (string) $orderId,
                 'order_number' => $orderNumber,
             ],
-        ]);
+        ], ['idempotency_key' => 'order-payment-'.$orderId]);
 
         return new PaymentResponse([
             'gateway'            => 'stripe',
@@ -213,9 +214,23 @@ class StripeProcessor implements PaymentProcessor
             'currency'           => strtoupper($currency),
             'order_id'           => $orderId,
             'payment_method'     => 'stripe',
-            'redirect_url'       => '',
+            'redirect_url'       => app(\Modules\Stripe\Services\OrderPaymentLink::class)->url($orderId, $paymentIntent->id),
             'client_secret'      => $paymentIntent->client_secret,
         ]);
+    }
+
+    /** Retrieve the existing intent; resuming a payment must never create a new charge. */
+    public function retrieveOrderPaymentIntent(string $reference): array
+    {
+        $key = $this->resolveSecretKey();
+        if ($key === '') throw new \RuntimeException('Stripe secret key is missing.');
+        $stripe = new \Stripe\StripeClient($key);
+        return $stripe->paymentIntents->retrieve($reference, [])->toArray();
+    }
+
+    public function publicKey(): string
+    {
+        return trim((string) ($this->configuration['stripe_public_key'] ?? config('services.stripe.key') ?? ''));
     }
 
     public function refund(string $transactionId, float $amount): array
@@ -416,7 +431,7 @@ class StripeProcessor implements PaymentProcessor
 
                 $order = Order::findOrFail($orderId);
 
-                $payment = Payments::where('order_id', $order->id)->first();
+                $payment = Payments::where('order_id', $order->id)->lockForUpdate()->first();
                 if ($payment) {
                     $paymentStatus = ($eventData['payment_status'] ?? null) === 'unpaid'
                         ? $payment->status
@@ -478,7 +493,7 @@ class StripeProcessor implements PaymentProcessor
                 ]);
 
                 // Update payment
-                $payment = \Modules\Payments\Models\Payments::where('order_id', $order->id)->first();
+                $payment = \Modules\Payments\Models\Payments::where('order_id', $order->id)->lockForUpdate()->first();
                 if ($payment) {
                     $payment->update([
                         'status' => PaymentStatus::COMPLETED->value,
@@ -498,30 +513,18 @@ class StripeProcessor implements PaymentProcessor
                 }
 
 
-                $order->load('customer');
-                if ($order->customer && $order->customer->email) {
-                    $notificationService = app(\Modules\Notifications\Services\NotificationService::class);
-
-                    
-                    $notificationService->trigger(
-                        'Orders',
-                        'OrderCreated',
-                        $order->customer->email,
-                        $order
-                    );
-
-               
-                    if ($payment) {
-                        $notificationService->trigger(
-                            'Payments',
-                            'PaymentSuccess',
-                            $order->customer->email,
-                            $payment
-                        );
+                // PaymentObserver sends PaymentSuccess once for all successful payment paths.
+                DB::afterCommit(function () use ($order) {
+                    try {
+                        $order->load('customer');
+                        if ($order->customer?->email) {
+                            app(\Modules\Notifications\Services\NotificationService::class)
+                                ->trigger('Orders', 'OrderCreated', $order->customer, $order);
+                        }
+                    } catch (\Throwable $exception) {
+                        Log::warning('Stripe order confirmation notification failed.', ['order_id' => $order->id]);
                     }
-                }
-
-
+                });
 
                 Log::info('Stripe PaymentIntent succeeded', ['order_id' => $order->id]);
             } elseif (in_array($eventName, ['payment_intent.payment_failed', 'checkout.session.expired', 'charge.failed', 'payment_intent.canceled', 'checkout.session.async_payment_failed'], true)) {

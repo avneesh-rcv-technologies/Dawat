@@ -17,13 +17,15 @@ class RestaurantOnboardingDetailsService
                 ->whereIn('action', ['submitted', 'resubmitted'])->where('new_status', 'submitted'),
         ]);
         $records = $restaurant->onboardingSteps->keyBy('step_key');
+        $certificateStatus = $restaurant->dietaryCertificateStatus();
         $resubmissions = $restaurant->onboardingStatusHistories
             ->filter(fn ($history) => $history->isResubmission())
             ->sortByDesc(fn ($history) => [$history->created_at?->timestamp ?? 0, $history->id])
             ->groupBy('step_key');
-        $steps = array_map(function (OnboardingStep $step) use ($records, $resubmissions) {
+        $steps = array_map(function (OnboardingStep $step) use ($records, $resubmissions, $certificateStatus) {
             $record = $records->get($step->value);
             $status = $record?->status ?? 'not_started';
+            if ($step === OnboardingStep::DIETARY_CERTIFICATES && $certificateStatus !== null) $status = $certificateStatus;
             $resubmittedAt = $resubmissions->get($step->value)?->first()?->created_at;
 
             return [
@@ -33,7 +35,9 @@ class RestaurantOnboardingDetailsService
                 'status' => $status,
                 'status_label' => $status === 'action_required' ? 'Refill requested' : ($record ? (OnboardingStatus::tryFrom($status)?->label() ?? Str::headline($status)) : 'Not started'),
                 'refill_requested' => $status === 'action_required',
-                'can_skip' => in_array($step, OnboardingStep::canSkip(), true),
+                'can_skip' => $step === OnboardingStep::DIETARY_CERTIFICATES
+                    ? $certificateStatus === null
+                    : in_array($step, OnboardingStep::canSkip(), true),
                 'is_approved' => $status === OnboardingStatus::APPROVED->value,
                 'submitted_at' => $record?->submitted_at?->toIso8601String(),
                 'reviewed_at' => $record?->reviewed_at?->toIso8601String(),
@@ -62,7 +66,10 @@ class RestaurantOnboardingDetailsService
                 'submitted_at' => $restaurant->submitted_at?->toIso8601String(),
                 'approved_at' => $restaurant->approved_at?->toIso8601String(),
                 'rejection_reason' => $restaurant->rejection_reason,
+               'address' => fn_get_restaurant_address($restaurant->id),
             ],
+            // Shown as a checkbox in the banking step of the app.
+            'platform_commission' => \Modules\Restaurant\Support\PlatformCommission::forRestaurant($restaurant),
             'progress' => [
                 'total_steps' => count($steps),
                 'required_steps' => $required->count(),

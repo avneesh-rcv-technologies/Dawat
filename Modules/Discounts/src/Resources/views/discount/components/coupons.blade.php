@@ -116,9 +116,15 @@
         // Attach delete buttons
         function attachRemoveButtons() {
             container.querySelectorAll('.remove-coupon').forEach(btn => {
-                btn.onclick = (e) => {
+                btn.onclick = async (e) => {
                     e.preventDefault();
-                    if (confirm('Are you sure you want to remove this coupon?')) {
+                    const confirmed = await appConfirm({
+                        title: 'Remove this coupon?',
+                        message: 'The coupon row will be removed from this discount.',
+                        confirmText: 'Remove',
+                        tone: 'danger',
+                    });
+                    if (confirmed) {
                         btn.closest('tr').remove();
                         updateIndexes();
                     }

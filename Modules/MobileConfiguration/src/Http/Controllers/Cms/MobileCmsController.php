@@ -6,6 +6,8 @@ use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
+use App\Rules\NoScripts;
 use Modules\Activitylog\Exceptions\ApiExceptionHandler;
 use Modules\MobileConfiguration\Models\MobileCms;
 use Modules\MobileConfiguration\DataView\MobileCmsGrid;
@@ -35,13 +37,7 @@ class MobileCmsController extends Controller
     public function store(Request $request)
     {
         try {
-            $validator = Validator::make($request->all(), [
-                'name' => 'required|string|max:100',
-                'cms_page_id' => 'required|integer|exists:cms_page_settings,id',
-                'status' => 'required|boolean',
-                'position' => 'nullable|integer|min:0',
-                'image' => 'nullable|image|max:5120',
-            ]);
+            $validator = $this->validator($request);
 
             if ($validator->fails()) {
                 return response()->json(['errors' => $validator->errors()], 422);
@@ -67,19 +63,39 @@ class MobileCmsController extends Controller
 
     public function edit(MobileCms $cm)
     {
+        $cm->load('cmsPage');
+
         return view('mobileconfiguration::cms.form', ['mobileCms' => $cm]);
+    }
+
+    /**
+     * The page content is entered here directly; the linked CMS page is created/updated by the service.
+     */
+    protected function validator(Request $request, ?int $cmsPageId = null): \Illuminate\Validation\Validator
+    {
+        $validator = Validator::make($request->all(), [
+            'page_title' => ['required', 'string', 'max:100', new NoScripts, 'regex:/^[\p{L}0-9\s\-\&\(\)\:\/\'\",\.]+$/u'],
+            'slug' => ['nullable', 'string', 'max:120', 'alpha_dash', Rule::unique('cms_page_settings', 'slug')->ignore($cmsPageId)],
+            'description' => ['required', 'string', new NoScripts(allowHtml: true)],
+            'meta_title' => ['nullable', 'string', 'max:100', new NoScripts],
+            'meta_description' => ['nullable', 'string', 'max:150', new NoScripts],
+            'meta_keywords' => ['nullable', 'string', 'max:150', new NoScripts],
+            'status' => 'required|boolean',
+            'position' => 'nullable|integer|min:0',
+            'image' => 'nullable|image|max:5120',
+        ]);
+
+        $validator->setCustomMessages([
+            'page_title.regex' => 'Title contains invalid characters. Only letters, numbers, spaces and common punctuation (- & ( ) : / \' " , .) are allowed.',
+        ]);
+
+        return $validator;
     }
 
     public function update(Request $request, MobileCms $cm)
     {
         try {
-            $validator = Validator::make($request->all(), [
-                'name' => 'required|string|max:100',
-                'cms_page_id' => 'required|integer|exists:cms_page_settings,id',
-                'status' => 'required|boolean',
-                'position' => 'nullable|integer|min:0',
-                'image' => 'nullable|image|max:5120',
-            ]);
+            $validator = $this->validator($request, $cm->cms_page_id);
 
             if ($validator->fails()) {
                 return response()->json(['errors' => $validator->errors()], 422);

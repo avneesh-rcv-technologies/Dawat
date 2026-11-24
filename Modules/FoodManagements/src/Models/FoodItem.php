@@ -26,9 +26,13 @@ class FoodItem extends Model
         'is_available',
         'is_active',
         'food_type',
+        'dietary_label_ids',
+        'tax_percentage',
     ];
 
     protected $casts = [
+        'dietary_label_ids' => 'array',
+        'tax_percentage' => 'decimal:2',
         'in_stock' => 'boolean',
         'is_available' => 'boolean',
         'is_active' => 'boolean',
@@ -97,6 +101,11 @@ class FoodItem extends Model
     public function restaurant()
     {
         return $this->belongsTo(Restaurant::class);
+    }
+
+    public function servingOptions(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(FoodItemServingOption::class)->orderBy('sort_order');
     }
 
     public function categories()

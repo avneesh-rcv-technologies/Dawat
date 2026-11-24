@@ -6,8 +6,6 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Str;
 use Modules\FoodManagements\Models\FoodCategory;
-use Modules\FoodManagements\Models\FoodFeatureValue;
-use Modules\FoodManagements\Models\FoodFeatureVariant;
 use Modules\FoodManagements\Models\FoodItem;
 
 class RestaurantFoodItemService
@@ -262,38 +260,8 @@ class RestaurantFoodItemService
 
     protected function syncFeatureValues(FoodItem $foodItem, array $featureValues): void
     {
-        FoodFeatureValue::query()->where('food_item_id', $foodItem->id)->delete();
-
-        foreach ($featureValues as $featureId => $valueSet) {
-            $values = is_array($valueSet) ? $valueSet : [$valueSet];
-
-            foreach ($values as $value) {
-                if ($value === null || $value === '') {
-                    continue;
-                }
-
-                $variantId = null;
-                if (is_numeric($value)) {
-                    $variantMatch = FoodFeatureVariant::query()
-                        ->where('variant_id', (int) $value)
-                        ->where('feature_id', (int) $featureId)
-                        ->exists();
-
-                    if ($variantMatch) {
-                        $variantId = (int) $value;
-                    }
-                }
-
-                FoodFeatureValue::query()->create([
-                    'feature_id' => (int) $featureId,
-                    'food_item_id' => $foodItem->id,
-                    'variant_id' => $variantId,
-                    'value' => $variantId !== null ? '' : (string) $value,
-                    'value_int' => $variantId === null && is_numeric($value) ? (float) $value : null,
-                    'lang_code' => 'en',
-                ]);
-            }
-        }
+        // Shared logic: only the item's own restaurant's features are kept.
+        app(\Modules\FoodManagements\Services\FoodItemService::class)->syncFeatures($foodItem->id, $featureValues);
     }
 
     protected function handleUploadedImages(FoodItem $foodItem, array $files = []): void

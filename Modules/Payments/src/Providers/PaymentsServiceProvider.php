@@ -77,7 +77,7 @@ class PaymentsServiceProvider extends ServiceProvider
     {
         if ($this->app->runningInConsole()) {
             $this->commands([
-                // Add your commands here
+                \Modules\Payments\Console\RetryPaymentSuccessNotification::class,
             ]);
         }
     }

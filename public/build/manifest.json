@@ -1,6 +1,49 @@
 {
+  "Modules/Backend/src/Resources/assets/css/app.css": {
+    "file": "assets/app-BIj4MlzK.css",
+    "src": "Modules/Backend/src/Resources/assets/css/app.css",
+    "isEntry": true,
+    "names": [
+      "app.css"
+    ]
+  },
+  "Modules/Backend/src/Resources/assets/css/toast.css": {
+    "file": "assets/toast-DK_OoyHN.css",
+    "src": "Modules/Backend/src/Resources/assets/css/toast.css",
+    "isEntry": true,
+    "names": [
+      "toast.css"
+    ]
+  },
+  "Modules/Backend/src/Resources/assets/js/app.js": {
+    "file": "assets/app-DgOJso9w.js",
+    "name": "app",
+    "src": "Modules/Backend/src/Resources/assets/js/app.js",
+    "isEntry": true,
+    "imports": [
+      "_index-NIGUFBhG.js"
+    ]
+  },
+  "Modules/Backend/src/Resources/assets/js/toast.js": {
+    "file": "assets/toast-BlCakILv.js",
+    "name": "toast",
+    "src": "Modules/Backend/src/Resources/assets/js/toast.js",
+    "isEntry": true
+  },
+  "Modules/KYC/src/Resources/assets/css/kyc.css": {
+    "file": "assets/kyc-08UTKkwf.css",
+    "src": "Modules/KYC/src/Resources/assets/css/kyc.css",
+    "isEntry": true,
+    "names": [
+      "kyc.css"
+    ]
+  },
+  "_index-NIGUFBhG.js": {
+    "file": "assets/index-NIGUFBhG.js",
+    "name": "index"
+  },
   "resources/css/app.css": {
-    "file": "assets/app-BOYLmljT.css",
+    "file": "assets/app-D5c0qgLk.css",
     "src": "resources/css/app.css",
     "isEntry": true,
     "names": [
@@ -8,9 +51,12 @@
     ]
   },
   "resources/js/app.js": {
-    "file": "assets/app-C0G0cght.js",
+    "file": "assets/app-B7OvUs4L.js",
     "name": "app",
     "src": "resources/js/app.js",
-    "isEntry": true
+    "isEntry": true,
+    "imports": [
+      "_index-NIGUFBhG.js"
+    ]
   }
 }

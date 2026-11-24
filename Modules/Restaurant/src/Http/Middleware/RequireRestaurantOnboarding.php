@@ -4,23 +4,23 @@ namespace Modules\Restaurant\Http\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;
+use Modules\Restaurant\Services\RestaurantApprovalAccess;
 use Modules\Restaurant\Services\RestaurantOnboardingAccessService;
 
 class RequireRestaurantOnboarding
 {
-    public function __construct(private RestaurantOnboardingAccessService $access)
-    {
-    }
+    public function __construct(private RestaurantOnboardingAccessService $access) {}
 
     public function handle(Request $request, Closure $next)
     {
         $admin = $request->user('admin');
 
-        if (!$admin || $request->routeIs('restaurant.onboarding.kyc', 'restaurant.onboarding.corrections.*', 'admin.logout')) {
+        if (! $admin || $request->routeIs('profile.edit', 'profile.update', 'profile.certificates.store', 'settings.restaurant.dietary-certificates.*', 'restaurant.onboarding.kyc', 'restaurant.onboarding.corrections.*', 'restaurant.onboarding.certificates.*', 'restaurant.onboarding.menu.*', 'admin.logout')) {
             return $next($request);
         }
 
-        if (!$this->access->forAdmin($admin)) {
+        if (! app(RestaurantApprovalAccess::class)->isOwner($admin)
+            || ! $this->access->forAdmin($admin)) {
             return $next($request);
         }
 

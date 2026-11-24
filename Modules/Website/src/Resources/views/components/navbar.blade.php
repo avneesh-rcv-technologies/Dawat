@@ -6,7 +6,7 @@
 
     {{-- Logo (Upright Roman Serif matching Figma) --}}
     <a href="{{ url('/') }}" class="flex items-center group flex-shrink-0">
-        <img src="{{ asset('website/images/dawat-wordmark.png') }}" alt="Dawat" class="block w-[94px] lg:w-[132px] h-auto" />
+        <img {!! \Modules\Website\Support\WebsiteImages::attributes('website/images/dawat-wordmark.png', '(min-width: 1024px) 132px, 94px', 160) !!} alt="Dawat" class="block w-[94px] lg:w-[132px] h-auto" / loading="eager" decoding="async">
     </a>
 
     {{-- Center: Desktop Nav Links (Frame 1116607449) --}}
@@ -21,13 +21,21 @@
         ];
     @endphp
 
-    <div class="hidden lg:flex items-center gap-9 px-4 py-2">
+    <div class="hidden lg:flex items-center gap-5 xl:gap-9 px-4 py-2">
         @foreach($navLinks as $link)
             <a href="{{ $link['url'] }}"
                class="font-urbanist font-medium text-[17px] text-white leading-5 whitespace-nowrap opacity-90 hover:opacity-100 transition-opacity">
                 {{ $link['label'] }}
             </a>
         @endforeach
+        <a href="{{ route('website.partner-login') }}"
+           class="inline-flex h-12 w-[140px] shrink-0 items-center justify-center gap-2 rounded-full bg-[#FF6210] font-urbanist text-base font-normal text-white transition-colors hover:bg-[#e9550b] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#FF6210]"
+           @if(request()->routeIs('website.partner-login')) aria-current="page" @endif>
+            <span>Partner Login</span>
+            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M7 17 17 7M7 7h10v10" />
+            </svg>
+        </a>
     </div>
 
     {{-- Right: App Store & Play Store Buttons (Frame 2121449830) --}}
@@ -69,7 +77,7 @@
 <div id="mobile-drawer" class="hidden fixed inset-0 z-[100] bg-[#000000] flex-col justify-between p-8 overscroll-contain">
     <div>
         <div class="flex items-center justify-between pb-6 border-b border-white/10">
-            <img src="{{ asset('website/images/dawat-wordmark.png') }}" alt="Dawat" class="block w-[132px] h-auto" />
+            <img {!! \Modules\Website\Support\WebsiteImages::attributes('website/images/dawat-wordmark.png', '(min-width: 1024px) 132px, 94px', 160) !!} alt="Dawat" class="block w-[132px] h-auto" / loading="eager" decoding="async">
             <button id="close-mobile-btn" class="p-2 text-white hover:text-[#FF6210] transition-colors" aria-label="Close Navigation">
                 <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
@@ -84,6 +92,14 @@
                     {{ $link['label'] }}
                 </a>
             @endforeach
+            <a href="{{ route('website.partner-login') }}"
+               class="mt-2 inline-flex h-12 w-[140px] shrink-0 items-center justify-center gap-2 self-start rounded-full bg-[#FF6210] font-urbanist text-base font-normal text-white transition-colors hover:bg-[#e9550b] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#FF6210]"
+               @if(request()->routeIs('website.partner-login')) aria-current="page" @endif>
+                <span>Log In</span>
+                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M7 17 17 7M7 7h10v10" />
+                </svg>
+            </a>
         </div>
     </div>
 </div>

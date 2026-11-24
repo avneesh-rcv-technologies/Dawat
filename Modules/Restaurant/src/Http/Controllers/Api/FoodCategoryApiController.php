@@ -10,6 +10,8 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Modules\Restaurant\Models\Restaurant;
 use Modules\Restaurant\Services\RestaurantFoodCategoryService;
+use Modules\FoodManagements\Models\FoodCategory;
+use Illuminate\Validation\ValidationException;
 
 class FoodCategoryApiController extends Controller
 {
@@ -24,8 +26,6 @@ class FoodCategoryApiController extends Controller
         $filters = $request->only([
             'search',
             'status',
-            'food_type',
-            'parent_id',
             'per_page',
             'sort_by',
             'sort_dir',
@@ -37,7 +37,7 @@ class FoodCategoryApiController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Food categories retrieved successfully.',
-            'data' => $categories->items(),
+            'data' => $categories->getCollection()->map(fn ($category) => $this->categoryData($category))->values(),
             'meta' => [
                 'current_page' => $categories->currentPage(),
                 'per_page' => $categories->perPage(),
@@ -67,33 +67,15 @@ class FoodCategoryApiController extends Controller
                             )
                         ),
                 ],
-
                 'description' => [
                     'nullable',
                     'string',
                     'max:500',
                 ],
-
-                'food_type' => [
-                    'required',
-                    'in:all,veg,non_veg,vegan',
-                ],
-
-                'parent_id' => [
-                    'nullable',
-                    'integer',
-                    Rule::exists('food_categories', 'id')
-                        ->where(
-                            fn($query) => $query->where(
-                                'restaurant_id',
-                                $restaurant->id
-                            )
-                        ),
-                ],
                 'status' => [
                     'nullable',
                     'boolean',
-                    'deafult:true',
+                    'default:true',
                 ],
                 'image' => [
                     'nullable',
@@ -108,22 +90,9 @@ class FoodCategoryApiController extends Controller
                 'name.string' => 'Category name must be a string.',
                 'name.max' => 'Category name may not be greater than 255 characters.',
                 'name.unique' => 'This category name already exists.',
-
-                'slug.string' => 'Slug must be a string.',
-                'slug.max' => 'Slug may not be greater than 255 characters.',
-                'slug.unique' => 'This slug already exists.',
-
                 'description.string' => 'Description must be a string.',
                 'description.max' => 'Description may not be greater than 500 characters.',
-
-                'food_type.required' => 'Food type is required.',
-                'food_type.in' => 'Food type must be all, veg, non_veg, or vegan.',
-
-                'parent_id.integer' => 'Parent category ID must be an integer.',
-                'parent_id.exists' => 'The selected parent category is invalid.',
-
                 'status.boolean' => 'Status must be true or false.',
-
                 'image.file' => 'The image must be a valid file.',
                 'image.image' => 'The uploaded file must be an image.',
                 'image.mimes' => 'The image must be a JPG, JPEG, or PNG file.',
@@ -139,38 +108,9 @@ class FoodCategoryApiController extends Controller
         }
 
         $validated = $validator->validated();
-
         $validated['status'] = $request->boolean('status', true);
-        /*
-        |--------------------------------------------------------------------------
-        | Validate Parent Category
-        |--------------------------------------------------------------------------
-        */
-        if (!empty($validated['parent_id'])) {
 
-            $parentCategory = $this->service->showForRestaurant(
-                $restaurant->id,
-                (int) $validated['parent_id']
-            );
-
-            if ($parentCategory->parent_id !== null) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Only root categories can be used as parent categories.',
-                    'errors' => [
-                        'parent_id' => [
-                            'Only root categories can be used as parent categories.',
-                        ],
-                    ],
-                ], 422);
-            }
-        }
-        /*
-        |--------------------------------------------------------------------------
-        | Create Category
-        |--------------------------------------------------------------------------
-        */
-        $data=$this->service->createForRestaurant(
+        $data = $this->service->createForRestaurant(
             $restaurant->id,
             $validated
         );
@@ -178,7 +118,7 @@ class FoodCategoryApiController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Food category created successfully.',
-            'data' => $data,
+            'data' => $this->categoryData($data),
         ], 201);
     }
 
@@ -193,7 +133,7 @@ class FoodCategoryApiController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Food category retrieved successfully.',
-                'data' => $category,
+                'data' => $this->categoryData($category),
             ], 200);
         } catch (ModelNotFoundException $e) {
             return $this->notFoundResponse('Food category not found.');
@@ -251,36 +191,17 @@ class FoodCategoryApiController extends Controller
                     'max:255',
                     Rule::unique('food_categories', 'name')->ignore($id)->where(fn($query) => $query->where('restaurant_id', $restaurant->id)),
                 ],
-                'slug' => ['prohibited'],
                 'description' => ['sometimes', 'nullable', 'string', 'max:500'],
-                'food_type' => ['sometimes', 'in:all,veg,non_veg,vegan'],
-                'parent_id' => [
-                    'sometimes',
-                    'nullable',
-                    'integer',
-                    Rule::exists('food_categories', 'id')->where(fn($query) => $query->where('restaurant_id', $restaurant->id)),
-                ],
                 'status' => ['sometimes', 'boolean'],
                 'image' => ['sometimes', 'nullable', 'file', 'image', 'mimes:jpg,jpeg,png', 'max:2048'],
             ])->validate();
 
-            if (array_key_exists('parent_id', $validated)) {
-                if (!empty($validated['parent_id'])) {
-                    $parentCategory = $this->service->showForRestaurant($restaurant->id, (int) $validated['parent_id']);
-                    if ($parentCategory->parent_id !== null) {
-                        return response()->json([
-                            'success' => false,
-                            'message' => 'Only root categories can be used as parent categories.',
-                        ], 422);
-                    }
-                }
-            }
-
-            if ($id === ($validated['parent_id'] ?? null)) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'A category cannot be assigned as its own parent.',
-                ], 422);
+            if ($validated === [] || (count($validated) === 1 && array_key_exists('image', $validated) && $validated['image'] === null)) {
+                $message = str_starts_with(strtolower((string) $request->header('Content-Type')), 'multipart/form-data')
+                    && in_array($request->getRealMethod(), ['PUT', 'PATCH'], true)
+                    ? 'Send image uploads as POST multipart/form-data to this URL, optionally with _method=PATCH, using the image file field.'
+                    : 'Provide at least one category field to update: name, description, status, or an image file.';
+                throw ValidationException::withMessages(['request' => $message]);
             }
 
             $category = $this->service->updateForRestaurant($restaurant->id, $id, $validated);
@@ -288,7 +209,7 @@ class FoodCategoryApiController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Food category updated successfully.',
-                'data' => $category,
+                'data' => $this->categoryData($category),
             ], 200);
         } catch (ModelNotFoundException $e) {
             return $this->notFoundResponse('Food category not found.');
@@ -348,7 +269,7 @@ class FoodCategoryApiController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Food category image uploaded successfully.',
-                // 'data' => $category,
+                'data' => $this->categoryData($category),
             ], 200);
         } catch (ModelNotFoundException $e) {
             return $this->notFoundResponse('Food category not found.');
@@ -379,6 +300,16 @@ class FoodCategoryApiController extends Controller
             'success' => false,
             'message' => $message,
         ], 404);
+    }
+
+    private function categoryData(FoodCategory $category): array
+    {
+        $image = fn_get_image('category_image', $category->id);
+
+        return [
+            ...$category->toArray(),
+            'image_url' => (is_array($image) ? ($image['url'] ?? null) : null) ?? $category->image_url,
+        ];
     }
 
     protected function getRestaurantForAuthUser(Request $request): Restaurant

@@ -141,3 +141,5 @@
         </div>
     </div>
 </div>
+
+@include('restaurant::admin.partials.order-policies')

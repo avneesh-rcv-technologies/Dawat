@@ -9,7 +9,7 @@ use Modules\Twilio\Models\PhoneNumber;
 use Modules\Twilio\Models\TwilioMessage;
 use Modules\Twilio\Services\MessagingAutomationService;
 use Modules\Activitylog\Exceptions\ApiExceptionHandler;
-use Modules\Activitylog\Services\ActivityLoggerService;
+use Modules\Activitylog\Services\SpatieAuditLogger;
 
 class SmsService {
     /**
@@ -43,7 +43,8 @@ class SmsService {
         $phoneNumber->retry_count++;
         $phoneNumber->save();
 
-        ActivityLoggerService::log(
+        app(SpatieAuditLogger::class)->log(
+            'message_added_in_queue',
             'Twilio Message Added In Queue',
             Auth::guard('admin')->user(),
             [
@@ -55,7 +56,7 @@ class SmsService {
                 'event'      => 'message_added_in_queue',
                 'severity'   => 'critical',
             ],
-            'admin'
+            Auth::guard('admin')->user()
         );
         // Dispatch job to send the SMS and pass the message id so the job can update the same record
         SendSmsJob::dispatch($phoneNumber->id, $message, $messageRecord->id);
@@ -76,7 +77,8 @@ class SmsService {
             $from = $payload['From'] ?? null;
             $body = $payload['Body'] ?? null;
 
-            ActivityLoggerService::log(
+            app(SpatieAuditLogger::class)->log(
+                'twilio_inbound',
                 'Webhook:: Twilio Inbound',
                 Auth::guard('admin')->user(),
                 [
@@ -88,7 +90,7 @@ class SmsService {
                     'event'      => 'twilio_inbound',
                     'severity'   => 'info',
                 ],
-                'admin'
+                Auth::guard('admin')->user()
             );
 
             if (!$sid) {
@@ -112,7 +114,8 @@ class SmsService {
             }
 
             if (!$phoneNumber) {
-                ActivityLoggerService::log(
+                app(SpatieAuditLogger::class)->log(
+                    'twilio_message_not_found',
                     'Webhook:: Twilio Phone Number Not Found',
                     Auth::guard('admin')->user(),
                     [
@@ -124,7 +127,7 @@ class SmsService {
                         'event'      => 'twilio_message_not_found',
                         'severity'   => 'critical',
                     ],
-                    'admin'
+                    Auth::guard('admin')->user()
                 );
                 return false;
             }
@@ -201,7 +204,8 @@ class SmsService {
             $result = $automationService->processInboundMessage($phoneNumber, $message);
 
             if ($result) {
-                ActivityLoggerService::log(
+                app(SpatieAuditLogger::class)->log(
+                    'automation_processed',
                     'Messaging Automation Processed',
                     Auth::guard('admin')->user(),
                     [
@@ -214,7 +218,7 @@ class SmsService {
                         'event' => 'automation_processed',
                         'severity' => 'info',
                     ],
-                    'admin'
+                    Auth::guard('admin')->user()
                 );
             } else {
                 // Log for manual review if no automation rules matched

@@ -164,10 +164,29 @@
                     </div>
 
                     <div class="space-y-4">
+                        {{-- Features are restaurant-owned. A group (optional) decides the restaurant. --}}
+                        @if (isset($feature))
+                            <div>
+                                <label class="custom-label">Restaurant</label>
+                                <p class="input-field bg-gray-50">{{ $feature->restaurant?->name ?? '—' }}</p>
+                            </div>
+                        @elseif (!($ownerRestaurantId ?? null))
+                            <div>
+                                <label class="custom-label" for="featureRestaurant">Restaurant <span class="text-red-500">*</span></label>
+                                <select name="restaurant_id" id="featureRestaurant" class="input-field">
+                                    <option value="">Select restaurant</option>
+                                    @foreach ($restaurants as $restaurantOption)
+                                        <option value="{{ $restaurantOption->id }}" @selected(old('restaurant_id') == $restaurantOption->id)>{{ $restaurantOption->name }}</option>
+                                    @endforeach
+                                </select>
+                                <p class="text-xs text-gray-500 mt-1">Only this restaurant can use the feature. Not needed if you choose a group.</p>
+                            </div>
+                        @endif
+
                         <div>
-                            <label class="custom-label">Group</label>
+                            <label class="custom-label">Group (optional)</label>
                             <select name="parent_id" id="featureGroupSelect" class="input-field">
-                                <option value="0">- None -</option>
+                                <option value="">- None -</option>
                                 @foreach ($groups as $group)
                                     <option
                                         value="{{ $group->feature_id }}"
@@ -176,7 +195,7 @@
                                         data-display-on-header="{{ $group->display_on_header }}"
                                         {{ $selectedGroup === (int) $group->feature_id ? 'selected' : '' }}
                                     >
-                                        {{ $group->description->name ?? $group->description->description ?? ('Group #' . $group->feature_id) }}
+                                        {{ $group->description->name ?? $group->description->description ?? ('Group #' . $group->feature_id) }}@if ($group->restaurant) — {{ $group->restaurant->name }}@endif
                                     </option>
                                 @endforeach
                             </select>

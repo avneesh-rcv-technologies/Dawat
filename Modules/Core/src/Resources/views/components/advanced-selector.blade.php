@@ -14,13 +14,16 @@
     'filters' => [],
     'orderBy' => 'name',
     'orderDirection' => 'asc',
-    'ajax' => false
+    'ajax' => false,
+    'iconColumn' => '',
+    'eligibility' => [],
+    'eligibilityUrl' => ''
 ])
 
 @php
     $componentId = 'selector_' . uniqid();
     $selectedItems = is_array($selected) ? $selected : (is_string($selected) ? explode(',', $selected) : []);
-    $selectedItems = array_filter($selectedItems);
+    $selectedItems = array_values(array_filter($selectedItems, fn ($id) => !isset($eligibility[(string) $id]) || $eligibility[(string) $id]['allowed']));
 
 @endphp
 
@@ -35,6 +38,9 @@
     <div class="relative">
         <!-- Main Input Field -->
         <div class="selector-input-container relative">
+            @if ($iconColumn)
+                <span id="{{ $componentId }}_selected_icon" class="absolute inset-y-0 left-0 items-center pl-3 pointer-events-none" style="display: none"></span>
+            @endif
             <input 
                 type="text" 
                 id="{{ $componentId }}_input"
@@ -149,9 +155,13 @@ window.selectorConfigs['{{ $componentId }}'] = {
     searchColumn: '{{ $searchColumn }}',
     valueColumn: '{{ $valueColumn }}',
     displayColumn: '{{ $displayColumn }}',
+    iconColumn: @json($iconColumn),
+    eligibility: {{ Illuminate\Support\Js::from($eligibility) }},
+    eligibilityUrl: {{ Illuminate\Support\Js::from($eligibilityUrl) }},
+    assetBase: @json(rtrim(asset(''), '/') . '/'),
     multiple: {{ $multiple ? 'true' : 'false' }},
-    apiRoute: '{{ $apiRoute }}',
-    additionalColumns: @json($additionalColumns),
+    apiRoute: {{ Illuminate\Support\Js::from($apiRoute) }},
+    additionalColumns: @json(array_values(array_unique(array_merge($additionalColumns, $iconColumn ? [$iconColumn] : [])))),
     filters: @json($filters),
     orderBy: '{{ $orderBy }}',
     orderDirection: '{{ $orderDirection }}',
@@ -355,7 +365,7 @@ async function loadItems(componentId, search = '', append = false) {
             filters: JSON.stringify(config.filters)
         });
         
-        const response = await fetch(`/api/advanced-selector-data?${params}`, {
+        const response = await fetch(selectorDataUrl(config, params), {
             headers: {
                 'X-Requested-With': 'XMLHttpRequest',
                 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
@@ -414,7 +424,7 @@ function displayItems(componentId, items, append = false) {
             const valueStr = String(itemValue);
         }
 
-        const isSelected = config.selectedItems.includes(itemValue);
+        const isSelected = config.selectedItems.includes(String(itemValue));
         const itemElement = createItemElement(componentId, item, isSelected);
         container.appendChild(itemElement);
         
@@ -429,6 +439,54 @@ function displayItems(componentId, items, append = false) {
     infiniteLoading.classList.add('hidden');
 }
 
+function selectorEscapeText(value) {
+    const span = document.createElement('span');
+    span.textContent = value == null ? '' : String(value);
+    return span.innerHTML;
+}
+
+function selectorIconHtml(config, item) {
+    const icon = String(item?.[config.iconColumn] || '').trim();
+    if (!config.iconColumn || !icon) return '';
+
+    const aliases = {
+        'shield-check': 'verified_user', sparkles: 'auto_awesome',
+        leaf: 'eco', wheat: 'grain', 'milk-off': 'format_color_reset'
+    };
+    const iconName = aliases[icon] || icon;
+    if (/^[a-z][a-z0-9_]*$/i.test(iconName)) {
+        const span = document.createElement('span');
+        span.className = 'material-icons-outlined mr-2 shrink-0';
+        span.setAttribute('aria-hidden', 'true');
+        span.textContent = iconName;
+        return span.outerHTML;
+    }
+
+    if (icon.startsWith('//') || (/^[a-z][a-z0-9+.-]*:/i.test(icon) && !/^https?:\/\//i.test(icon))) return '';
+    const image = document.createElement('img');
+    image.src = /^https?:\/\//i.test(icon) ? icon : (icon.startsWith('/') ? new URL(icon, config.assetBase).href : config.assetBase + icon);
+    image.alt = '';
+    image.width = 24;
+    image.height = 24;
+    image.className = 'h-6 w-6 mr-2 shrink-0 object-contain';
+    return image.outerHTML;
+}
+
+function selectorEligibility(config, item) {
+    return config.eligibility?.[String(item[config.valueColumn])];
+}
+
+function selectorEligibilityHtml(config, item) {
+    const state = selectorEligibility(config, item);
+    if (!state?.required) return '';
+    const color = state.allowed ? 'text-green-700' : 'text-amber-700';
+    let html = `<p class="mt-2 text-xs ${color}">${selectorEscapeText(state.message)}</p>`;
+    if (!state.allowed && config.eligibilityUrl) {
+        html += `<a class="mt-1 inline-block text-xs underline text-orange-600" href="${selectorEscapeText(config.eligibilityUrl)}" onclick="event.stopPropagation()">Go to profile · Dietary Certificates</a>`;
+    }
+    return html;
+}
+
 function createItemElement(componentId, item, isSelected) {
     const config = window.selectorConfigs[componentId];
     const div = document.createElement('div');
@@ -436,23 +494,27 @@ function createItemElement(componentId, item, isSelected) {
     div.setAttribute('data-value', item[config.valueColumn]);
     div.onclick = () => toggleItemSelection(componentId, item[config.valueColumn], item);
     
+    const blocked = selectorEligibility(config, item)?.allowed === false;
+    if (blocked) { div.style.cursor = 'not-allowed'; div.setAttribute('aria-disabled', 'true'); }
     const checkbox = config.multiple ? 
-        `<input type="checkbox" class="item-checkbox h-4 w-4 text-blue-600 border-gray-300 rounded mr-3" ${isSelected ? 'checked' : ''} onchange="event.stopPropagation()">` :
-        `<input type="radio" name="${componentId}_radio" class="item-checkbox h-4 w-4 text-blue-600 border-gray-300 mr-3" ${isSelected ? 'checked' : ''} onchange="event.stopPropagation()">`;
+        `<input type="checkbox" class="item-checkbox h-4 w-4 text-blue-600 border-gray-300 rounded mr-3" ${isSelected ? 'checked' : ''} ${blocked ? 'disabled' : ''} onchange="event.stopPropagation()">` :
+        `<input type="radio" name="${componentId}_radio" class="item-checkbox h-4 w-4 text-blue-600 border-gray-300 mr-3" ${isSelected ? 'checked' : ''} ${blocked ? 'disabled' : ''} onchange="event.stopPropagation()">`;
     
     let additionalInfo = '';
     if (config.additionalColumns.length > 0) {
-        const additionalData = config.additionalColumns.map(col => item[col] || '').filter(val => val).join(' • ');
+        const additionalData = config.additionalColumns.filter(col => col !== config.iconColumn).map(col => item[col] || '').filter(val => val).join(' • ');
         if (additionalData) {
-            additionalInfo = `<div class="text-xs text-gray-400 mt-1">${additionalData}</div>`;
+            additionalInfo = `<div class="text-xs text-gray-400 mt-1">${selectorEscapeText(additionalData)}</div>`;
         }
     }
     
     div.innerHTML = `
         ${checkbox}
+        ${selectorIconHtml(config, item)}
         <div class="flex-1 min-w-0 selector-text-wrap">
-            <div class="font-medium text-gray-900 leading-snug selector-text-wrap">${item[config.displayColumn]}</div>
+            <div class="font-medium text-gray-900 leading-snug selector-text-wrap">${selectorEscapeText(item[config.displayColumn])}</div>
             ${additionalInfo}
+            ${selectorEligibilityHtml(config, item)}
         </div>
     `;
     
@@ -461,6 +523,7 @@ function createItemElement(componentId, item, isSelected) {
 
 function toggleItemSelection(componentId, value, item) {
     const config = window.selectorConfigs[componentId];
+    if (selectorEligibility(config, item)?.allowed === false) return;
     const valueStr = value.toString();
     
     // Initialize selectedItemsDetails if not exists
@@ -601,7 +664,7 @@ async function loadSuggestions(componentId, search) {
        
         
         
-        const response = await fetch(`/api/advanced-selector-data?${params}`, {
+        const response = await fetch(selectorDataUrl(config, params), {
             headers: {
                 'X-Requested-With': 'XMLHttpRequest',
                 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
@@ -634,17 +697,23 @@ function createSuggestionElement(componentId, item) {
     
     let additionalInfo = '';
     if (config.additionalColumns.length > 0) {
-        additionalInfo = config.additionalColumns.map(col => 
+        additionalInfo = config.additionalColumns.filter(col => col !== config.iconColumn).map(col => 
             item[col] || ''
         ).filter(val => val).join(' • ');
         if (additionalInfo) {
-            additionalInfo = `<div class="text-xs text-gray-400 mt-1">${additionalInfo}</div>`;
+            additionalInfo = `<div class="text-xs text-gray-400 mt-1">${selectorEscapeText(additionalInfo)}</div>`;
         }
     }
     
     div.innerHTML = `
-        <div class="font-medium text-gray-900 leading-snug selector-text-wrap">${item[config.displayColumn]}</div>
-        ${additionalInfo}
+        <div class="flex items-center">
+            ${selectorIconHtml(config, item)}
+            <div class="min-w-0">
+                <div class="font-medium text-gray-900 leading-snug selector-text-wrap">${selectorEscapeText(item[config.displayColumn])}</div>
+                ${additionalInfo}
+                ${selectorEligibilityHtml(config, item)}
+            </div>
+        </div>
     `;
     
     return div;
@@ -652,6 +721,7 @@ function createSuggestionElement(componentId, item) {
 
 function selectFromSuggestion(componentId, item) {
     const config = window.selectorConfigs[componentId];
+    if (selectorEligibility(config, item)?.allowed === false) return;
     const input = document.getElementById(componentId + '_input');
     const suggestions = document.getElementById(componentId + '_suggestions');
     const valueStr = item[config.valueColumn].toString();
@@ -693,7 +763,10 @@ async function loadSelectedItemsDetails(componentId) {
     }
     
     try {
-        const response = await fetch('/api/advanced-selector-selected', {
+        // A custom apiRoute returns the selected items for ?ids[]=...
+        const response = config.apiRoute ? await fetch(selectorDataUrl(config, new URLSearchParams(config.selectedItems.map(id => ['ids[]', id]))), {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        }) : await fetch('/api/advanced-selector-selected', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -746,6 +819,14 @@ function updateSelectedDisplay(componentId) {
     const input = document.getElementById(componentId + '_input');
     const display = document.getElementById(componentId + '_selected_display');
     const tagsContainer = document.getElementById(componentId + '_selected_tags');
+    const selectedIcon = document.getElementById(componentId + '_selected_icon');
+    if (selectedIcon && input) {
+        const details = config.selectedItemsDetails?.[config.selectedItems[0]];
+        selectedIcon.innerHTML = selectorIconHtml(config, details);
+        const hasIcon = !config.multiple && selectedIcon.innerHTML !== '';
+        selectedIcon.style.display = hasIcon ? 'flex' : 'none';
+        input.style.paddingLeft = hasIcon ? '2.75rem' : '';
+    }
     
     if (!input || !display || !tagsContainer) {
         console.warn('Required elements not found for', componentId);
@@ -771,9 +852,16 @@ function updateSelectedDisplay(componentId) {
             const tag = document.createElement('span');
             tag.className = 'selected-tag';
             tag.innerHTML = `
-                ${displayText}
-                <span class="remove-btn" onclick="removeSelectedItem('${componentId}', '${value}', event)">&times;</span>
+                ${selectorIconHtml(config, itemDetails)}
+                <span>${selectorEscapeText(displayText)}</span>
             `;
+            const removeButton = document.createElement('button');
+            removeButton.type = 'button';
+            removeButton.className = 'remove-btn';
+            removeButton.setAttribute('aria-label', `Remove ${displayText}`);
+            removeButton.textContent = '×';
+            removeButton.addEventListener('click', event => removeSelectedItem(componentId, value, event));
+            tag.appendChild(removeButton);
             tagsContainer.appendChild(tag);
         });
     } else {
@@ -812,9 +900,26 @@ function removeSelectedItem(componentId, value, event) {
     }
 }
 
+/**
+ * Where items are loaded from: the component's apiRoute when given (a scoped endpoint that
+ * returns { success, items, current_page, has_more }), otherwise the generic table endpoint.
+ */
+function selectorDataUrl(config, params) {
+    if (!config.apiRoute) return `/api/advanced-selector-data?${params}`;
+    const url = new URL(config.apiRoute, window.location.origin);
+    params.forEach((value, key) => url.searchParams.append(key, value));
+    return url.toString();
+}
+
 function updateHiddenInputs(componentId) {
     const config = window.selectorConfigs[componentId];
     const container = document.getElementById(componentId + '_hidden_inputs');
+
+    // Let the page react to selection changes.
+    container.dispatchEvent(new CustomEvent('advanced-selector:change', {
+        bubbles: true,
+        detail: { componentId, name: config.name, values: [...config.selectedItems], details: { ...config.selectedItemsDetails } },
+    }));
     
     container.innerHTML = '';
     

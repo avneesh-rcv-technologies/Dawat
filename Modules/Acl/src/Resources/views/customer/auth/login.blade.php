@@ -2,14 +2,13 @@
 <html lang="en">
 
 <head>
+    @include('partials.favicon')
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>customer Login</title>
-
-    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <link rel="stylesheet" href="{{ asset('css/toast.css') }}">
-    @vite(['Modules/Backend/src/Resources/assets/css/app.css', 'Modules/Backend/src/Resources/assets/js/app.js'])
+    @vite(['resources/css/public-forms.css', 'resources/js/public-forms.js'], 'build-website')
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet">
 
@@ -63,7 +62,7 @@
                         $logo = fn_get_image('company_logo', 0)['url'] ?? '';
                     @endphp
                     @if ($logo)
-                        <img src="{{ $logo }}" alt="{{ fn_get_setting('general.company.name') }}"
+                        <img {!! \Modules\Website\Support\WebsiteImages::attributes($logo, '224px', 320) !!} alt="{{ fn_get_setting('general.company.name') }}"
                             class="h-16 w-auto object-cover mx-auto mb-4">
                     @else
                         <div

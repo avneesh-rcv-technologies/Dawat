@@ -42,8 +42,7 @@ class PaymentsService
             ? $order->toArray()
             : (array) $order;
       
-        $code=fn_get_payment_method_code($payload['payment_method']);
-        return $this->getProcessor($code)->charge($payload);
+        return $this->getProcessor((string) $payload['payment_method'])->charge($payload);
     }
 
     public function refund(string $code, string $transactionId, float $amount): array

@@ -165,7 +165,7 @@
                 <!-- Reset Usage -->
                 @if($feature->pivot->used > 0)
                 <div class="pt-4 border-t border-gray-200">
-                    <form method="POST" action="{{ route('subscriptions.features.resetUsage', [$subscription->id, $feature->id]) }}" onsubmit="return confirm('Are you sure? This will reset the usage counter to 0.');">
+                    <form method="POST" action="{{ route('subscriptions.features.resetUsage', [$subscription->id, $feature->id]) }}" data-confirm="This will reset the usage counter to 0." data-confirm-title="Reset usage?" data-confirm-button="Reset usage" data-confirm-tone="warning">
                         @csrf
                         <button type="submit" class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-orange-600 border border-transparent rounded-md shadow-sm hover:bg-orange-700">
                             <span class="material-icons-outlined text-sm mr-1">refresh</span>

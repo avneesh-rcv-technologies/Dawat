@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Modules\Acl\Models\Admin;
 use Modules\KYC\Models\KycSubmission;
 use Modules\Restaurant\Services\RestaurantApprovalAccess;
+use Modules\Restaurant\Models\Restaurant;
 
 class EnsureKycSubmissionAccess
 {
@@ -16,9 +17,20 @@ class EnsureKycSubmissionAccess
     {
         $admin = $request->user('admin');
         abort_unless($admin instanceof Admin && $admin->status, 403);
-        abort_unless($admin->hasPermission($request->route()->getName()), 403);
+        $ownerReply = $request->routeIs('admin.kyc.submissions.reply');
+        if ($ownerReply) {
+            abort_unless($this->access->isOwner($admin), 403);
+        } else {
+            abort_unless($admin->hasPermission($request->route()->getName()), 403);
+        }
         if (!$request->routeIs('admin.kyc.submissions.index')) {
             abort_unless($admin->hasPermission('admin.kyc.submissions.show'), 403);
+        }
+
+        if ($request->query->has('restaurant_id') && ($id = $request->route('submission'))) {
+            $submission = KycSubmission::findOrFail($id);
+            abort_unless(Restaurant::whereKey($request->query('restaurant_id'))
+                ->where('admin_id', $submission->user_id)->exists(), 404);
         }
 
         if ($this->access->isOwner($admin)) {

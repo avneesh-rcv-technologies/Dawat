@@ -126,7 +126,7 @@
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div class="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-lg p-5 border border-emerald-200">
                 <div class="flex items-center justify-between mb-2">
-                    <p class="text-sm font-medium text-emerald-900">Total Revenue</p>
+                    <p class="text-sm font-medium text-emerald-900">{{ $analytics['revenue']['label'] ?? 'Commission revenue' }}</p>
                     <svg class="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                             d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
@@ -135,13 +135,13 @@
                 <p class="text-3xl font-bold text-emerald-900">{{ $analytics['revenue']['total_formatted'] ??
                     fn_convert_currency($analytics['revenue']['total'] ?? 0, $analytics['revenue']['currency'] ??
                     fn_get_setting('general.currency', 'USD')) }}</p>
-                <p class="text-xs text-emerald-700 mt-2">From {{ $analytics['orders']['completed'] }} completed orders
+                <p class="text-xs text-emerald-700 mt-2">After successful refunds · {{ $analytics['revenue']['earning_orders'] }} earning orders
                 </p>
             </div>
 
             <div class="bg-gradient-to-br from-cyan-50 to-cyan-100 rounded-lg p-5 border border-cyan-200">
                 <div class="flex items-center justify-between mb-2">
-                    <p class="text-sm font-medium text-cyan-900">Average Order Value</p>
+                    <p class="text-sm font-medium text-cyan-900">Average earnings per order</p>
                     <svg class="w-5 h-5 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                             d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z">

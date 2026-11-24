@@ -869,14 +869,14 @@
         }
 
         .btn-primary {
-            background-color: #621F09;
+            background-color: #FF6210;
             color: #ffffff;
         }
 
         .btn-primary:hover {
-            background-color: #4c1a07;
+            background-color: #E0530B;
             transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(98, 31, 9, 0.3);
+            box-shadow: 0 4px 12px rgba(255, 98, 16, 0.3);
         }
 
         .btn-secondary {

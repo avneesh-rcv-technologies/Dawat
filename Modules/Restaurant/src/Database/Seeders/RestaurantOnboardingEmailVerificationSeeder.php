@@ -3,6 +3,7 @@
 namespace Modules\Restaurant\Database\Seeders;
 
 use Illuminate\Database\Seeder;
+use Modules\EmailNotification\Support\SeederEmailView;
 use Modules\EmailNotification\Models\NotificationTemplate;
 use Modules\Notifications\Models\NotificationChannel;
 use Modules\Notifications\Models\NotificationEvent;
@@ -19,17 +20,15 @@ class RestaurantOnboardingEmailVerificationSeeder extends Seeder
             'event_description' => 'Verify the owner email before submitting a Partner with Us application.',
             'notification_class' => OnboardingRestaurantEmailVerificationNotification::class,
         ]);
-        $template = NotificationTemplate::firstOrCreate(['name' => RestaurantOnboardingOtpService::TYPE], [
-            'subject' => 'Verify Your Email for Partner with Us - {{otp_code}}',
-            'content' => <<<'HTML'
-<div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:32px;">
-    <h1>Verify your email</h1>
-    <p>Use this code to submit your Partner with Us application to {{app_name}}:</p>
-    <p style="font-size:32px;font-weight:bold;letter-spacing:8px;">{{otp_code}}</p>
-    <p>This code expires in {{expires_minutes}} minutes. Do not share it with anyone.</p>
-    <p>If you did not request this code, you can ignore this email.</p>
-</div>
-HTML,
+        $template = NotificationTemplate::updateOrCreate(['name' => RestaurantOnboardingOtpService::TYPE, 'locale' => 'en'], [
+            'subject' => '{{otp_code}} — Verify your Dawat email',
+            'content' => SeederEmailView::make('restaurant::emails.onboarding-email-verification', [
+                'otpCode' => '{{otp_code}}',
+                'expiresMinutes' => '{{expires_minutes}}',
+                'recipientEmail' => '{{restaurant_email}}',
+                'supportEmail' => '{{support_email}}',
+                'currentYear' => '{{current_year}}',
+            ])->render(),
             'status' => true,
             'locale' => 'en',
         ]);

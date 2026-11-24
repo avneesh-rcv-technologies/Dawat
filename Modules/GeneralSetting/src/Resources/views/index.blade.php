@@ -14,30 +14,30 @@
 @section('content')
 
     <style>
-        .settings-hub { --settings-ink: #102f40; --settings-muted: #64748b; --settings-line: #dce5eb; max-width: 1600px; margin: 0 auto; padding-bottom: 32px; }
+        .settings-hub { --settings-ink: #111111; --settings-muted: #64748b; --settings-line: #dce5eb; max-width: 1600px; margin: 0 auto; padding-bottom: 32px; }
         .settings-hub-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin: 8px 0 34px; padding: 18px 20px; border: 1px solid #e4ebf0; border-radius: 14px; background: linear-gradient(110deg, #f7fbfa, #fff 72%); }
         .settings-hub-intro { margin: 0; color: var(--settings-muted); font-size: 14px; line-height: 1.6; }
         .settings-cache-button { display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; min-height: 42px; padding: 0 17px !important; border-radius: 9px !important; box-shadow: 0 2px 5px rgb(153 27 27 / 12%); transition: background-color .18s ease, transform .18s ease, box-shadow .18s ease; }
         .settings-cache-button:hover { transform: translateY(-1px); box-shadow: 0 5px 12px rgb(153 27 27 / 18%); }
-        .settings-cache-button:focus-visible, .settings-card:focus-visible { outline: 3px solid #6ee7b7; outline-offset: 3px; }
+        .settings-cache-button:focus-visible, .settings-card:focus-visible { outline: 3px solid #FFB088; outline-offset: 3px; }
         .settings-category { margin-top: 34px; }
         .settings-category:first-child { margin-top: 0; }
         .settings-category-heading { display: flex; align-items: center; gap: 12px; margin: 0 0 16px; }
-        .settings-category-heading::before { width: 4px; height: 28px; border-radius: 4px; background: #31be91; content: ''; }
+        .settings-category-heading::before { width: 4px; height: 28px; border-radius: 4px; background: #FF6210; content: ''; }
         .settings-category-heading h2 { margin: 0; color: var(--settings-ink); font-size: 18px; font-weight: 700; letter-spacing: -.01em; }
         .settings-category-heading p { margin: 2px 0 0; color: var(--settings-muted); font-size: 12px; }
         .settings-card-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
         .settings-card { position: relative; display: flex; min-width: 0; min-height: 142px; gap: 15px; padding: 20px; overflow: hidden; border: 1px solid var(--settings-line); border-radius: 13px; background: #fff; color: inherit; text-decoration: none; box-shadow: 0 2px 5px rgb(15 23 42 / 3%); transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease, background-color .18s ease; }
-        .settings-card::after { position: absolute; right: 0; bottom: 0; left: 0; height: 3px; background: #31be91; content: ''; opacity: 0; transform: scaleX(.25); transform-origin: left; transition: opacity .18s ease, transform .18s ease; }
-        .settings-card:hover { transform: translateY(-3px); border-color: #a8d9c8; background: #fcfffd; box-shadow: 0 10px 24px rgb(16 47 64 / 8%); }
+        .settings-card::after { position: absolute; right: 0; bottom: 0; left: 0; height: 3px; background: #FF6210; content: ''; opacity: 0; transform: scaleX(.25); transform-origin: left; transition: opacity .18s ease, transform .18s ease; }
+        .settings-card:hover { transform: translateY(-3px); border-color: #FFC9AB; background: #FFFCFA; box-shadow: 0 10px 24px rgb(17 17 17 / 8%); }
         .settings-card:hover::after { opacity: 1; transform: scaleX(1); }
-        .settings-card-icon { display: grid; flex: 0 0 42px; place-items: center; width: 42px; height: 42px; border: 1px solid #d7eee5; border-radius: 12px; background: #effaf5; color: #147957; }
+        .settings-card-icon { display: grid; flex: 0 0 42px; place-items: center; width: 42px; height: 42px; border: 1px solid #FFE1CF; border-radius: 12px; background: #FFF4EE; color: #C2470A; }
         .settings-card-icon .material-icons-outlined { font-size: 21px; }
         .settings-card-copy { min-width: 0; padding: 1px 18px 0 0; }
-        .settings-card-copy h3 { margin: 0; color: #102f40; font-size: 16px; font-weight: 700; line-height: 1.35; }
+        .settings-card-copy h3 { margin: 0; color: #111111; font-size: 16px; font-weight: 700; line-height: 1.35; }
         .settings-card-copy p { margin: 7px 0 0; color: #64748b; font-size: 12px; line-height: 1.55; }
         .settings-card-arrow { position: absolute; top: 17px; right: 15px; display: grid; width: 28px; height: 28px; place-items: center; border-radius: 8px; color: #94a3b8; transition: color .18s ease, background-color .18s ease, transform .18s ease; }
-        .settings-card:hover .settings-card-arrow { transform: translateX(2px); background: #effaf5; color: #147957; }
+        .settings-card:hover .settings-card-arrow { transform: translateX(2px); background: #FFF4EE; color: #C2470A; }
         @media (max-width: 1200px) { .settings-card-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
         @media (max-width: 900px) { .settings-card-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; } }
         @media (max-width: 560px) { .settings-hub-toolbar { align-items: flex-start; flex-direction: column; margin-bottom: 28px; padding: 16px; } .settings-card-grid { grid-template-columns: minmax(0, 1fr); } .settings-card { min-height: 118px; padding: 17px; } .settings-category { margin-top: 28px; } }
@@ -46,8 +46,10 @@
 
     @php
         $groups = Modules\Core\Events\RegisterSettingsMenu::getCachedGroupedMenu();
+        $isRestaurantOwner = app(\Modules\Restaurant\Services\RestaurantApprovalAccess::class)->isOwner(auth('admin')->user());
     @endphp
     <div class="settings-hub">
+    @if (bouncer('admin')->hasPermission('settings.clear_cache'))
     <div class="settings-hub-toolbar">
         <p class="settings-hub-intro">Manage the preferences, services, and integrations available to your workspace.</p>
         <form method="POST" action="{{ route('settings.clear_cache') }}">
@@ -58,11 +60,12 @@
             </button>
         </form>
     </div>
+    @endif
     <div class="settings-groups">
     @foreach ($groups as $group)
         @php
             $category = $group['category'];
-            $items = $group['items'];
+            $items = array_filter($group['items'], fn ($item) => empty($item['owner_only']) || $isRestaurantOwner);
         @endphp
 
         @if (collect($items)->some(fn($item) => bouncer($item['guard'])->hasPermission($item['permission'])))

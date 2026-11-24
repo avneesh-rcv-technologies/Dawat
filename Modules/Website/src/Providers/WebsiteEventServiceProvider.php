@@ -12,9 +12,12 @@ class WebsiteEventServiceProvider extends ServiceProvider
      * @var array
      */
     protected $listen = [
-        // 'SomeEvent' => [
-        //     'SomeListener',
-        // ],
+        \Modules\Core\Events\RegisterSettingsMenu::class => [
+            \Modules\Website\Listeners\RegisterContactQuerySettings::class,
+        ],
+        \Modules\Core\Events\RegisterPermissions::class => [
+            \Modules\Website\Listeners\RegisterContactQueryPermissions::class,
+        ],
     ];
 
     /**

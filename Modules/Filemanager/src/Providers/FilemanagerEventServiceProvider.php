@@ -3,18 +3,15 @@
 namespace Modules\Filemanager\Providers;
 
 use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
+use Modules\Core\Events\RegisterPermissions;
+use Modules\Filemanager\Listeners\RegisterFilemanagerPermissions;
 
 class FilemanagerEventServiceProvider extends ServiceProvider
 {
-    /**
-     * The event listener mappings for the application.
-     *
-     * @var array
-     */
     protected $listen = [
-        // 'SomeEvent' => [
-        //     'SomeListener',
-        // ],
+        RegisterPermissions::class => [
+            RegisterFilemanagerPermissions::class,
+        ],
     ];
 
     /**

@@ -13,6 +13,9 @@ class RegisterAdminPermissions
             'code' => 'payments',
             'guard' => ['admin'],
             'key' => [
+                'admin.refunds.index' => 'View Refund Requests',
+                'admin.refunds.show' => 'View Refund Details',
+                'admin.refunds.update' => 'Process Manual Refunds',
                 'admin.payments.index' => 'View Payments',
                 'admin.payments.create' => 'Create Payments',
                 'admin.payments.store' => 'Store Payments',

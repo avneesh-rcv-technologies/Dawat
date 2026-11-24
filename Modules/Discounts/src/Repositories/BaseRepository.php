@@ -4,7 +4,7 @@ namespace Modules\Discounts\Repositories;
 
 use Rcv\Core\Repositories\BaseRepository as CoreBaseRepository;
 
-class BaseRepositoryRepository extends CoreBaseRepository
+class BaseRepository extends CoreBaseRepository
 {
     /**
      * Specify Model class name
@@ -13,7 +13,7 @@ class BaseRepositoryRepository extends CoreBaseRepository
      */
     public function model()
     {
-        return BaseRepositoryRepository::class;
+        return BaseRepository::class;
     }
 
     /**

@@ -90,7 +90,16 @@ class HomeController extends Controller
             'app_id' => 'required|string',
             'measurement_id' => 'nullable|string',
             'vapid_key' => 'required|string',
-            'service_account_json' => 'nullable|string',
+            'service_account_json' => ['nullable', 'string', function ($attribute, $value, $fail) use ($request) {
+                try {
+                    $account = \Modules\WebPushNotification\Support\FirebaseServiceAccount::fromJson($value);
+                    if ($account['project_id'] !== $request->input('project_id')) {
+                        $fail('The service-account project must match the Firebase project ID.');
+                    }
+                } catch (\InvalidArgumentException $exception) {
+                    $fail($exception->getMessage());
+                }
+            }],
 
             // ---------------- iOS ----------------
             'ios_app_id' => 'nullable|string',
@@ -316,43 +325,28 @@ JS;
     public function sendTestNotification(Request $request)
     {
         try {
-            // $token = $request->token;
-            // $device = $request->device; // 'web', 'android', 'ios'
+            $user = $request->user(Auth::getDefaultDriver());
+            if (!$user) {
+                return response()->json(['success' => false, 'message' => 'Please login first.'], 401);
+            }
 
-            // $tokens = WebPushSubscription::select('token', 'device')->where('subscribable_id', Auth::guard(\Illuminate\Support\Facades\Auth::getDefaultDriver())->id())->get();
-            $token = "eIJGWpMbLi3y-0Rhs4lVJe:APA91bH9j5bckXZKlfPMojp3NhIjTSzoFfi5u9WODbXMC-ioS_gakndtn9p5QfrODhTu9J6LapSyYWEzg0U_tccaBStwy8Yjc6yuwS8TiT11oP0hccNiQ-Q";
-            $device = "web";
+            $subscription = WebPushSubscription::where('subscribable_type', $user->getMorphClass())
+                ->where('subscribable_id', $user->getAuthIdentifier())
+                ->where('device', 'web')
+                ->where('device_id', $request->header('User-Agent'))
+                ->latest('updated_at')->first();
 
-            // foreach ($tokens as $t) {
-            //     $token = $t->token;
-            //     $device = $t->device; // Assuming web for this example, adjust as needed
+            if (!$subscription) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Enable browser notifications and reload this page before sending a test.',
+                ], 422);
+            }
 
-            //     if (!$token || !$device) {
-            //         return response()->json([
-            //             'success' => false,
-            //             'message' => 'Token and device type are required.',
-            //         ], 422);
-            //     }
+            $token = $subscription->token;
+            $device = $subscription->device;
 
-            //     $service = new FirebaseNotificationService();
-
-            //     $title = 'Test Notification';
-            //     $body = 'This is a test notification from ' . config('app.name');
-
-            //     $payload = [
-            //         'type' => 'test',
-            //     ];
-
-            //     $response = $service->sendNotification(
-            //         token: $token,
-            //         device: $device,
-            //         title: $title,
-            //         body: $body,
-            //         data: $payload
-            //     );
-            // }
-
-            $service = new FirebaseNotificationService();
+            $service = app(FirebaseNotificationService::class);
 
             $title = 'Test Notification';
             $body = 'This is a test notification from ' . config('app.name');

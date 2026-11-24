@@ -4,6 +4,7 @@ namespace Modules\Admin\Http\Controllers;
 
 use Illuminate\Routing\Controller;
 use Modules\Admin\Services\AnalyticsService;
+use Modules\Restaurant\Services\RestaurantDataScope;
 use Modules\Orders\Models\Order;
 
 class OrderAnalyticsController extends Controller
@@ -20,6 +21,7 @@ class OrderAnalyticsController extends Controller
      */
     public function show($orderId)
     {
+        abort_unless(app(RestaurantDataScope::class)->canAccessOrder($orderId), 404);
         $order = Order::with(['customer', 'vendor', 'items', 'payments', 'transactions'])->findOrFail($orderId);
         
         $analytics = $this->analyticsService->getOrderAnalytics($orderId);

@@ -19,3 +19,9 @@ use Modules\Stripe\Http\Controllers\HomeController;
 Route::prefix('stripe')->middleware('web')->name('stripe.')->group(function () {
     Route::get('/checkout/cancel', [StripeProcessor::class , 'cancel'])->name('checkout.cancel');
 });
+// The signed link is a bearer link for this order's existing PaymentIntent.
+// Stripe's return parameters are ignored for signing and never trusted as payment proof.
+Route::get('/stripe/order-payment/{order}/{reference}', [\Modules\Stripe\Http\Controllers\OrderPaymentController::class, 'show'])
+    ->whereNumber('order')->where('reference', 'pi_[a-zA-Z0-9]+')
+    ->middleware(['web', 'signed:payment_intent,payment_intent_client_secret,redirect_status', 'throttle:30,1'])
+    ->name('stripe.payment.show');

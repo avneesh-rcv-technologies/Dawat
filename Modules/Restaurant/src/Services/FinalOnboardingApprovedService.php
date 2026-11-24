@@ -23,9 +23,10 @@ class FinalOnboardingApprovedService
                 ->setPaper('a4')->setOption('isRemoteEnabled', false)->setOption('defaultFont', 'DejaVu Sans')->output();
             $this->sender->send($restaurant, 'FinalOnboardingApproved', [
                 'approved_at' => $approvedAt,
+                'owner_name' => $restaurant->admin->name,
                 'attachments' => [[
                     'data' => base64_encode($pdf), 'encoding' => 'base64',
-                    'name' => 'restaurant-' . $restaurant->id . '-onboarding-approved.pdf',
+                    'name' => 'dawat-onboarding-review.pdf',
                     'mime' => 'application/pdf',
                 ]],
             ]);

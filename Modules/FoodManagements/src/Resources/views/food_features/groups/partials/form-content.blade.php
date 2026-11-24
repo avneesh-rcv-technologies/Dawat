@@ -32,6 +32,24 @@
         <div class="p-4 md:p-6">
             <div data-group-tab-panel="general">
                     <div class="space-y-4">
+                        {{-- Features are restaurant-owned. The restaurant is chosen once and cannot change. --}}
+                        @if (isset($group))
+                            <div>
+                                <label class="custom-label">Restaurant</label>
+                                <p class="input-field bg-gray-50">{{ $group->restaurant?->name ?? '—' }}</p>
+                            </div>
+                        @elseif (!($ownerRestaurantId ?? null))
+                            <div>
+                                <label class="custom-label" for="featureGroupRestaurant">Restaurant <span class="text-red-500">*</span></label>
+                                <select name="restaurant_id" id="featureGroupRestaurant" class="input-field" required>
+                                    <option value="">Select restaurant</option>
+                                    @foreach ($restaurants as $restaurantOption)
+                                        <option value="{{ $restaurantOption->id }}" @selected(old('restaurant_id') == $restaurantOption->id)>{{ $restaurantOption->name }}</option>
+                                    @endforeach
+                                </select>
+                                <p class="text-xs text-gray-500 mt-1">This group and its features are only available to this restaurant.</p>
+                            </div>
+                        @endif
                         <div>
                             <label class="custom-label">Name <span class="text-red-500">*</span></label>
                             <input

@@ -3,9 +3,9 @@
 namespace Modules\Filemanager\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Modules\Filemanager\Services\FileService;
 
 class File extends Model
 {
@@ -18,6 +18,7 @@ class File extends Model
         'extension',
         'size',
         'path',
+        'driver',
         'is_image',
         'width',
         'height',
@@ -59,7 +60,7 @@ class File extends Model
      */
     public function getUrlAttribute(): string
     {
-        return asset('storage/' . $this->path . '/' . $this->file_name);
+        return app(FileService::class)->getStoredFileUrl($this);
     }
 
     /**
@@ -70,14 +71,8 @@ class File extends Model
         if (!$this->is_image) {
             return null;
         }
-        
-        $thumbnailPath = $this->path . '/thumbnails/' . $this->file_name;
-        
-        if (Storage::exists($thumbnailPath)) {
-            return asset('storage/' . $thumbnailPath);
-        }
-        
-        return $this->url; // Fallback to original if thumbnail doesn't exist
+
+        return app(FileService::class)->getStoredFileUrl($this, 'thumbnails');
     }
 
     /**
@@ -88,14 +83,8 @@ class File extends Model
         if (!$this->is_image) {
             return null;
         }
-        
-        $mediumPath = $this->path . '/medium/' . $this->file_name;
-        
-        if (Storage::exists($mediumPath)) {
-            return asset('storage/' . $mediumPath);
-        }
-        
-        return $this->url; // Fallback to original if medium doesn't exist
+
+        return app(FileService::class)->getStoredFileUrl($this, 'medium');
     }
 
     /**
@@ -106,14 +95,8 @@ class File extends Model
         if (!$this->is_image) {
             return null;
         }
-        
-        $largePath = $this->path . '/large/' . $this->file_name;
-        
-        if (Storage::exists($largePath)) {
-            return asset('storage/' . $largePath);
-        }
-        
-        return $this->url; // Fallback to original if large doesn't exist
+
+        return app(FileService::class)->getStoredFileUrl($this, 'large');
     }
 
     /**
@@ -160,7 +143,4 @@ class File extends Model
         
         return ($this->width / $divisor) . ':' . ($this->height / $divisor);
     }
-
-  
-
 }

@@ -21,6 +21,12 @@ class TransactionGrid extends DataGrid
     {
         $query = DB::table('transactions')
             ->leftJoin('orders', 'transactions.order_id', '=', 'orders.id')
+            ->leftJoin('payments as transaction_payments', 'transactions.payment_id', '=', 'transaction_payments.id')
+            ->leftJoin('payment_configurations as transaction_payment_config', function ($join) {
+                // Prefer the method recorded on this payment; older entries may only have an order method.
+                $join->on('transaction_payment_config.id', '=', DB::raw('COALESCE(transaction_payments.payment_method_id, orders.payment_method)'));
+            })
+            ->leftJoin('payment_methods as transaction_payment_method', 'transaction_payment_config.payment_method_id', '=', 'transaction_payment_method.id')
             ->select(
                 'transactions.id',
                 'transactions.order_id',
@@ -30,6 +36,11 @@ class TransactionGrid extends DataGrid
                 'transactions.amount',
                 'transactions.currency',
                 'transactions.gateway_reference',
+                'transactions.metadata',
+                DB::raw("COALESCE(NULLIF(transaction_payment_config.merchant_name, ''), transaction_payment_method.name) as payment_method_name"),
+                'transaction_payment_method.code as payment_method_code',
+                'orders.status as order_status',
+                'orders.payment_status as order_payment_status',
                 'transactions.processed_at',
                 'transactions.created_at',
                 'orders.order_number'
@@ -129,6 +140,23 @@ class TransactionGrid extends DataGrid
         ]);
 
         $this->addColumn([
+            'index' => 'payment_method_name',
+            'label' => 'Payment Method',
+            'type' => 'string',
+            'searchable' => false,
+            'filterable' => false,
+            'sortable' => true,
+            'closure' => function ($row) {
+                $label = trim($row->payment_method_name ?? '');
+                if ($label === '') {
+                    $label = in_array(strtolower($row->payment_method_code ?? ''), ['cod', 'cash', 'cash_on_delivery'], true)
+                        ? 'Cash on Delivery' : 'Not recorded';
+                }
+                return e($label);
+            },
+        ]);
+
+        $this->addColumn([
             'index' => 'amount',
             'label' => 'Amount',
             'type' => 'decimal',
@@ -156,6 +184,24 @@ class TransactionGrid extends DataGrid
                 $style = $status?->class() ?? 'background-color: #6c757d; color: #ffffff;';
 
                 return "<span style='{$style}' class='inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium'>{$label}</span>";
+            },
+        ]);
+
+        $this->addColumn([
+            'index' => 'payment_url',
+            'label' => 'Payment Link',
+            'type' => 'string',
+            'searchable' => false,
+            'filterable' => false,
+            'sortable' => false,
+            'closure' => function ($row) {
+                $url = \Modules\Stripe\Services\OrderPaymentLink::activeUrl(
+                    $row->metadata ?? null, $row->type ?? null, $row->status ?? null,
+                    $row->order_status ?? null, $row->order_payment_status ?? null
+                );
+                return $url
+                    ? "<a href='".e($url)."' target='_blank' rel='noopener noreferrer' class='text-blue-600 underline'>Pay Order</a>"
+                    : '—';
             },
         ]);
 

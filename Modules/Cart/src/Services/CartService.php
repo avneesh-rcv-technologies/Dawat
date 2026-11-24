@@ -725,25 +725,14 @@ class CartService
         }
 
         $quantityType = $foodItem->quantity_type ?? 'manual';
-        $stockLimit = $foodItem->quantity;
+        $minimumGuests = $foodItem->quantity;
 
-        if ($stockLimit === null || $stockLimit === '') {
+        if ($minimumGuests === null || $minimumGuests === '') {
             return;
         }
 
-        switch ($quantityType) {
-            case 'manual':
-            case 'piece':
-                if ($quantity > (int) $stockLimit) {
-                    throw new \Exception("Only {$stockLimit} items available in stock");
-                }
-                break;
-
-            case 'grouping':
-                if ($quantity < (int) $stockLimit) {
-                    throw new \Exception("Minimum {$stockLimit} guests required");
-                }
-                break;
+        if ($quantityType === 'grouping' && $quantity < (int) $minimumGuests) {
+            throw new \Exception("Minimum {$minimumGuests} guests required");
         }
     }
 
@@ -836,6 +825,13 @@ class CartService
         return [
             'id' => $cart->id,
             'restaurant_id' => $cart->cartable_id, // For backward compatibility
+            'delivery_address_id' => $cart->delivery_address_id,
+            'delivery_fee' => $cart->delivery_fee,
+            'delivery_distance_miles' => $cart->delivery_distance_miles,
+            'delivery_available' => $cart->delivery_available,
+            'delivery_unavailable_reason' => $cart->delivery_unavailable_reason,
+            'estimated_delivery_minutes' => $cart->estimated_delivery_minutes,
+            'estimated_delivery_at' => $cart->estimated_delivery_at,
             'currency' => fn_format_default_currency(),
             'subtotal' => $cart->subtotal,
             'tax_amount' => $cart->tax_amount,
@@ -893,6 +889,9 @@ class CartService
             'is_tax_inclusive' => $cartItem->is_tax_inclusive,
             'selected_options' => $cartItem->selected_options,
             'options_total_price' => $cartItem->options_total_price,
+            'delivery_fee' => $cartItem->delivery_fee,
+            'estimated_delivery_minutes' => $cartItem->estimated_delivery_minutes,
+            'estimated_delivery_at' => $cartItem->estimated_delivery_at,
             'selected_options_names' => $cartItem->selected_options_names,
             'special_instructions' => $cartItem->special_instructions,
             'display_name' => $cartItem->display_name,

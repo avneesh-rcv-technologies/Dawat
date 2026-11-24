@@ -9,6 +9,7 @@ use Modules\Acl\DataView\CustomerGrid;
 use Modules\Acl\Services\CustomerService;
 use Modules\Orders\Models\Order;
 use Modules\Restaurant\Models\Restaurant;
+use Modules\Restaurant\Services\RestaurantDataScope;
 use Modules\Notifications\Services\NotificationService;
 
 
@@ -84,8 +85,23 @@ class CustomerController extends Controller
         }
     }
 
+    /**
+     * Restaurant owners may only open customers who ordered from their restaurant.
+     * 404 (not 403) so other restaurants' customer ids are not revealed.
+     */
+    private function authorizeCustomer(int|string $id): void
+    {
+        abort_unless(app(RestaurantDataScope::class)->canAccessCustomer($id), 404);
+    }
+
+    private function authorizeCustomers(array $ids): void
+    {
+        abort_unless(app(RestaurantDataScope::class)->canAccessCustomers($ids), 403, 'You can only manage customers of your own restaurant.');
+    }
+
     public function edit(int $id)
     {
+        $this->authorizeCustomer($id);
         try {
             $customer = $this->customerService->findWithRelations($id);
             return view('acl::customer.form', compact('customer'));
@@ -97,6 +113,7 @@ class CustomerController extends Controller
 
     public function update(Request $request, int $id)
     {
+        $this->authorizeCustomer($id);
         $data = $request->validate([
             'name' => 'required|string|max:150|regex:/^[a-zA-Z ]+$/',
             'email'    => 'required|string|email:dns|unique:customers,email,' . $id,
@@ -132,6 +149,7 @@ class CustomerController extends Controller
 
     public function view($id)
     {
+        $this->authorizeCustomer($id);
         try {
             $data = $this->customerService->getCustomerView($id);
             return view('acl::customer.view', $data);
@@ -143,6 +161,7 @@ class CustomerController extends Controller
 
     public function destroy(int $id)
     {
+        $this->authorizeCustomer($id);
         try {
             $this->customerService->delete($id);
 
@@ -170,6 +189,7 @@ class CustomerController extends Controller
                     ->with('error', 'Please select at least one customer');
             }
 
+            $this->authorizeCustomers($ids);
             $deletedCount = $this->customerService->bulkDelete($ids);
 
             return redirect()->route('admin.customer.index')
@@ -196,6 +216,7 @@ class CustomerController extends Controller
                     ->with('error', 'No status selected');
             }
 
+            $this->authorizeCustomers($ids);
             $updatedCount = $this->customerService->bulkUpdateStatus($ids, (bool) $status);
 
             $statusText = $status ? 'Active' : 'Inactive';
@@ -214,10 +235,9 @@ class CustomerController extends Controller
     {
         $dateFrom = $request->input('date_from', date('Y-m-d', strtotime('-30 days')));
         $dateTo = $request->input('date_to', date('Y-m-d'));
-        $currentAdmin = auth('admin')->user();
-        $restaurant = $currentAdmin
-            ? Restaurant::where('admin_id', $currentAdmin->id)->first()
-            : null;
+        // Restaurant owners: only their restaurant's customers / revenue (0 = owner without restaurant -> nothing).
+        $restaurantId = app(RestaurantDataScope::class)->restaurantId();
+        $restaurant = $restaurantId !== null ? (object) ['id' => $restaurantId] : null;
 
         $customersQuery = \Modules\Acl\Models\Customer::query();
 

@@ -8,6 +8,8 @@ use Modules\Notifications\Support\NotificationMappingLoader;
 
 class KycDocumentSubmissionNotification extends Notification implements NotificationContract
 {
+    use \Modules\KYC\Notifications\Concerns\BuildsKycEmailVariables;
+
     protected $data;
 
     public function __construct($data)
@@ -27,7 +29,7 @@ class KycDocumentSubmissionNotification extends Notification implements Notifica
 
     public function getVariables(): array
     {
-        $recipientName = $this->data['owner_name'] ?? $this->data['owner_name'] ?? 'Restaurant Owner';
+        $recipientName = $this->data['owner_name'] ?? 'Restaurant Owner';
         $documentTypes = $this->data['document_types'] ?? [];
         $documentTypeList = is_array($documentTypes)
             ? implode(', ', $documentTypes)
@@ -37,13 +39,13 @@ class KycDocumentSubmissionNotification extends Notification implements Notifica
             ? count($documentTypes)
             : ($documentTypeList !== '' ? 1 : 0);
 
-        return [
+        return $this->kycEmailVariables() + [
             'title' => $this->data['title'] ?? 'KYC Documents Submitted',
-            'owner_name' => $recipientName,
-            'document_types' => $documentTypeList ?: 'KYC documents',
-            'submission_count' => $dataCount,
-            'submission_url' => $this->data['submission_url'] ?? url('/restaurant/kyc/history'),
-            'request_message' => $this->data['request_message'] ?? 'Your documents have been submitted successfully. We will review them shortly.',
+            'owner_name' => e($recipientName),
+            'document_types' => e($documentTypeList ?: 'KYC documents'),
+            'submission_count' => isset($this->data['submission_count']) ? max(0, (int) $this->data['submission_count']) : $dataCount,
+            'submitted_at' => e($this->data['submitted_at'] ?? 'Not recorded'),
+            'request_message' => e($this->data['request_message'] ?? 'Your documents have been submitted successfully. We will review them shortly.'),
         ];
     }
 
@@ -80,7 +82,8 @@ class KycDocumentSubmissionNotification extends Notification implements Notifica
             'submission_count' => 'Number of Submitted Documents',
             'submission_url' => 'Submission History URL',
             'request_message' => 'Message to Restaurant Owner',
-        ];
+            'submitted_at' => 'Recorded document submission time',
+        ] + $this->kycEmailAvailableVariables();
     }
 
     public function toArray($notifiable = null): array
@@ -101,7 +104,7 @@ class KycDocumentSubmissionNotification extends Notification implements Notifica
             ->subject($this->data['title'] ?? 'KYC Documents Submitted')
             ->line($this->data['request_message'] ?? 'Your documents have been submitted successfully.')
             ->line('Submitted document types: ' . ($this->data['document_types'] ? implode(', ', (array) $this->data['document_types']) : 'KYC documents'))
-            ->action('View KYC History', $this->data['submission_url'] ?? url('/restaurant/kyc/history'))
+            ->action('View KYC History', $this->data['submission_url'] ?? route('restaurant.onboarding.kyc', ['step' => 'kyc']))
             ->line('Our team will review your submission shortly.');
     }
 }

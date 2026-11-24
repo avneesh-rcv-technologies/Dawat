@@ -16,7 +16,16 @@ use Modules\MobileConfiguration\Http\Controllers\Banner\BannersController;
 */
 
 Route::middleware('web')->group(function () {
-    Route::middleware(['check.permission'])->prefix(config('acl::guards.guards.admin.prefix', 'admin'))->group(function () {
+    foreach (config('acl::guards.guards') as $guard => $guardConfig) {
+        $prefix = $guardConfig['prefix'];
+        // Keep existing admin route names and distinguish other guards.
+        $namePrefix = $guard === 'admin' ? '' : $guard . '.';
+        Route::group([
+            'middleware' => ['check.permission'],
+            'prefix' => $prefix,
+            'as' => $namePrefix,
+            'permission_name_prefix' => $namePrefix,
+        ], function () {
 
         Route::prefix('mobile-configuration')->name('mobileconfiguration.')->group(function () {
 
@@ -67,4 +76,5 @@ Route::middleware('web')->group(function () {
             Route::post('homepage-layouts/{homepageLayout}/set-default', [\Modules\MobileConfiguration\Http\Controllers\HomepageLayout\HomepageLayoutsController::class, 'setAsDefault'])->name('homepage-layouts.set-default');
         });
     });
-});
+    }
+}); 

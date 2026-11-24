@@ -57,8 +57,8 @@ class RestaurantService
     {
         $restaurant = $this->restaurantRepository->findByIdWithRelations($id);
 
-        // If user is restaurant owner (role_id = 2), ensure they can only edit their own restaurant
-        if ($currentAdmin && $currentAdmin->role_id == 2) {
+        // If user is restaurant owner (Restaurant Owner role), ensure they can only edit their own restaurant
+        if ($currentAdmin && app(\Modules\Restaurant\Services\RestaurantOwnerRoleResolver::class)->isOwner($currentAdmin)) {
             if ($restaurant->admin_id !== $currentAdmin->id) {
                 throw new \Exception('You can only edit your own restaurant.');
             }
@@ -150,6 +150,9 @@ class RestaurantService
                 $restaurantData = [
                     'address_line1' => $data['address_line1'] ?? null,
                     'address_line2' => $data['address_line2'] ?? null,
+                    'country_id' => $data['country_id'] ?? null,
+                    'state_id' => $data['state_id'] ?? null,
+                    'city_id' => $data['city_id'] ?? null,
                     'city' => $data['city_name'] ?? null,
                     'state' => $data['state_name'] ?? null,
                     'country' => $data['country_name'] ?? null,
@@ -298,41 +301,28 @@ class RestaurantService
 
     public function updateSettings(int $restaurantId, array $data)
     {
-        $updateData = [
-            'food_type' => $data['food_type'] ?? 'all',
-            'is_takeaway' => $data['is_takeaway'] ?? false,
-            'is_delivery' => $data['is_delivery'] ?? false,
-            'is_accepting_orders' => $data['is_accepting_orders'] ?? false,
-            'order_time_limit' => $data['order_time_limit'] ?? 48,
-            'status' => $data['status'] ?? 'draft',
-            'allow_order_cancellation' => $data['allow_order_cancellation'] ?? false,
-            'cancellation_time_limit' => $data['cancellation_time_limit'] ?? 15,
-            'cancellable_statuses' => $data['cancellable_statuses'] ?? ['P', 'O', 'H'],
-        ];
+        $restaurant = $this->restaurantRepository->findById($restaurantId);
+        \Illuminate\Support\Facades\Validator::make($data,
+            RestaurantDeliveryPolicy::rules(), RestaurantDeliveryPolicy::messages())->validate();
+        RestaurantDeliveryPolicy::validateThreshold($restaurant, $data);
+        $previousStatus = $restaurant->status;
+        $updateData = \Illuminate\Support\Arr::only($data, [
+            'food_type', 'is_takeaway', 'is_delivery', 'is_accepting_orders',
+            'order_time_limit', 'status', 'allow_order_cancellation',
+            'cancellation_time_limit', 'cancellable_statuses',
+            'delivery_radius_miles', 'delivery_cost_per_mile',
+            'free_delivery_enabled', 'free_delivery_threshold',
+        ]);
 
         $result = $this->restaurantRepository->update($restaurantId, $updateData);
 
-        // Trigger restaurant status changed notification if status is being updated
-        if (isset($data['status']) && $data['status'] !== 'draft') {
-            $restaurant = $this->restaurantRepository->findById($restaurantId);
-
-            if ($data['status'] === 'active') {
-                // Trigger restaurant approved notification
-                $this->notificationService->trigger(
-                    'Restaurant',
-                    'RestaurantApproved',
-                    $restaurant->admin->email,
-                    $restaurant
-                );
-            } else {
-                // Trigger restaurant status changed notification
-                $this->notificationService->trigger(
-                    'Restaurant',
-                    'RestaurantStatusChanged',
-                    $restaurant->admin->email,
-                    $restaurant
-                );
-            }
+        if (isset($data['status']) && $data['status'] !== $previousStatus && $data['status'] !== 'draft' && $result->admin) {
+            $this->notificationService->trigger(
+                'Restaurant',
+                $data['status'] === 'active' ? 'RestaurantApproved' : 'RestaurantStatusChanged',
+                $result->admin->email,
+                $result
+            );
         }
 
         return $result;
@@ -406,10 +396,30 @@ class RestaurantService
         });
     }
 
+    /**
+     * Whether the admin may delete the given restaurant(s).
+     * Requires the `admin.restaurant.delete` permission; restaurant owners are
+     * additionally limited to their own restaurants.
+     */
+    public function canDeleteRestaurants(?object $currentAdmin, array $ids = []): bool
+    {
+        if (!$currentAdmin || !method_exists($currentAdmin, 'hasPermission')
+            || !$currentAdmin->hasPermission('admin.restaurant.delete')) {
+            return false;
+        }
+
+        if ($ids !== [] && app(\Modules\Restaurant\Services\RestaurantOwnerRoleResolver::class)->isOwner($currentAdmin)) {
+            $ownedCount = Restaurant::whereIn('id', $ids)->where('admin_id', $currentAdmin->id)->count();
+
+            return $ownedCount === count(array_unique($ids));
+        }
+
+        return true;
+    }
+
     public function bulkDelete(array $ids, ?object $currentAdmin = null): int
     {
-        // Only super admins (role_id = 1) can perform bulk delete
-        if (!$currentAdmin || $currentAdmin->role_id !== 1) {
+        if (!$this->canDeleteRestaurants($currentAdmin, $ids)) {
             throw new \Exception('You do not have permission to delete restaurants');
         }
 
@@ -432,8 +442,8 @@ class RestaurantService
             throw new \Exception('Invalid status selected: ' . $status);
         }
 
-        // If user is restaurant owner (role_id = 2), ensure they can only update their own restaurants
-        if ($currentAdmin && $currentAdmin->role_id == 2) {
+        // If user is restaurant owner (Restaurant Owner role), ensure they can only update their own restaurants
+        if ($currentAdmin && app(\Modules\Restaurant\Services\RestaurantOwnerRoleResolver::class)->isOwner($currentAdmin)) {
             $ownedIds = $this->restaurantRepository->getOwnedRestaurantIds($currentAdmin->id, $ids);
 
             if (count($ownedIds) !== count($ids)) {

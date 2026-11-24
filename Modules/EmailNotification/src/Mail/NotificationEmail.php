@@ -50,6 +50,8 @@ class NotificationEmail extends Mailable implements ShouldQueue
             if (!empty(fn_get_setting('general.mail.driver')) && !empty(fn_get_setting('general.mail.host')) && !empty(fn_get_setting('general.mail.port')) && !empty(fn_get_setting('general.mail.username')) && !empty(fn_get_setting('general.mail.password')) && !empty(fn_get_setting('general.mail.mail_from'))) {
                 $this->validateSmtpConfig();
                 $this->configureCustomMailer();
+            } else {
+                \Illuminate\Support\Facades\Log::warning('Custom SMTP settings incomplete; falling back to config/mail.php defaults.');
             }
 
             // Start building the email
@@ -162,6 +164,10 @@ class NotificationEmail extends Mailable implements ShouldQueue
             'address' => fn_get_setting('general.mail.mail_from'),
             'name'    => fn_get_setting('general.mail.mail_from_name') ?? config('app.name'),
         ]);
+
+        // The long-running queue worker caches resolved mailers; drop it so the
+        // new settings are used instead of the first (default) config it saw.
+        app('mail.manager')->purge('smtp');
     }
 
     protected function addCcRecipients(Mailable $email): array

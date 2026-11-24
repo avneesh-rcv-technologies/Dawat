@@ -10,6 +10,7 @@ class FoodFeature extends Model
     protected $primaryKey = 'feature_id';
 
     protected $fillable = [
+        'restaurant_id',
         'feature_code',
         'purpose',
         'feature_style',
@@ -25,6 +26,7 @@ class FoodFeature extends Model
     ];
 
     protected $casts = [
+        'restaurant_id' => 'integer',
         'parent_id' => 'integer',
         'position' => 'integer',
     ];
@@ -59,6 +61,17 @@ class FoodFeature extends Model
             'feature_id',
             'category_id'
         );
+    }
+
+    public function restaurant()
+    {
+        return $this->belongsTo(\Modules\Restaurant\Models\Restaurant::class);
+    }
+
+    /** Features are owned by a single restaurant and never shared with others. */
+    public function scopeForRestaurant(Builder $query, ?int $restaurantId): Builder
+    {
+        return $query->where($query->qualifyColumn('restaurant_id'), $restaurantId ?? 0);
     }
 
     public function parent()

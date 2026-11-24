@@ -4,7 +4,7 @@
     $userName = $user?->name ?? 'Guest';
     $userEmail = $user?->email ?? '';
     $userRoleName = $user?->role?->name ?? null;
-    $avatarUrl = $user ? (fn_get_image('avatar', $user->id)['url'] ?? '') : '';
+    $avatarUrl = ($user && $guard === 'admin') ? (fn_get_image('admin_avatar', $user->id)['url'] ?? '') : '';
     $loginRoute = $guard === 'customer' ? route('customer.login') : route('admin.login');
     $profileRoute = route('profile.edit');
     $logoutRoute = $user ? route(Auth::getDefaultDriver() . '.logout') : $loginRoute;
@@ -21,7 +21,7 @@
                 aria-controls="user-dropdown"
                 aria-expanded="false"
                 type="button"
-                class="flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-neutral-800 p-0 shadow-sm transition hover:border-white/40 hover:ring-2 hover:ring-white/10 focus:outline-none focus:ring-2 focus:ring-emerald-400">
+                class="flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-neutral-800 p-0 shadow-sm transition hover:border-white/40 hover:ring-2 hover:ring-white/10 focus:outline-none focus:ring-2 focus:ring-[#FF6210]">
                 <span class="sr-only">Open user menu</span>
                 <img
                     src="{{ $avatarUrl }}"

@@ -18,7 +18,7 @@
                         @if($option['price'] !== null)
                         <p>{{ $option['price_recorded'] ? 'Extra price' : 'Current extra price' }}</p>
                         <p class="font-medium text-gray-900 mt-1">
-                            {{ $option['price'] > 0 ? '+' : '' }}{{ fn_convert_currency($option['price'], $currency ?? 'USD') }}
+                            {{ $option['price'] > 0 ? '+' : '' }}{{ isset($formatMoney) ? $formatMoney($option['price']) : fn_convert_currency($option['price'], $currency ?? 'USD') }}
                         </p>
                         @else
                         <p>Extra price not recorded</p>

@@ -209,11 +209,12 @@ class Transaction extends Controller
     public function show(ModelsTransaction $transaction)
     {
         $transaction->load([
+            'collector',
             'payment.method.method',
             'order.payments.method.method',
             'order.customer',
             'order.vendor',
-            'order.items',
+            'order.items.item',
         ]);
 
         $order = $transaction->order;
@@ -226,7 +227,26 @@ class Transaction extends Controller
         ])->all() ?? [];
         $optionsByItem = app(\Modules\Orders\Services\OrderItemOptionsService::class)->forItems($items);
 
-        return view('orders::transaction.show', compact('transaction', 'paymentMethodName', 'optionsByItem'));
+        $order?->items->loadMorph('item', [
+            \Modules\FoodManagements\Models\FoodItem::class => ['categories.parent'],
+        ]);
+        $receiptItems = $order?->items->map(function ($item) {
+            $food = $item->item instanceof \Modules\FoodManagements\Models\FoodItem ? $item->item : null;
+            return [
+                ...app(\Modules\Orders\Services\OrderPresentationService::class)->item($item),
+                'sku' => $item->sku,
+                'item_url' => $food && $food->restaurant_id ? route('admin.restaurant.menu.items.show', [
+                    'restaurant' => $food->restaurant_id,
+                    'id' => $food->id,
+                ]) : null,
+                'item_image' => $food?->image['url'] ?? null,
+                'categories' => $food?->categories->map(fn ($category) => [
+                    'name' => $category->name, 'parent_name' => $category->parent?->name,
+                ])->all() ?? [],
+            ];
+        })->all() ?? [];
+
+        return view('orders::transaction.show', compact('transaction', 'payment', 'paymentMethodName', 'optionsByItem', 'receiptItems'));
     }
 
     /**
@@ -254,6 +274,10 @@ class Transaction extends Controller
      */
     public function update(Request $request, string $id)
     {
+        $managedRefund = ModelsTransaction::findOrFail($id);
+        abort_if(isset($managedRefund->metadata['refund_id']), 422, 'Update this transaction through its refund request.');
+        abort_if($managedRefund->payment_id && \Modules\Payments\Models\Refund::where('payment_id', $managedRefund->payment_id)->exists(),
+            422, 'This payment has a refund request. Manage it through the refund screen.');
         $request->validate([
             'order_id' => 'required|exists:orders,id',
             'notify_to_customer' => 'nullable|in:Y,N',
@@ -268,6 +292,10 @@ class Transaction extends Controller
                 ->first();
 
             if ($existingTransaction) {
+                abort_if(isset(json_decode($existingTransaction->metadata ?? '{}', true)['refund_id']), 422,
+                    'Update this transaction through its refund request.');
+                abort_if($existingTransaction->payment_id && \Modules\Payments\Models\Refund::where('payment_id', $existingTransaction->payment_id)->exists(),
+                    422, 'This payment has a refund request. Manage it through the refund screen.');
                 DB::transaction(function () use ($request, $existingTransaction) {
                     $status = $request->status;
                     $order = Order::findOrFail($request->order_id);

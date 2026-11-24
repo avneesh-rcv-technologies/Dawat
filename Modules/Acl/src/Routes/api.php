@@ -56,14 +56,14 @@ Route::prefix('api/customer')->name('api.customer.')->group(function () {
         Route::put('/update-profile', [CustomerAuthApiController::class, 'updateProfile'])->name('update-profile');
         Route::post('/change-password', [CustomerAuthApiController::class, 'changePassword'])->name('change-password');
 
-        Route::prefix('addresses')->name('addresses.')->group(function () {
+        Route::prefix('addresses')->middleware('auth:customer')->name('addresses.')->group(function () {
             Route::get('/', [CustomerAddressApiController::class, 'index'])->name('index');
             Route::post('/', [CustomerAddressApiController::class, 'store'])->name('store');
             Route::get('/get-default', [CustomerAddressApiController::class, 'getDefault'])->name('default');
             Route::post('/set-default', [CustomerAddressApiController::class, 'setDefault'])->name('set-default');
-            Route::get('/{id}', [CustomerAddressApiController::class, 'show'])->name('show');
-            Route::put('/{id}', [CustomerAddressApiController::class, 'update'])->name('update');
-            Route::delete('/{id}', [CustomerAddressApiController::class, 'destroy'])->name('destroy');
+            Route::get('/{id}', [CustomerAddressApiController::class, 'show'])->whereNumber('id')->name('show');
+            Route::match(['put', 'patch'], '/{id}', [CustomerAddressApiController::class, 'update'])->whereNumber('id')->name('update');
+            Route::delete('/{id}', [CustomerAddressApiController::class, 'destroy'])->whereNumber('id')->name('destroy');
         });
     });
 });

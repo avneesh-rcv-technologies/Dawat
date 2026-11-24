@@ -2,9 +2,11 @@
 
 namespace Modules\Activitylog\Providers;
 
-use Illuminate\Support\ServiceProvider;
-use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\Route;
+use Illuminate\Support\ServiceProvider;
+use Modules\Activitylog\Console\IpManagerCommand;
+use Modules\Activitylog\Providers\MiddlewareServiceProvider;
 
 class ActivitylogServiceProvider extends ServiceProvider
 {
@@ -35,6 +37,7 @@ class ActivitylogServiceProvider extends ServiceProvider
         }
 
         $this->app->register(ActivitylogEventServiceProvider::class);
+        $this->app->register(MiddlewareServiceProvider::class);
     }
 
     /**
@@ -49,6 +52,15 @@ class ActivitylogServiceProvider extends ServiceProvider
         $this->registerTranslations();
         $this->registerMigrations();
         $this->registerComponents();
+        $this->registerObservers();
+    }
+
+    protected function registerObservers(): void
+    {
+        $observer = \Modules\Activitylog\Observers\ThreatProtectionCacheObserver::class;
+
+        \Modules\Activitylog\Models\BlockedIp::observe($observer);
+        \Modules\Activitylog\Models\AllowedIp::observe($observer);
     }
 
     /**
@@ -73,7 +85,9 @@ class ActivitylogServiceProvider extends ServiceProvider
     {
         if ($this->app->runningInConsole()) {
             $this->commands([
-                // Add your commands here
+                IpManagerCommand::class,
+                \Modules\Activitylog\Console\BackfillActivityLogRollupsCommand::class,
+                \Modules\Activitylog\Console\ActivityLogHealthCheckCommand::class,
             ]);
         }
     }

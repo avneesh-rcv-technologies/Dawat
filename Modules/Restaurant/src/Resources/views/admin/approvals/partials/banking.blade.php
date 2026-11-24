@@ -10,35 +10,57 @@
         'address' => ['Address', 255], 'postal_code' => ['Zip / Postal Code', 20],
     ];
 @endphp
-<div class="space-y-6 p-6" id="banking-panel">
-    <div class="flex flex-wrap items-center justify-between gap-3">
+<div id="banking-panel">
+    <div class="ar-panel-head">
         <div>
-            <h3 class="text-lg font-semibold text-gray-900">Banking Information</h3>
+            <p class="ar-eyebrow">Step {{ \Modules\Restaurant\Enums\OnboardingStep::BANKING->order() }}</p>
+            <h3>Banking Information</h3>
             <p class="review-help">Bank account and company information submitted by the restaurant owner.</p>
         </div>
         @if($canEditBanking)
-            <button type="button" id="edit-banking" class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold" aria-expanded="false" aria-controls="banking-edit">Edit information</button>
+            <button type="button" id="edit-banking" class="ar-btn" aria-expanded="false" aria-controls="banking-edit">Edit information</button>
         @endif
     </div>
     @if($banking)
         <div id="banking-details" class="space-y-6">
-            <dl class="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div class="rounded-xl bg-gray-50 p-4"><dt class="text-xs font-semibold text-gray-500">Name of Account Holder</dt><dd class="mt-2 break-words text-sm font-medium">{{ $banking->account_holder_name }}</dd></div>
-                <div class="rounded-xl bg-gray-50 p-4"><dt class="text-xs font-semibold text-gray-500">Routing Number</dt><dd class="mt-2 text-sm font-medium">{{ $banking->routing_number }}</dd></div>
-                <div class="rounded-xl bg-gray-50 p-4 md:col-span-2"><dt class="text-xs font-semibold text-gray-500">Bank Account Number</dt><dd class="mt-2 text-sm font-medium">{{ $banking->maskedAccountNumber() }}</dd></div>
-            </dl>
-            <div class="border-t border-gray-100 pt-5">
-                <h4 class="font-semibold">Company Information</h4>
-                <dl class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+            <section class="ar-section" aria-labelledby="banking-account-heading">
+                <h4 id="banking-account-heading" class="ar-section-title">Bank Account</h4>
+                <dl class="ar-fields">
+                    <div class="ar-field"><dt>Name of Account Holder</dt><dd>{{ $banking->account_holder_name }}</dd></div>
+                    <div class="ar-field"><dt>Routing Number</dt><dd class="tabular-nums">{{ $banking->routing_number }}</dd></div>
+                    <div class="ar-field ar-field--wide"><dt>Bank Account Number</dt><dd class="tabular-nums">{{ $banking->maskedAccountNumber() }}</dd></div>
+                </dl>
+            </section>
+            @php $commission = \Modules\Restaurant\Support\PlatformCommission::forRestaurant($restaurant); @endphp
+            <div class="ar-callout {{ $commission['accepted'] ? 'ar-callout--success' : 'ar-callout--warning' }} flex-wrap justify-between">
+                <div>
+                    <h4>Platform Commission</h4>
+                    <p>
+                        @if($commission['accepted'])
+                            Agreed to {{ \Modules\Restaurant\Support\PlatformCommission::format($commission['accepted_percentage'] ?? 0) }}% on every order amount
+                            <span class="opacity-75">&middot; {{ $restaurant->platform_commission_accepted_at?->format('M d, Y h:i A') }}</span>
+                        @else
+                            Not agreed yet
+                        @endif
+                    </p>
+                </div>
+                @if($commission['needs_reacceptance'])
+                    <span class="ar-pill ar-pill--warning">Current rate is {{ \Modules\Restaurant\Support\PlatformCommission::format($commission['percentage'] ?? 0) }}% &mdash; needs re-acceptance</span>
+                @endif
+            </div>
+            <section class="ar-section" aria-labelledby="banking-company-heading">
+                <h4 id="banking-company-heading" class="ar-section-title">Company Information</h4>
+                <dl class="ar-fields">
                     @foreach([
                         'business_legal_name' => 'Business Legal Entity Name',
                         'doing_business_as' => 'DBA / Doing Business As',
                         'address' => 'Address', 'city' => 'City', 'state' => 'State', 'country' => 'Country', 'postal_code' => 'Zip / Postal Code',
                     ] as $field => $label)
-                        <div class="rounded-xl bg-gray-50 p-4"><dt class="text-xs font-semibold text-gray-500">{{ $label }}</dt><dd class="mt-2 break-words text-sm">{{ in_array($field, ['city', 'state', 'country'], true) ? ($banking->locationName($field) ?: 'Not provided') : ($banking->{$field} ?: 'Not provided') }}</dd></div>
+                        @php $bankingValue = in_array($field, ['city', 'state', 'country'], true) ? $banking->locationName($field) : $banking->{$field}; @endphp
+                        <div class="ar-field"><dt>{{ $label }}</dt><dd @class(['is-empty' => blank($bankingValue)])>{{ $bankingValue ?: 'Not provided' }}</dd></div>
                     @endforeach
                 </dl>
-            </div>
+            </section>
         </div>
         @if($canEditBanking)
             <form id="banking-edit" data-location-selects="banking"
@@ -48,6 +70,7 @@
                 @csrf
                 @method('PATCH')
                 <input type="hidden" name="_banking_edit" value="1">
+                <h4 class="review-edit-title">Edit banking information</h4>
                 <p class="review-help">Fields marked * are required. The current review status will be preserved.</p>
                 <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                     @foreach($bankingFields as $field => [$label, $maxLength])
@@ -82,21 +105,20 @@
                         @error('account_number_confirmation')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
                     </div>
                 </div>
-                <div class="flex gap-3"><button type="submit" class="rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white">Save changes</button><button id="cancel-banking-edit" type="button" class="rounded-lg border border-gray-300 px-4 py-2">Cancel</button></div>
+                <div class="ar-form-actions"><button type="submit" class="ar-btn ar-btn--primary">Save changes</button><button id="cancel-banking-edit" type="button" class="ar-btn">Cancel</button></div>
             </form>
         @endif
-        <dl class="grid grid-cols-1 gap-4 border-t border-gray-100 pt-5 text-sm md:grid-cols-2">
-            <div><dt class="text-gray-500">Submitted</dt><dd class="mt-1">{{ $bankingStep?->submitted_at?->format('M d, Y h:i A') ?? 'N/A' }}</dd></div>
-            <div><dt class="text-gray-500">Last updated</dt><dd class="mt-1">{{ $banking->updated_at?->format('M d, Y h:i A') ?? 'N/A' }}</dd></div>
-            <div class="md:col-span-2"><dt class="text-gray-500">Reviewed</dt><dd class="mt-1">{{ $bankingStep?->reviewed_at?->format('M d, Y h:i A') ?? 'N/A' }}@if($bankingStep?->reviewer) by {{ $bankingStep->reviewer->name }}@endif</dd></div>
-        </dl>
         @if($bankingStep?->rejection_reason && $bankingStep->status !== 'action_required')
-            <div class="rounded-xl border border-red-200 bg-red-50 p-4 text-red-800"><h4 class="font-semibold">Rejection reason</h4><p class="mt-2 whitespace-pre-line text-sm">{{ $bankingStep->rejection_reason }}</p></div>
+            <div class="ar-callout ar-callout--danger" role="note">
+                <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m15 9-6 6M9 9l6 6"/></svg>
+                <div><h4>Rejection reason</h4><p>{{ $bankingStep->rejection_reason }}</p></div>
+            </div>
         @endif
     @else
-        <div class="rounded-xl border border-gray-200 bg-gray-50 p-6 text-center">
-            <h4 class="font-semibold text-gray-900">No banking details yet</h4>
-            <p class="review-help">Banking and company details will appear here when the owner submits them.</p>
+        <div class="ar-empty">
+            <span class="ar-empty-icon" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10h18M5 10V20M19 10v10M9 14v3M15 14v3M3 20h18M12 3l9 5H3Z"/></svg></span>
+            <h4>No banking details yet</h4>
+            <p>Banking and company details will appear here when the owner submits them.</p>
         </div>
     @endif
 </div>

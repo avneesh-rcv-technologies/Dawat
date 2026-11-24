@@ -114,6 +114,8 @@ class CartServiceProvider extends ServiceProvider
             if (file_exists($apiRoutePath)) {
                 $this->loadRoutesFrom($apiRoutePath);
             }
+
+            $this->loadRoutesFrom(__DIR__ . '/../Routes/api-v2.php');
         } catch (\Exception $e) {
             Log::error("Error in {$this->moduleName}ServiceProvider registerRoutes: " . $e->getMessage());
             throw $e;

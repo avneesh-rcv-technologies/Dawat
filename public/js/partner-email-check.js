@@ -28,7 +28,7 @@
         if (fresh()) return Promise.resolve(true);
         if (active?.email === value()) return active.promise;
         if (!value() || email.validity.typeMismatch || email.validity.tooLong) {
-            show(value() ? 'invalid' : 'idle', value() ? 'Enter a valid email address, such as name@example.com.' : "We'll check the email format, domain and availability before sending an OTP.");
+            show(value() ? 'invalid' : 'idle', value() ? 'Enter a valid email address, such as name@example.com.' : "We'll check the email format and domain before sending an OTP.");
             return Promise.resolve(false);
         }
         const requested = value();
@@ -36,7 +36,7 @@
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 10000);
         email.setCustomValidity('');
-        show('checking', 'Checking email format, domain and availability…');
+        show('checking', 'Checking email format and domain…');
         const promise = (async () => {
             try {
                 const response = await fetch(form.dataset.emailCheckUrl, {
@@ -62,7 +62,7 @@
                 return true;
             } catch (error) {
                 if (requestedRevision !== revision) return false;
-                show('error', error.message.startsWith('Too many checks') ? error.message : 'Unable to check email availability. Check your connection, then leave this field or submit to try again.');
+                show('error', error.message.startsWith('Too many checks') ? error.message : 'Unable to validate the email domain. Check your connection, then leave this field or submit to try again.');
                 return false;
             } finally {
                 clearTimeout(timeout);
@@ -79,7 +79,7 @@
         active = null;
         checked = '';
         email.setCustomValidity('');
-        show('idle', "We'll check the email format, domain and availability before sending an OTP.");
+        show('idle', "We'll check the email format and domain before sending an OTP.");
         clearTimeout(timer);
         if (value()) timer = setTimeout(check, 700);
     });

@@ -23,6 +23,12 @@ class MenuVisibility
      */
     public static function visible(array $item): bool
     {
+        // Optional extra rule: 'visibility' => [SomeClass::class, 'staticMethod'] returning bool.
+        // (A class/method pair rather than a closure, so the cached menu stays serializable.)
+        if (isset($item['visibility']) && is_callable($item['visibility']) && !call_user_func($item['visibility'])) {
+            return false;
+        }
+
         if (empty($item['permission'])) {
             return true;
         }

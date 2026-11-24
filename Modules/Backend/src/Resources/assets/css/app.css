@@ -6,16 +6,53 @@
 @source '../**/*.js';
 
 @theme {
-  --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+  --font-sans: 'Urbanist', 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
     'Segoe UI Symbol', 'Noto Color Emoji';
+
+  /* Dawat brand orange, shared with the public website. */
+  --color-brand-50: #FFF4EE;
+  --color-brand-100: #FFE6D6;
+  --color-brand-200: #FFC9AB;
+  --color-brand-300: #FFA677;
+  --color-brand-400: #FF8241;
+  --color-brand-500: #FF6210;
+  --color-brand-600: #E0530B;
+  --color-brand-700: #B8430A;
+  --color-brand-800: #92360E;
+  --color-brand-900: #752F10;
+
+  /* Indigo is only used as an interactive accent (tabs, focus rings, buttons), so it follows the brand. */
+  --color-indigo-50: #FFF4EE;
+  --color-indigo-100: #FFE6D6;
+  --color-indigo-200: #FFC9AB;
+  --color-indigo-300: #FFA677;
+  --color-indigo-400: #FF8241;
+  --color-indigo-500: #FF6210;
+  --color-indigo-600: #E0530B;
+  --color-indigo-700: #B8430A;
+  --color-indigo-800: #92360E;
+  --color-indigo-900: #752F10;
+  --color-indigo-950: #401505;
 }
 
 
 @tailwind utilities;
 
 
-/* Professional Light Dashboard Theme Overrides */
+/* Dawat admin theme: black chrome and brand orange from the website, on a warm light workspace. */
 :root {
+  /* Brand */
+  --color-primary: #FF6210;
+  --color-primary-dark: #E0530B;
+  --color-primary-ink: #B8430A;
+  --color-primary-soft: #FFF4EE;
+  --color-primary-ring: rgba(255, 98, 16, 0.16);
+  --color-focus: #FF6210;
+  --color-field-border: #E4DED8;
+  --color-field-border-hover: #CFC6BE;
+  --color-surface-page: #FAF8F6;
+  accent-color: var(--color-primary);
+
   /* Neutrals */
   --color-gray-50: #F8FAFC;
   --color-gray-100: #F1F5F9;
@@ -24,25 +61,25 @@
   --color-gray-400: #94A3B8;
   --color-gray-500: #64748B;
   --color-gray-700: #334155;
-  --color-gray-900: #0F172A;
+  --color-gray-900: #111111;
 
   /* Backgrounds and surfaces */
-  --color-bg: #F8FAFC;
+  --color-bg: #FAF8F6;
   --color-sidebar-bg: #000;
   --color-topbar-search-bg: #FFFFFF;
   --color-input-bg: #FFFFFF;
   --color-white: #FFFFFF;
-  --color-black: #0B1320;
+  --color-black: #111111;
 
   /* Sidebar Colors */
   --sidebar-text-color: #FFFFFF;
   --sidebar-text-hover: #FFFFFF;
-  --sidebar-bg-hover: #374151;
-  --sidebar-bg-active: #1F2937;
-  --sidebar-border-color: #4B5563;
-  --sidebar-submenu-bg: #111827;
-  --sidebar-submenu-text: #F3F4F6;
-  --sidebar-submenu-hover: #374151;
+  --sidebar-bg-hover: #1C1C1C;
+  --sidebar-bg-active: rgba(255, 98, 16, 0.14);
+  --sidebar-border-color: #292929;
+  --sidebar-submenu-bg: #141414;
+  --sidebar-submenu-text: #F5F5F5;
+  --sidebar-submenu-hover: #1C1C1C;
 
   /* Text */
   --color-text-primary: var(--color-gray-900);
@@ -50,9 +87,9 @@
   --color-text-gray: var(--color-gray-500);
 
   /* Borders & accents */
-  --color-border-light: #E6EEF8;
-  --color-border-gray: #E6EDF3;
-  --color-shadow: rgba(16, 24, 40, 0.04);
+  --color-border-light: #EEE9E4;
+  --color-border-gray: #CFC8C2;
+  --color-shadow: rgba(17, 17, 17, 0.04);
 
   --color-accent: #FFF8F0;
 }
@@ -62,6 +99,26 @@ body {
   background: var(--color-bg);
   color: var(--color-text-primary);
   font-family: var(--font-sans);
+}
+
+/* Keep the admin viewport fixed; only the workspace and sidebar navigation scroll. */
+body.backend-layout {
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+.backend-shell {
+  height: 100%;
+  min-height: 0;
+}
+
+#backend-main-layout > header {
+  flex-shrink: 0;
+}
+
+.backend-content {
+  overscroll-behavior-y: contain;
 }
 
 /* Topbar */
@@ -87,22 +144,19 @@ body {
 }
 
 /* Professional buttons */
-.btn-primary {
-  /* background: linear-gradient(90deg, var(--color-primary) 0%, var(--color-primary-dark) 100%); */
-  /* background-color: #000; */
-  color: var(--color-white);
-  padding: 0.5rem 1rem;
-  border-radius: 0.5rem;
-  border: none;
-  font-weight: 600;
-}
 
 .btn-secondary {
-  background: transparent;
+  background: #FFFFFF;
   color: var(--color-text-primary);
-  border: 1px solid var(--color-border-light);
+  border: 1px solid var(--color-field-border);
   padding: 0.45rem 0.9rem;
-  border-radius: 0.5rem;
+  border-radius: 0.625rem;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.btn-secondary:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary-ink);
 }
 
 /* Tables */
@@ -137,7 +191,7 @@ body {
 
 /* Light header used across forms to replace heavy gradients */
 .light-header {
-  background: linear-gradient(135deg, rgba(85, 112, 241, 0.08) 0%, rgba(0, 0, 0, 0.04) 100%);
+  background: linear-gradient(135deg, rgba(255, 98, 16, 0.08) 0%, rgba(0, 0, 0, 0.02) 100%);
   color: var(--color-text-primary);
 }
 
@@ -158,8 +212,8 @@ body {
   padding: 0.5rem 1rem;
   border-radius: 0.5rem;
   color: var(--color-white);
-  background: linear-gradient(90deg, var(--color-primary) 0%, #000000 100%);
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
+  background: linear-gradient(90deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
+  box-shadow: 0 6px 18px rgba(255, 98, 16, 0.22);
   border: none;
 }
 
@@ -179,7 +233,7 @@ body {
 
 .gradient {
   color: white;
-  background: linear-gradient(135deg, rgba(85, 112, 241, 0.08) 0%, rgba(0, 0, 0, 0.04) 100%);
+  background: linear-gradient(135deg, rgba(255, 98, 16, 0.08) 0%, rgba(0, 0, 0, 0.02) 100%);
 
 }
 
@@ -189,48 +243,65 @@ body {
 
 .input-field {
   width: 100%;
-  padding: 0.5rem 1rem;
-  /* equal base padding */
-  font-size: 1rem;
+  padding: 0.625rem 0.95rem;
+  font-family: inherit;
+  font-size: 0.9375rem;
   line-height: 1.5;
   color: var(--color-text-primary);
   background-color: var(--color-input-bg);
   background-clip: padding-box;
-  border: 1.29px solid #D0D7DE;
-  box-shadow: 0px 1.29px 0px 0px #D0D7DE33 inset;
-  border-radius: 0.375rem;
-  transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+  border: 1px solid var(--color-field-border);
+  border-radius: 0.625rem;
+  box-shadow: 0 1px 2px rgba(17, 17, 17, 0.04);
+  caret-color: var(--color-primary);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
   appearance: none;
-  /* removes default browser icons (optional, for select you’ll handle separately) */
 }
 
-/* Focus */
+.input-field:hover:not(:disabled):not([readonly]):not(:focus) {
+  border-color: var(--color-field-border-hover);
+}
+
+/* Focus: brand border with a soft orange halo, as on the website forms */
 .input-field:focus {
-  color: #24292F;
+  color: var(--color-text-primary);
   background-color: var(--color-input-bg);
-  border: 1.29px solid var(--color-primary);
+  border-color: var(--color-primary);
   outline: none;
-  box-shadow: 0px 1.29px 0px 0px #D0D7DE33 inset;
+  box-shadow: 0 0 0 3px var(--color-primary-ring);
+}
+
+/* Validation state set by templates through Tailwind's error border classes */
+.input-field[class~="border-red-500"],
+.input-field[class~="border-red-600"],
+.input-field[aria-invalid="true"],
+.input-field.is-invalid {
+  border-color: #E5484D;
+}
+
+.input-field[class~="border-red-500"]:focus,
+.input-field[class~="border-red-600"]:focus,
+.input-field[aria-invalid="true"]:focus,
+.input-field.is-invalid:focus {
+  box-shadow: 0 0 0 3px rgba(229, 72, 77, 0.15);
 }
 
 /* Placeholder */
 .input-field::placeholder {
-  color: #ABAFB1;
+  color: #A39E99;
   opacity: 1;
 }
 
 /* Disabled & Readonly */
 .input-field:disabled,
 .input-field[readonly] {
-  background-color: #D0D7DE70;
-  border-color: var(--color-gray-dark);
-  color: var(--color-gray-600);
+  background-color: #F5F2EF;
+  border-color: #EEE9E4;
+  color: #7A7570;
+  box-shadow: none;
   cursor: not-allowed;
   opacity: 1;
 }
-
-/* 👇 Adjust for select, date, and number types */
-
 
 select.input-field {
   padding-right: 2.5rem;
@@ -250,20 +321,35 @@ input[type="time"].input-field::-webkit-calendar-picker-indicator {
   margin-right: 0.5rem;
 }
 
-/* For select dropdown arrow */
-select.input-field {
-  background-image: url("data:image/svg+xml;charset=UTF-8,<svg width='12' height='8' viewBox='0 0 12 8' xmlns='http://www.w3.org/2000/svg'><path fill='%23ABAFB1' d='M1.41 0L6 4.58 10.59 0 12 1.41 6 7.41 0 1.41z'/></svg>");
-  background-repeat: no-repeat;
-  background-position: right 1rem center;
-  background-size: 12px;
+/*
+ * Select dropdown arrow.
+ * The arrow longhands are !important on purpose: page styles often write
+ * `.something .input-field { background: #fff; }`, and that shorthand resets
+ * background-image to none and background-repeat to `repeat`. Without the
+ * guard the arrow disappears, then tiles across the field as a zigzag on
+ * focus. Pages can still change the field colour with background-color.
+ */
+select.input-field:not([multiple]):not([size]) {
+  background-image: url("data:image/svg+xml;charset=UTF-8,<svg width='12' height='8' viewBox='0 0 12 8' xmlns='http://www.w3.org/2000/svg'><path fill='%237A7570' d='M1.41 0L6 4.58 10.59 0 12 1.41 6 7.41 0 1.41z'/></svg>") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 1rem center !important;
+  background-size: 12px 8px !important;
   appearance: none;
-  /* removes native dropdown arrow */
+}
+
+select.input-field:not([multiple]):not([size]):focus {
+  background-image: url("data:image/svg+xml;charset=UTF-8,<svg width='12' height='8' viewBox='0 0 12 8' xmlns='http://www.w3.org/2000/svg'><path fill='%23FF6210' d='M1.41 0L6 4.58 10.59 0 12 1.41 6 7.41 0 1.41z'/></svg>") !important;
+}
+
+select.input-field:is([multiple], [size]) {
+  padding-right: 0.95rem;
+  background-image: none;
 }
 
 
 
 .helping-text {
-  color: #57606A;
+  color: #6B6560;
   font-size: 14px;
 }
 
@@ -280,13 +366,13 @@ select.input-field {
 
 /* Custom Checkbox Styling */
 input[type="checkbox"] {
-  /* -webkit-appearance: none; */
-  /* -moz-appearance: none; */
-  /* appearance: none; */
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
   width: 18px;
   height: 18px;
-  border: 2px solid var(--color-border-gray);
-  border-radius: 0.25rem;
+  border: 1.5px solid var(--color-border-gray);
+  border-radius: 0.3125rem;
   background-color: var(--color-white);
   cursor: pointer;
   position: relative;
@@ -294,24 +380,18 @@ input[type="checkbox"] {
   transition: all 0.2s ease-in-out;
 }
 
-/* Checked State */
+/* Checked state uses one SVG tick without depending on input pseudo-elements. */
 input[type="checkbox"]:checked {
   background-color: var(--color-primary);
-  border-color: #6D7DCD;
+  border-color: var(--color-primary);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='m3 8 3 3 7-7' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-position: center;
+  background-size: 12px 12px;
+  background-repeat: no-repeat;
 }
 
-/* Checkmark Tick */
 input[type="checkbox"]:checked::after {
-  content: "";
-  position: absolute;
-  left: 5px;
-  top: 1px;
-  width: 6px;
-  height: 10px;
-  border: solid var(--color-white);
-  border-width: 0 2px 2px 0;
-  transform: rotate(45deg);
-  animation: checkmark 0.2s ease-out;
+  content: none;
 }
 
 @keyframes checkmark {
@@ -327,10 +407,9 @@ input[type="checkbox"]:checked::after {
 }
 
 /* Focus State */
-input[type="checkbox"]:focus {
+input[type="checkbox"]:focus-visible {
   border-color: var(--color-focus);
-  box-shadow: 0 0 0 3px #6D7DCD;
-
+  box-shadow: 0 0 0 3px var(--color-primary-ring);
 }
 
 /* Hover State */
@@ -340,8 +419,8 @@ input[type="checkbox"]:hover:not(:disabled):not(:checked) {
 
 /* Disabled State */
 input[type="checkbox"]:disabled {
-  background-color: var(--color-gray-dark);
-  border-color: var(--color-gray);
+  background-color: #F5F2EF;
+  border-color: #E4DED8;
   cursor: not-allowed;
   opacity: 0.6;
 }
@@ -349,9 +428,9 @@ input[type="checkbox"]:disabled {
 .custom-label {
   display: block;
   font-size: 0.875rem;
-  font-weight: 400;
-  color: #24292F;
-  margin-bottom: 0.25rem;
+  font-weight: 600;
+  color: #1F1F1F;
+  margin-bottom: 0.375rem;
 }
 
 
@@ -383,9 +462,9 @@ button {
 }
 
 .modal-spinner {
-  border: 3px solid rgba(59, 130, 246, 0.2);
+  border: 3px solid rgba(255, 98, 16, 0.2);
   border-radius: 50%;
-  border-top-color: #3b82f6;
+  border-top-color: var(--color-primary);
   width: 3rem;
   height: 3rem;
   animation: spin 1s ease-in-out infinite;
@@ -421,7 +500,7 @@ button {
 
 .setting-bg {
   background:
-    linear-gradient(15.49deg, rgba(244, 245, 255, 0.84) 0.13%, rgba(223, 230, 243, 0.84) 84.13%) !important;
+    linear-gradient(15.49deg, rgba(255, 250, 246, 0.9) 0.13%, rgba(255, 236, 224, 0.9) 84.13%) !important;
 }
 
 
@@ -443,150 +522,84 @@ button {
   cursor: pointer;
 }
 
-.btn-danger {
+/* Neutral outline buttons share one look; hover picks up the brand. */
+.btn-danger,
+.btn-filter,
+.btn-cancel,
+.btn-status {
   display: inline-block;
-  font-weight: 500;
+  font-weight: 600;
   text-align: center;
   white-space: nowrap;
   vertical-align: middle;
   user-select: none;
-  border: 1px solid #E5E5E5;
+  border: 1px solid var(--color-field-border);
   padding: 0.45rem 1.5rem;
-  font-size: 1rem;
+  font-size: 0.9375rem;
   line-height: 1.5;
-  border-radius: 0.375rem;
-  transition: all 0.3s ease-in-out;
+  border-radius: 0.625rem;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
   cursor: pointer;
-  background: white;
-  color: black;
+  background: #FFFFFF;
+  color: #1F1F1F;
+  box-shadow: 0 1px 2px rgba(17, 17, 17, 0.05);
+}
+
+.btn-cancel:hover,
+.btn-status:hover,
+.btn-filter:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary-ink);
+  background: var(--color-primary-soft);
+  transform: translateY(-1px);
 }
 
 .btn-danger:hover {
-  transform: translateY(-2px);
-  background: #E5E5E5;
+  border-color: #FECACA;
+  color: #B91C1C;
+  background: #FEF2F2;
+  transform: translateY(-1px);
 }
 
-.btn-filter {
-  display: inline-block;
-  font-weight: 500;
-  text-align: center;
-  white-space: nowrap;
-  vertical-align: middle;
-  user-select: none;
-  border: 1px solid #E5E5E5;
-  padding: 0.45rem 1.5rem;
-  font-size: 1rem;
-  line-height: 1.5;
-  border-radius: 0.375rem;
-  transition: all 0.3s ease-in-out;
-  cursor: pointer;
-  box-shadow:
-    0px 0.77px 9.91px 0px #22204C inset,
-    0px 0px 0.7px 0px #D9D9D9 inset,
-    0px 0.77px 1.55px 0px #3C3B4BD4,
-    0px 3.1px 3.1px 0px #3C3B4BB8;
-  background: transparent;
-  color: #9CA3AF;
-}
-
-.btn-filter :hover {
-  box-shadow:
-    0px 0.77px 9.91px 0px #22204C inset,
-    0px 0px 0.7px 0px #D9D9D9 inset,
-    0px 0.77px 1.55px 0px #3C3B4BD4,
-    0px 3.1px 3.1px 0px #3C3B4BB8,
-    0px 6.19px 3.87px 0px #3C3B4B6E,
-    0px 10.84px 4.65px 0px #3C3B4B21,
-    0px 17.03px 4.65px 0px #3C3B4B05;
-  transform: translateY(-2px);
-}
-
+/* Primary action: Dawat orange, as on the website CTAs */
 .btn-primary {
   display: inline-block;
-  font-weight: 500;
+  font-weight: 600;
   text-align: center;
   white-space: nowrap;
   vertical-align: middle;
   user-select: none;
-  border: 1px solid transparent;
+  border: 1px solid var(--color-primary);
   padding: 0.45rem 1.5rem;
-  font-size: 1rem;
+  font-size: 0.9375rem;
   line-height: 1.5;
-  border-radius: 0.375rem;
-  transition: all 0.3s ease-in-out;
+  border-radius: 0.625rem;
+  transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
   cursor: pointer;
-  /* background: #621F09; */
-  background: #000;
-  color: white;
+  background: var(--color-primary);
+  color: #FFFFFF;
+  box-shadow: 0 1px 2px rgba(255, 98, 16, 0.3);
 }
 
 .btn-primary:hover {
-  box-shadow:
-    0px 0.77px 9.91px 0px #22204C inset,
-    0px 0px 0.7px 0px #D9D9D9 inset,
-    0px 0.77px 1.55px 0px #3C3B4BD4,
-    0px 3.1px 3.1px 0px #3C3B4BB8,
-    0px 6.19px 3.87px 0px #3C3B4B6E,
-    0px 10.84px 4.65px 0px #3C3B4B21,
-    0px 17.03px 4.65px 0px #3C3B4B05;
-  transform: translateY(-2px);
-
+  background: var(--color-primary-dark);
+  border-color: var(--color-primary-dark);
+  box-shadow: 0 10px 22px -8px rgba(255, 98, 16, 0.6);
+  transform: translateY(-1px);
 }
 
-.btn-cancel {
-  display: inline-block;
-  font-weight: 500;
-  text-align: center;
-  white-space: nowrap;
-  vertical-align: middle;
-  user-select: none;
-  border: 1px solid #DDE2E5;
-  padding: 0.45rem 1.5rem;
-  font-size: 1rem;
-  line-height: 1.5;
-  border-radius: 0.375rem;
-  transition: all 0.3s ease-in-out;
-  cursor: pointer;
-  background: #FFFFFF;
-  color: #414651;
-  box-shadow: 0px 1px 2px 0px #0A0D120D;
+.btn-primary:disabled,
+.btn-primary[disabled] {
+  opacity: 0.55;
+  box-shadow: none;
+  transform: none;
+  cursor: not-allowed;
 }
 
-.btn-cancel:hover {
-  box-shadow:
-
-    0px 0.77px 1.55px 0px #3C3B4BD4,
-    0px 3.1px 3.1px 0px #3C3B4BB8,
-    0px 6.19px 3.87px 0px #3C3B4B6E,
-    0px 10.84px 4.65px 0px #3C3B4B21,
-    0px 17.03px 4.65px 0px #3C3B4B05;
-  transform: translateY(-2px);
+:is(.btn, .btn-primary, .btn-primary-light, .btn-secondary, .btn-cancel, .btn-status, .btn-danger, .btn-filter, .cta-btn):focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--color-primary-ring);
 }
-
-.btn-status {
-  display: inline-block;
-  font-weight: 500;
-  text-align: center;
-  white-space: nowrap;
-  vertical-align: middle;
-  user-select: none;
-  border: 1px solid #DDE2E5;
-  padding: 0.45rem 1.5rem;
-  font-size: 1rem;
-  line-height: 1.5;
-  border-radius: 0.375rem;
-  transition: all 0.3s ease-in-out;
-  cursor: pointer;
-
-  background: #FFFFFF;
-  color: #414651;
-}
-
-.btn-status:hover {
-
-  transform: translateY(-2px);
-}
-
 
 .btn-accent {
   color: var(--color-black);
@@ -602,7 +615,7 @@ button {
 }
 
 .btn-accent:focus {
-  box-shadow: 0 0 0 0.2rem rgba(150, 189, 5, 0.5);
+  box-shadow: 0 0 0 3px var(--color-primary-ring);
 }
 
 
@@ -614,28 +627,19 @@ button {
 
 
 .cta-btn {
-  box-shadow:
-    0px 0.77px 9.91px 0px #22204C inset,
-    0px 0px 0.7px 0px #D9D9D9 inset,
-    0px 0.77px 1.55px 0px #3C3B4BD4,
-    0px 3.1px 3.1px 0px #3C3B4BB8;
-  background: linear-gradient(135deg, #B32030 0%, #000000 100%);
+  background: var(--color-primary);
   color: white;
+  box-shadow: 0 1px 2px rgba(255, 98, 16, 0.3);
+  transition: background-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .cta-btn:hover {
-  box-shadow:
-    0px 0.77px 9.91px 0px #22204C inset,
-    0px 0px 0.7px 0px #D9D9D9 inset,
-    0px 0.77px 1.55px 0px #3C3B4BD4,
-    0px 3.1px 3.1px 0px #3C3B4BB8,
-    0px 6.19px 3.87px 0px #3C3B4B6E,
-    0px 10.84px 4.65px 0px #3C3B4B21,
-    0px 17.03px 4.65px 0px #3C3B4B05;
+  background: var(--color-primary-dark);
+  box-shadow: 0 10px 22px -8px rgba(255, 98, 16, 0.6);
 }
 
 .text-helper {
-  color: var(--color-gray-500);
+  color: #6B6560;
   font-size: small;
   margin-top: 2px;
 }
@@ -650,7 +654,7 @@ button {
   border-radius: 6px;
   font-size: 1rem;
   color: #414651;
-  border: 1.41px solid #D5D7DA;
+  border: 1px solid var(--color-field-border);
   width: 100%;
   transition: all 0.3s ease-in-out;
   cursor: pointer;
@@ -661,16 +665,16 @@ button {
 /* Smooth color and background transition */
 .dropdown-btn:hover {
   color: white;
-  background: linear-gradient(135deg, #B32030 0%, #000000 100%);
-  border-color: transparent;
+  background: var(--color-primary);
+  border-color: var(--color-primary);
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(179, 32, 48, 0.3);
+  box-shadow: 0 6px 16px -6px rgba(255, 98, 16, 0.55);
 }
 
 /* add css after * with red color */
 .required::after {
   content: " *";
-  color: red;
+  color: #E5484D;
 }
 
 
@@ -690,7 +694,7 @@ button {
     padding: .75rem 1rem;
     margin-bottom: 0;
     list-style: none;
-    background-color: var(--color-white);
+    background-color: transparent;
     border-radius: .25rem;
 }
 
@@ -712,8 +716,87 @@ button {
 }
 
 .gl-breadcrumb-item:not(:last-child,:has(+.gl-breadcrumb-clipboard-button))::after {
-    color: var(--color-black);
-    padding-left: 3px;
-    padding-right: 3px;
+    color: #C9C1BA;
+    padding-left: 6px;
+    padding-right: 6px;
     content: "/";
+}
+/* Keep contact query rows compact; the detail page displays the full message. */
+.contact-query-message-preview {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    max-width: 340px;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+    white-space: pre-line;
+}
+
+
+/* ------------------------------------------------------------------
+   Dawat brand layer
+   One place that brings page-level Tailwind classes in line with the
+   website: focus, toggles and primary blue buttons follow the brand
+   orange. Blue used for info badges and links is left alone.
+------------------------------------------------------------------- */
+::selection {
+  background: rgba(255, 98, 16, 0.22);
+  color: inherit;
+}
+
+/* Any field in the workspace gets the brand focus border, even without .input-field */
+@layer base {
+  main :where(input:not([type="checkbox"], [type="radio"], [type="file"], [type="range"], [type="color"], [type="hidden"], [type="submit"], [type="button"], [type="reset"], [type="image"]), select, textarea):focus {
+    border-color: var(--color-primary);
+    outline: none;
+  }
+
+  main :where(a, button, summary, [tabindex]):focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+}
+
+/* Focus rings and borders written as Tailwind blue/indigo utilities */
+:is([class~="focus:ring-blue-500"], [class~="focus:ring-blue-400"], [class~="focus:ring-blue-600"], [class~="focus:ring-indigo-500"]):focus,
+:is([class~="focus-visible:ring-blue-500"]):focus-visible {
+  --tw-ring-color: var(--color-primary-ring);
+}
+
+:is([class~="focus:border-blue-500"], [class~="focus:border-blue-400"], [class~="focus:border-indigo-500"]):focus {
+  border-color: var(--color-primary);
+}
+
+/* Toggle switches (peer-checked:bg-blue-600 pattern) */
+.peer:checked ~ :is([class~="peer-checked:bg-blue-600"], [class~="peer-checked:bg-blue-500"], [class~="peer-checked:bg-indigo-600"]) {
+  background-color: var(--color-primary);
+}
+
+.peer:focus ~ :is([class~="peer-focus:ring-blue-300"], [class~="peer-focus:ring-blue-500"]) {
+  --tw-ring-color: var(--color-primary-ring);
+}
+
+/* Solid blue action buttons become the brand primary */
+:is(button, a, input[type="submit"], span)[class~="text-white"]:is([class~="bg-blue-500"], [class~="bg-blue-600"]) {
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+:is(button, a, input[type="submit"])[class~="text-white"]:is([class~="bg-blue-500"], [class~="bg-blue-600"]):hover {
+  background-color: var(--color-primary-dark);
+  border-color: var(--color-primary-dark);
+}
+
+/* Radios and native controls */
+input[type="radio"],
+input[type="range"],
+progress {
+  accent-color: var(--color-primary);
+}
+
+/* Page title under the breadcrumbs */
+.gl-breadcrumbs + div h1 {
+  color: #111111;
+  letter-spacing: -0.01em;
 }

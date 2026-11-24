@@ -70,7 +70,8 @@ class RestaurantOrderReceivedNotification implements Notification
             'order_number' => $order?->order_number ?? 'N/A',
             'order_id' => $order?->id ?? 'N/A',
             'customer_name' => $order?->customer?->name ?? 'Customer',
-            'order_total' => $order ? fn_get_currency($order->total) : '0.00',
+            'order_total' => $order ? fn_format_currency_amount($order->total, $order->currency ?: 'USD') : '0.00',
+            ...($order instanceof \Modules\Orders\Models\Order ? app(\Modules\Orders\Services\OrderNotificationDetails::class)->variables($order) : []),
             'delivery_address' => $this->formatAddress($order?->delivery_address),
             'order_link' => config('app.url', 'https://app.local') . '/orders/' . ($order?->id ?? ''),
             'app_name' => fn_get_setting('general.company.name'),
@@ -80,6 +81,7 @@ class RestaurantOrderReceivedNotification implements Notification
     public function getAvailableVariables(): array
     {
         return [
+            ...\Modules\Orders\Services\OrderNotificationDetails::availableVariables(),
             'restaurant_name' => 'Name of the restaurant',
             'restaurant_owner_name' => 'Name of the restaurant owner',
             'restaurant_email' => 'Restaurant owner email address',

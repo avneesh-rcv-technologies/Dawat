@@ -18,6 +18,15 @@ class Cart extends Model
 
     protected $fillable = [
         'session_id',
+        'delivery_address_id',
+        'delivery_fee',
+        'delivery_distance_miles',
+        'delivery_available',
+        'delivery_unavailable_reason',
+        'estimated_delivery_minutes',
+        'estimated_delivery_at',
+        'delivery_calculated_at',
+        'event_guest_count',
         'owner_type',
         'owner_id',
         'cartable_type',
@@ -36,6 +45,14 @@ class Cart extends Model
     ];
 
     protected $casts = [
+        'delivery_address_id' => 'integer',
+        'delivery_fee' => 'decimal:2',
+        'delivery_distance_miles' => 'decimal:4',
+        'delivery_available' => 'boolean',
+        'estimated_delivery_minutes' => 'integer',
+        'estimated_delivery_at' => 'datetime',
+        'delivery_calculated_at' => 'datetime',
+        'event_guest_count' => 'integer',
         'subtotal' => 'decimal:2',
         'tax_amount' => 'decimal:2',
         'total' => 'decimal:2',
@@ -205,7 +222,7 @@ class Cart extends Model
      */
     public function hasDiscount(): bool
     {
-        return $this->discount_amount > 0 && !empty($this->coupon_code);
+        return $this->discount_amount > 0;
     }
 
     /**
@@ -213,22 +230,68 @@ class Cart extends Model
      */
     public function updateTotals(): void
     {
-        // Ensure items are loaded
-        if (!$this->relationLoaded('items')) {
-            $this->load('items');
-        }
-        
-        $this->subtotal = $this->items->sum('total_price');
-        $this->tax_amount = $this->items->sum('total_tax_amount');
-        $totalBeforeDiscount = $this->items->sum('total_display_price');
-        
-        // Apply discount to final total
-        $this->total = max(0, $totalBeforeDiscount - $this->discount_amount);
-        
-        // Update tax breakdown
+        // Reload after adds/removals so a previously loaded relation cannot omit a line.
+        $this->load('items');
+        $subtotalCents = $this->items->sum(fn ($item) => (int) round((float) $item->total_price * 100));
+        $taxCents = $this->items->sum(fn ($item) => (int) round((float) $item->total_tax_amount * 100));
+        $displayCents = $this->items->sum(fn ($item) => (int) round((float) $item->total_display_price * 100));
+        $itemDiscountCents = (int) round($this->item_discount_amount * 100);
+        $regularSubtotalCents = $subtotalCents + $itemDiscountCents;
+        $couponDiscountCents = min($subtotalCents, max(0, (int) round($this->coupon_discount_amount * 100)));
+        $discountCents = $itemDiscountCents + $couponDiscountCents;
+        $previousBreakdown = $this->discount_breakdown ?? [];
+        $couponPercentage = $this->coupon_code
+            ? (($previousBreakdown['summary_version'] ?? null) === 1
+                ? ($previousBreakdown['coupon_discount_percentage'] ?? null)
+                : $this->discount_percentage)
+            : null;
+
+        $this->subtotal = $subtotalCents / 100;
+        $this->tax_amount = $taxCents / 100;
+        $this->discount_amount = $discountCents / 100;
+        // Weighted effective saving against the regular pre-tax cart price.
+        $this->discount_percentage = $regularSubtotalCents > 0
+            ? round($discountCents * 100 / $regularSubtotalCents, 2)
+            : 0;
+        // Item savings are already included in line prices; subtract only the coupon.
+        $this->total = max(0, $displayCents - $couponDiscountCents) / 100;
+        $this->discount_breakdown = array_replace($this->coupon_code ? $previousBreakdown : [], [
+            'summary_version' => 1,
+            'coupon_code' => $this->coupon_code,
+            'subtotal_before_discount' => number_format($regularSubtotalCents / 100, 2, '.', ''),
+            'subtotal_after_item_discount' => number_format($subtotalCents / 100, 2, '.', ''),
+            'item_discount_amount' => number_format($itemDiscountCents / 100, 2, '.', ''),
+            'coupon_discount_amount' => number_format($couponDiscountCents / 100, 2, '.', ''),
+            'coupon_discount_percentage' => $couponPercentage,
+            'discount_amount' => $this->discount_amount,
+            'discount_percentage' => $this->discount_percentage,
+        ]);
         $this->tax_breakdown = $this->calculateTaxBreakdown();
-        
+        app(\Modules\Cart\Services\CartDeliveryService::class)->apply($this);
+        $this->total = round((float) $this->total + (float) ($this->delivery_fee ?? 0), 2);
         $this->save();
+    }
+
+    public function getItemDiscountAmountAttribute(): float
+    {
+        $cents = $this->items->sum(fn ($item) => $item->selected_option_snapshot !== null
+            ? max(0, (int) round((float) $item->discount_price * 100)) : 0);
+
+        return $cents / 100;
+    }
+
+    public function getCouponDiscountAmountAttribute(): float
+    {
+        if (empty($this->coupon_code)) {
+            return 0;
+        }
+
+        $breakdown = $this->discount_breakdown ?? [];
+
+        // Legacy coupon writes put their amount in discount_amount before recalculation.
+        return (float) (($breakdown['summary_version'] ?? null) === 1
+            ? ($breakdown['coupon_discount_amount'] ?? 0)
+            : $this->discount_amount);
     }
 
     /**
@@ -241,6 +304,10 @@ class Cart extends Model
         foreach ($this->items as $item) {
             if ($item->tax_breakdown) {
                 foreach ($item->tax_breakdown as $taxCategory => $taxData) {
+                    $rate = (float) ($taxData['rate'] ?? 0);
+                    if (isset($breakdown[$taxCategory]) && (float) $breakdown[$taxCategory]['rate'] !== $rate) {
+                        $taxCategory .= '_'.str_replace('.', '_', number_format($rate, 2, '.', ''));
+                    }
                     if (!isset($breakdown[$taxCategory])) {
                         $breakdown[$taxCategory] = [
                             'name' => $taxData['name'] ?? $taxCategory,
@@ -248,7 +315,7 @@ class Cart extends Model
                             'amount' => 0,
                         ];
                     }
-                    $breakdown[$taxCategory]['amount'] += $taxData['amount'] ?? 0;
+                    $breakdown[$taxCategory]['amount'] = round($breakdown[$taxCategory]['amount'] + ($taxData['amount'] ?? 0), 2);
                 }
             }
         }

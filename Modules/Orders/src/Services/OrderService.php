@@ -2,24 +2,28 @@
 
 namespace Modules\Orders\Services;
 
+use Carbon\Carbon;
 use Exception;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
-use Modules\Orders\Models\Order;
-use Modules\FoodManagements\Models\FoodItem;
-use Modules\Restaurant\Models\Restaurant;
-use Illuminate\Support\Facades\DB;
-use App\Models\User;
-use Modules\Orders\Models\OrderItem;
-use Modules\Tax\Services\FoodItemTaxService;
-use Modules\Orders\Enums\OrderStatus;
-use Modules\Payments\Models\Payments;
-use Modules\Orders\Enums\TransactionStatus;
-use Modules\Payments\Services\PaymentsService;
+use Illuminate\Validation\ValidationException;
+use Modules\Acl\Models\Customer;
+use Modules\Acl\Models\Admin;
+use Modules\Cart\Models\Cart;
 use Modules\Discounts\Services\DiscountService;
-use Modules\Orders\Services\TransactionService;
+use Modules\FoodManagements\Models\FoodItem;
 use Modules\Notifications\Services\NotificationService;
+use Modules\Orders\Enums\OrderStatus;
+use Modules\Orders\Models\Order;
+use Modules\Payments\Models\PaymentConfiguration;
+use Modules\Payments\Models\Payments;
 use Modules\Payments\Services\PaymentService;
+use Modules\Payments\Services\PaymentsService;
+use Modules\Payments\Services\RefundService;
+use Modules\Restaurant\Models\Restaurant;
+use Modules\Restaurant\Services\RestaurantOwnerRoleResolver;
+use Modules\Tax\Services\FoodItemTaxService;
 
 class OrderService
 {
@@ -55,32 +59,31 @@ class OrderService
 
         $allowedStatuses = $this->getAllowedStatusesForOrder($currentStatus, $orderType);
 
-        if (!in_array($newStatus, $allowedStatuses, true)) {
+        if (! in_array($newStatus, $allowedStatuses, true)) {
             $currentStatusName = fn_get_order_status_name($currentStatus, 'O') ?? $currentStatus;
             $newStatusName = fn_get_order_status_name($newStatus, 'O') ?? $newStatus;
 
-            throw \Illuminate\Validation\ValidationException::withMessages([
+            throw ValidationException::withMessages([
                 'status' => "You cannot change status from {$currentStatusName} to {$newStatusName}.",
             ]);
         }
     }
 
-
-    public function createOrder(array $orderData): array
+    public function createOrder(array $orderData, ?Cart $cart = null): array
     {
-        return DB::transaction(function () use ($orderData) {
+        return DB::transaction(function () use ($orderData, $cart) {
             // Validate customer and restaurant
-            $customer   = $this->validateCustomer($orderData['customer_id']);
+            $customer = $this->validateCustomer($orderData['customer_id']);
             $restaurant = $this->validateRestaurant($orderData['restaurant_id']);
 
             // Validate and prepare order data
-            $preparedData = $this->prepareOrderData($orderData, $customer, $restaurant);
+            $preparedData = $this->prepareOrderData($orderData, $customer, $restaurant, $cart);
 
             // Create the order
             $order = Order::create($preparedData['order']);
 
             // Process order items
-            $this->processOrderItems($order, $preparedData['items']);
+            $this->processOrderItems($order, $preparedData['items'], $cart !== null);
 
             // Process payment if required
             $clientSecret = null;
@@ -96,40 +99,41 @@ class OrderService
             //     $customer->email,
             //     $order
             // );
-            if (!($orderData['requires_payment'] ?? true)) {
+            if (! ($orderData['requires_payment'] ?? true)) {
 
-                $this->notificationService->trigger(
-                    'Orders',
-                    'OrderCreated',
-                    $customer->email,
-                    $order
-                );
+                DB::afterCommit(function () use ($customer, $order) {
+                    try {
+                        $this->notificationService->trigger('Orders', 'OrderCreated', $customer->email, $order->fresh());
+                    } catch (\Throwable $e) {
+                        Log::warning('Order confirmation notification failed.', ['order_id' => $order->id, 'exception_class' => get_class($e)]);
+                    }
+                });
             }
 
-
-
             return [
-                'order'         => $order->load('items', 'customer', 'restaurant'),
+                'order' => $order->refresh()->load('items', 'customer', 'restaurant', 'payments'),
                 'client_secret' => $clientSecret,
+                'payment_url' => data_get($order->payments->sortByDesc('id')->first()?->details, 'payment_url'),
             ];
         });
     }
 
-
-
     /**
      * Update order status with food ordering workflow
      */
-    public function updateOrderStatus(Order $order, string $status): Order
+    public function updateOrderStatus(Order $order, string $status, ?string $cancellationReason = null, ?string $refundSource = null, ?Admin $actor = null): Order
     {
-        return DB::transaction(function () use ($order, $status) {
+        return DB::transaction(function () use ($order, $status, $cancellationReason, $refundSource, $actor) {
             $order = Order::whereKey($order->getKey())->lockForUpdate()->firstOrFail();
+            if ($status === Order::STATUS_REFUNDED) {
+                throw ValidationException::withMessages(['status' => 'Record the manual refund through the confirmed refund action or Refund requests.']);
+            }
             $previousStatus = $order->status;
 
             // Validate that the status exists
             $statusExists = fn_get_order_status($status, 'O');
-            if (!$statusExists) {
-                throw new \Exception("Invalid status: {$status}");
+            if (! $statusExists) {
+                throw new Exception("Invalid status: {$status}");
             }
 
             $this->validateOrderStatusTransition($previousStatus, $status, $order->order_type ?? Order::TYPE_DELIVERY);
@@ -141,32 +145,56 @@ class OrderService
             // Update the order status
             $order->update(['status' => $status]);
 
+            if ($status === Order::STATUS_CANCELLED) {
+                $actor ??= auth('admin')->user();
+                $source = $refundSource ?? ($actor && app(RestaurantOwnerRoleResolver::class)->isOwner($actor)
+                    ? 'restaurant_cancellation' : 'admin');
+                $order->update(['cancelled_at' => now(),
+                    'cancellation_reason' => $cancellationReason ?? $order->cancellation_reason]);
+                $this->transactionService->record(
+                    order: $order, type: 'order_cancelled', amount: $order->total, status: 'cancelled',
+                    notes: $order->cancellation_reason ?? 'Order cancelled',
+                    metadata: ['cancelled_by' => $source, 'cancellation_reason' => $order->cancellation_reason]
+                );
+                app(RefundService::class)->requestForCancellation($order, $source, $actor);
+            }
+
             // Update delivery times based on status
-            if ($status === "D" && !$order->actual_delivery_time) {
+            if ($status === 'D' && ! $order->actual_delivery_time) {
                 $order->update(['actual_delivery_time' => now()]);
             }
 
-            if ($status == "D" && $order->payment_method == "1" && $order->payment_status == 'pending') {
-                $order->update(['payment_status' => 'paid']);
-            }
-
+            // Cash collection is recorded separately through CodPaymentService.
 
             \Log::info('order status updated this is working');
 
-            // Trigger status change event only if customer exists
-            if ($order->customer && $order->customer->email) {
-                $this->notificationService->trigger(
-                    'Orders',
-                    'OrderStatusUpdate',
-                    $order->customer->email,
-                    [
-                        'order' => $order,
-                        'old_status' => $previousStatus,
-                    ]
-                );
-            }
+            $this->notifyStatusAfterCommit($order, $previousStatus);
 
             return $order->refresh();
+        });
+    }
+
+    protected function notifyStatusAfterCommit(Order $order, string $previousStatus): void
+    {
+        // Channel failures must never roll back or fail an already committed update.
+        $notificationOrder = $order->withoutRelations();
+        DB::afterCommit(function () use ($notificationOrder, $previousStatus) {
+            try {
+                $notificationOrder->load('customer');
+                if ($notificationOrder->customer?->email) {
+                    $sent = $this->notificationService->trigger(
+                        'Orders', 'OrderStatusUpdate', $notificationOrder->customer->email,
+                        ['order' => $notificationOrder, 'old_status' => $previousStatus]
+                    );
+                    if (! $sent) {
+                        Log::warning('Order status notification could not be sent.', ['order_id' => $notificationOrder->id]);
+                    }
+                }
+            } catch (\Throwable $exception) {
+                Log::warning('Order status notification failed.', [
+                    'order_id' => $notificationOrder->id, 'exception_class' => get_class($exception),
+                ]);
+            }
         });
     }
 
@@ -176,26 +204,24 @@ class OrderService
     public function cancelOrder(Order $order, ?string $reason = null, bool $bypassPolicyCheck = false): Order
     {
         return DB::transaction(function () use ($order, $reason, $bypassPolicyCheck) {
-            // Serialize cancellations so stock can only be returned once.
+            // Serialize cancellations to prevent duplicate status changes and transactions.
             $order = Order::whereKey($order->getKey())->lockForUpdate()->firstOrFail();
             // Load restaurant relationship
             $order->load('vendor');
 
             if (in_array($order->status, self::TERMINAL_STATUS_CODES, true)) {
-                throw new \Exception('Order is already in a terminal state and cannot be cancelled again');
+                throw new Exception('Order is already in a terminal state and cannot be cancelled again');
             }
 
             // Check restaurant cancellation policy (unless bypassed by admin)
-            if (!$bypassPolicyCheck) {
+            if (! $bypassPolicyCheck) {
                 $cancellationCheck = $order->isCancellableByCustomer();
 
-                if (!$cancellationCheck['can_cancel']) {
-                    throw new \Exception($cancellationCheck['reason']);
+                if (! $cancellationCheck['can_cancel']) {
+                    throw new Exception($cancellationCheck['reason']);
                 }
             }
 
-
-         
             // Fallback only when the restaurant does not define a cancellation policy.
             $restaurant = $order->vendor;
             $hasRestaurantPolicy = $restaurant && method_exists($restaurant, 'allowsOrderCancellation');
@@ -204,56 +230,45 @@ class OrderService
                 $allowedStatuses = $restaurant->getCancellableStatuses();
                 $canCancelByPolicy = $restaurant->allowsOrderCancellation() && in_array($order->status, $allowedStatuses, true);
 
-                if (!$canCancelByPolicy) {
-                    throw new \Exception('Order cannot be cancelled at this stage');
+                if (! $canCancelByPolicy) {
+                    throw new Exception('Order cannot be cancelled at this stage');
                 }
-            } elseif (!$order->canBeCancelled()) {
-                throw new \Exception('Order cannot be cancelled at this stage');
+            } elseif (! $order->canBeCancelled()) {
+                throw new Exception('Order cannot be cancelled at this stage');
             }
 
             // Update order status
-            $order = $this->updateOrderStatus($order, fn_get_order_status_by_name('CANCELLED'));
+            $order = $this->updateOrderStatus($order, fn_get_order_status_by_name('CANCELLED'), $reason,
+                $bypassPolicyCheck ? 'admin' : 'customer_cancellation');
 
             // Store cancellation details
             $order->update([
                 'cancellation_reason' => $reason,
                 'cancelled_at' => now(),
-                'notes' => ($order->notes ? $order->notes . "\n\n" : '') .
-                    "Cancelled: " . $reason
+                'notes' => ($order->notes ? $order->notes."\n\n" : '').
+                    'Cancelled: '.$reason,
             ]);
 
-            // Record transaction
-            $this->transactionService->record(
-                order: $order,
-                type: 'order_cancelled',
-                amount: $order->total,
-                status: 'cancelled',
-                notes: $reason ?? 'Order cancelled',
-                metadata: [
-                    'cancelled_by' => $bypassPolicyCheck ? 'admin' : 'customer',
-                    'cancellation_reason' => $reason
-                ]
-            );
 
             return $order;
         });
     }
 
-    protected function validateCustomer(int $customerId): \Modules\Acl\Models\Customer
+    protected function validateCustomer(int $customerId): Customer
     {
-        return \Modules\Acl\Models\Customer::findOrFail($customerId);
+        return Customer::findOrFail($customerId);
     }
 
     protected function validateRestaurant(int $restaurantId): Restaurant
     {
         $restaurant = Restaurant::findOrFail($restaurantId);
 
-        if (!$restaurant->isActive()) {
-            throw new \Exception('Restaurant is not active');
+        if (! $restaurant->isActive()) {
+            throw new Exception('Restaurant is not active');
         }
 
-        if (!$restaurant->is_accepting_orders) {
-            throw new \Exception('Restaurant is not accepting orders at this time');
+        if (! $restaurant->is_accepting_orders) {
+            throw new Exception('Restaurant is not accepting orders at this time');
         }
 
         return $restaurant;
@@ -328,17 +343,22 @@ class OrderService
     //     ];
     // }
 
-
-    protected function prepareOrderData(array $orderData, \Modules\Acl\Models\Customer $customer, Restaurant $restaurant): array
+    protected function prepareOrderData(array $orderData, Customer $customer, Restaurant $restaurant, ?Cart $cart = null): array
     {
-        $subtotal = $this->calculateSubtotal($orderData['order_items']);
-        $discountAmount = $this->calculateDiscounts($orderData, $orderData['coupon_code'] ?? '');
+        if ($cart !== null) {
+            $orderData['order_items'] = app(CartOrderSnapshotService::class)->items($cart);
+        }
+        $subtotal = $cart !== null ? round((float) $cart->subtotal + $cart->item_discount_amount, 2) : $this->calculateSubtotal($orderData['order_items']);
+        $discountAmount = $cart !== null ? (float) $cart->discount_amount : $this->calculateDiscounts($orderData, $orderData['coupon_code'] ?? '');
 
         // Calculate delivery fee based on order type and restaurant settings
         $deliveryFee = $this->calculateDeliveryFee($orderData, $restaurant);
         $serviceCharge = $this->calculateServiceCharge($orderData, $restaurant);
 
         foreach ($orderData['order_items'] as &$item) {
+            if ($cart !== null) {
+                continue;
+            }
             $price = (float) ($item['price'] ?? 0);
             $quantity = (int) ($item['quantity'] ?? 0);
             $optionsPrice = $this->calculateItemOptionsPrice($item['selected_options'] ?? []);
@@ -351,7 +371,9 @@ class OrderService
             $item['discounted_line_total'] = $item['line_total'] - ($discountAmount * $proportion);
         }
 
-        $taxCalculation = $this->calculateTaxForOrder($orderData, $customer);
+        $taxCalculation = $cart !== null
+            ? ['tax_amount' => (float) $cart->tax_amount, 'is_inclusive' => (bool) $cart->is_tax_inclusive]
+            : $this->calculateTaxForOrder($orderData, $customer);
         $tax = $taxCalculation['tax_amount'];
         $isInclusive = $taxCalculation['is_inclusive'];
 
@@ -366,10 +388,10 @@ class OrderService
         return [
             'order' => [
                 // Use polymorphic relationship for Customer model
-                'customer_type' => \Modules\Acl\Models\Customer::class,
+                'customer_type' => Customer::class,
                 'customer_id' => $customer->id,
                 // Use polymorphic relationship for vendor (restaurant)
-                'vendor_type' => \Modules\Restaurant\Models\Restaurant::class,
+                'vendor_type' => Restaurant::class,
                 'vendor_id' => $restaurant->id,
                 'admin_id' => auth('admin')->id(),
                 'order_number' => $this->generateOrderNumber(),
@@ -380,9 +402,12 @@ class OrderService
                 'tax' => $tax,
                 'delivery_fee' => $deliveryFee,
                 'service_charge' => $serviceCharge,
-                'total' => $orderData['custom_total'] ?? $total,
+                'total' => $cart !== null ? round((float) $cart->total + $serviceCharge, 2) : ($orderData['custom_total'] ?? $total),
                 'delivery_address' => $orderData['delivery_address'] ?? $orderData['shipping_address'] ?? null,
                 'billing_address' => $orderData['billing_address'] ?? null,
+                // Preserve the requested schedule independently of travel/preparation estimates.
+                'preferred_delivery_date' => $orderData['preferred_delivery_date']
+                    ?? ($cart !== null ? $customer->preferred_delivery_date : null),
                 'estimated_delivery_time' => $this->calculateEstimatedDeliveryTime($orderData, $restaurant),
                 'delivery_instructions' => $orderData['delivery_instructions'] ?? null,
                 'phone_number' => $orderData['phone_number'] ?? $customer->phone,
@@ -393,146 +418,70 @@ class OrderService
                 'user_agent' => request()->userAgent(),
                 'currency' => $orderData['currency'] ?? fn_get_setting('general.currency') ?? 'USD',
                 'coupon_code' => $orderData['coupon_code'] ?? null,
+                ...($cart !== null ? app(CartOrderSnapshotService::class)->metadata($cart, $restaurant) : []),
             ],
-            'items' => $orderData['order_items']
+            'items' => $orderData['order_items'],
         ];
     }
 
-    // protected function processOrderItems(Order $order, array $items): void
-    // {
-    //     foreach ($items as $item) {
-    //         // Support both old food_item_id and new item_id/item_type format
-    //         $itemId = $item['item_id'] ?? $item['food_item_id'] ?? null;
-    //         $itemType = $item['item_type'] ?? 'Modules\FoodManagements\Models\FoodItem';
-
-    //         if (!$itemId) {
-    //             throw new \Exception("Item ID is required");
-    //         }
-
-    //         $foodItem = $itemType::findOrFail($itemId);
-
-    //         // Validate food item availability
-    //         if (!$foodItem->is_available || !$foodItem->is_active) {
-    //             throw new \Exception("Food item '{$foodItem->name}' is not available");
-    //         }
-
-    //         // dd($foodItem->in_stock, $foodItem->quantity, $item['quantity']);
-    //         // Check stock if managed
-    //         // if ($foodItem->in_stock && $foodItem->quantity < $item['quantity']) {
-    //         //     throw new \Exception("Insufficient stock for '{$foodItem->name}'");
-    //         // }
-
-    //         // Calculate total price including options
-    //         $basePrice = $item['price'];
-    //         $optionsPrice = $this->calculateItemOptionsPrice($item['selected_options'] ?? []);
-    //         $totalPrice = ($basePrice + $optionsPrice) * $item['quantity'];
-
-    //         // Create order item with polymorphic relationship
-    //         $order->items()->create([
-    //             'item_type' => $itemType,
-    //             'item_id' => $itemId,
-    //             'item_name' => $foodItem->name,
-    //             'sku' => $foodItem->sku ?? null,
-    //             'price' => $basePrice,
-    //             'quantity' => $item['quantity'],
-    //             'tax_rate' => $foodItem->tax ?? 0,
-    //             'selected_options' => $item['selected_options'] ?? [],
-    //             'special_instructions' => $item['special_instructions'] ?? null,
-    //             'total_price' => $totalPrice,
-    //         ]);
-
-    //         // Update stock if managed
-    //         if ($foodItem->in_stock) {
-    //             $foodItem->decrement('quantity', $item['quantity']);
-    //         }
-    //     }
-    // }
-    protected function processOrderItems(Order $order, array $items): void
+    protected function processOrderItems(Order $order, array $items, bool $fromCart = false): void
     {
         foreach ($items as $item) {
             // Support both old food_item_id and new item_id/item_type format
             $itemId = $item['item_id'] ?? $item['food_item_id'] ?? null;
             $itemType = $item['item_type'] ?? 'Modules\FoodManagements\Models\FoodItem';
 
-            if (!$itemId) {
-                throw new \Exception("Item ID is required");
+            if (! $itemId) {
+                throw new Exception('Item ID is required');
             }
 
-            // Lock the inventory row for the duration of this order transaction.
+            // Keep menu availability stable for the duration of this order transaction.
             $foodItem = $itemType::whereKey($itemId)->lockForUpdate()->firstOrFail();
+            if ($fromCart && ($itemType !== (new FoodItem)->getMorphClass() || (int) $foodItem->restaurant_id !== (int) $order->vendor_id)) {
+                throw ValidationException::withMessages(['item_id' => 'This food item does not belong to the selected restaurant.']);
+            }
+            if ($fromCart && ! empty($item['serving_option_id'])) {
+                $option = $foodItem->servingOptions()->lockForUpdate()->find($item['serving_option_id']);
+                if (! $option || ! $option->is_available) {
+                    throw ValidationException::withMessages(['serving_option_id' => 'A serving option is no longer available. Please update your cart.']);
+                }
+            }
 
             // Validate food item availability
-            if (!$foodItem->is_available || !$foodItem->is_active) {
-                throw new \Exception("Food item '{$foodItem->name}' is not available");
+            if (! $foodItem->is_available || ! $foodItem->is_active || ! $foodItem->in_stock) {
+                throw new Exception("Food item '{$foodItem->name}' is not available");
             }
 
             $quantity = (int) ($item['quantity'] ?? 0);
-            $tracksQuantity = method_exists($foodItem, 'isGroupingQuantityType')
-                ? !$foodItem->isGroupingQuantityType()
-                : true;
-            $reservesStock = $tracksQuantity && $foodItem->in_stock && $foodItem->quantity !== null;
-
             if ($quantity < 1) {
-                throw new \Exception("Invalid quantity for '{$foodItem->name}'");
-            }
-
-            if ($tracksQuantity && $foodItem->in_stock && $foodItem->quantity !== null && $foodItem->quantity < $quantity) {
-                Log::warning('Order rejected because inventory is insufficient', [
-                    'order_id' => $order->id,
-                    'item_id' => $foodItem->getKey(),
-                    'item_type' => get_class($foodItem),
-                    'item_name' => $foodItem->name,
-                    'quantity_type' => $foodItem->quantity_type ?? null,
-                    'requested_quantity' => $quantity,
-                    'available_quantity' => (int) $foodItem->quantity,
-                ]);
-                throw new \Exception(
-                    "Insufficient stock for '{$foodItem->name}': requested {$quantity}, available {$foodItem->quantity}"
-                );
+                throw new Exception("Invalid quantity for '{$foodItem->name}'");
             }
 
             // Calculate total price including options
             $basePrice = $item['price'];
             $optionsPrice = $this->calculateItemOptionsPrice($item['selected_options'] ?? []);
-            $totalPrice = ($basePrice + $optionsPrice) * $quantity;
+            $totalPrice = $fromCart ? (float) $item['total_price'] : ($basePrice + $optionsPrice) * $quantity;
 
             // Create order item with polymorphic relationship
             $order->items()->create([
                 'item_type' => $itemType,
                 'item_id' => $itemId,
-                'item_name' => $foodItem->name,
+                'item_name' => $fromCart ? ($item['item_name'] ?? $foodItem->name) : $foodItem->name,
                 'sku' => $foodItem->sku ?? null,
                 'price' => $basePrice,
                 'quantity' => $quantity,
-                'stock_reserved_quantity' => $reservesStock ? $quantity : 0,
-                'tax_rate' => $foodItem->tax ?? 0,
+                'tax_rate' => $fromCart ? ($item['tax_rate'] ?? 0) : ($foodItem->tax ?? 0),
                 'selected_options' => $item['selected_options'] ?? [],
                 'special_instructions' => $item['special_instructions'] ?? null,
                 'total_price' => $totalPrice,
+                ...($fromCart ? array_intersect_key($item, array_flip([
+                    'serving_option_id', 'serve_type', 'serving_name', 'guest_count', 'selected_option_snapshot',
+                    'tax_amount', 'discount_amount', 'final_price', 'is_tax_inclusive', 'tax_breakdown',
+                    'delivery_fee', 'estimated_delivery_minutes', 'estimated_delivery_at',
+                ])) : []),
             ]);
-
-            // Update stock if managed
-            if ($reservesStock) {
-                $quantityBefore = (int) $foodItem->quantity;
-                $foodItem->decrement('quantity', $quantity);
-                $quantityAfter = (int) $foodItem->fresh()->quantity;
-
-                Log::info('Order inventory quantity decremented', [
-                    'order_id' => $order->id,
-                    'order_number' => $order->order_number,
-                    'item_id' => $foodItem->getKey(),
-                    'item_type' => get_class($foodItem),
-                    'item_name' => $foodItem->name,
-                    'quantity_type' => $foodItem->quantity_type ?? null,
-                    'decremented_by' => $quantity,
-                    'quantity_before' => $quantityBefore,
-                    'quantity_after' => $quantityAfter,
-                    'decrement_count_for_order_item' => 1,
-                ]);
-            }
         }
     }
-
 
     protected function calculateItemOptionsPrice(array $selectedOptions): float
     {
@@ -540,6 +489,7 @@ class OrderService
         foreach ($selectedOptions as $option) {
             $total += $option['price'] ?? 0;
         }
+
         return $total;
     }
 
@@ -560,8 +510,11 @@ class OrderService
         return $orderData['service_charge'] ?? fn_get_setting('general.default_service_charge') ?? 0;
     }
 
-    protected function calculateEstimatedDeliveryTime(array $orderData, Restaurant $restaurant): \Carbon\Carbon
+    protected function calculateEstimatedDeliveryTime(array $orderData, Restaurant $restaurant): Carbon
     {
+        if (! empty($orderData['estimated_delivery_time'])) {
+            return Carbon::parse($orderData['estimated_delivery_time']);
+        }
         $orderType = $orderData['order_type'] ?? Order::TYPE_DELIVERY;
         $preparationTime = $restaurant->order_time_limit ?? 30; // minutes
 
@@ -607,22 +560,18 @@ class OrderService
     //         ],
     //     ];
 
-
     //     $this->paymentRecordService->handlePaymentResponse(
     //         $response,
     //         $orderData['payment_method'],
     //         $sessionData
     //     );
 
-
     //     return $response->client_secret;
     // }
 
-
-    protected function processPayment(Order $order, array $orderData): string
+    protected function processPayment(Order $order, array $orderData): ?string
     {
 
-    
         $response = $this->paymentService->charge(
             $orderData['payment_method'],
             $order
@@ -644,17 +593,18 @@ class OrderService
             ],
         ];
 
-
         $this->paymentRecordService->handlePaymentResponse(
             $response,
             $orderData['payment_method'],
             $sessionData
         );
 
+        if ($response->isFailure()) {
+            throw ValidationException::withMessages(['payment_method' => 'Payment could not be initiated. Please try another payment method.']);
+        }
 
         return $response->client_secret;
     }
-
 
     /**
      * Check if order can be cancelled (for customer)
@@ -677,7 +627,7 @@ class OrderService
         }
 
         do {
-            $number = $prefix . $date . '-' . Str::upper(Str::random($length)) . $suffix;
+            $number = $prefix.$date.'-'.Str::upper(Str::random($length)).$suffix;
         } while (Order::where('order_number', $number)->exists());
 
         return $number;
@@ -691,6 +641,7 @@ class OrderService
             $optionsPrice = $this->calculateItemOptionsPrice($item['selected_options'] ?? []);
             $total += ($basePrice + $optionsPrice) * $item['quantity'];
         }
+
         return $total;
     }
 
@@ -707,7 +658,7 @@ class OrderService
             // Get customer from order data
             $customer = null;
             if (isset($orderData['customer_id'])) {
-                $customer = \Modules\Acl\Models\Customer::find($orderData['customer_id']);
+                $customer = Customer::find($orderData['customer_id']);
             }
 
             // Prepare cart items for discount validation
@@ -731,24 +682,25 @@ class OrderService
             );
 
             return $discountResult['discount_amount'];
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             // Log the error but don't fail the order
-            \Illuminate\Support\Facades\Log::warning('Discount calculation failed during order creation', [
+            Log::warning('Discount calculation failed during order creation', [
                 'coupon_code' => $orderData['coupon_code'],
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
 
             return 0.0;
         }
     }
 
-    protected function calculateTax(array $orderData, \Modules\Acl\Models\Customer $customer): float
+    protected function calculateTax(array $orderData, Customer $customer): float
     {
         $taxCalculation = $this->calculateTaxForOrder($orderData, $customer);
+
         return $taxCalculation['tax_amount'];
     }
 
-    protected function calculateTaxForOrder(array $orderData, \Modules\Acl\Models\Customer $customer): array
+    protected function calculateTaxForOrder(array $orderData, Customer $customer): array
     {
         // Prepare items for tax calculation
         $items = [];
@@ -759,7 +711,7 @@ class OrderService
             $itemId = $item['item_id'] ?? $item['food_item_id'] ?? null;
             $itemType = $item['item_type'] ?? 'Modules\FoodManagements\Models\FoodItem';
 
-            if (!$itemId) {
+            if (! $itemId) {
                 continue;
             }
 
@@ -768,7 +720,7 @@ class OrderService
                 $items[] = [
                     'food_item' => $foodItem,
                     'quantity' => $item['quantity'] ?? 1,
-                    'tax_category_ids' => null // Use default tax categories
+                    'tax_category_ids' => null, // Use default tax categories
                 ];
             }
         }
@@ -776,7 +728,7 @@ class OrderService
         if (empty($items)) {
             return [
                 'tax_amount' => 0.0,
-                'is_inclusive' => false
+                'is_inclusive' => false,
             ];
         }
 
@@ -789,7 +741,7 @@ class OrderService
 
         return [
             'tax_amount' => $taxCalculation['total_tax_amount'],
-            'is_inclusive' => $isInclusive
+            'is_inclusive' => $isInclusive,
         ];
     }
 
@@ -803,9 +755,12 @@ class OrderService
             'customer',
             'vendor',
             'payments',
-            'transactions',
+            'transactions.collector',
         ])->findOrFail($orderId);
 
+        $order->items->loadMorph('item', [
+            FoodItem::class => ['categories.parent'],
+        ]);
 
         $customer = $order->customer;
         $restaurant = $order->vendor;
@@ -819,16 +774,29 @@ class OrderService
             $lineTotal = $item->total_price ?? ($item->price * $item->quantity);
 
             // Calculate tax amount from tax rate
-            $taxAmount = ($item->price * $item->quantity) * ($item->tax_rate / 100);
+            $taxAmount = $item->getTaxAmount();
 
             $itemsData[] = [
+                ...app(OrderPresentationService::class)->item($item),
                 'id' => $item->id,
                 'item_id' => $item->item_id,
                 'item_type' => $item->item_type,
                 'item_name' => $item->item_name,
                 'food_item_id' => $item->item_id, // Backward compatibility
                 'food_item_name' => $item->item_name, // Backward compatibility
+                'item_url' => $item->item instanceof FoodItem && $item->item->restaurant_id
+                    ? route('admin.restaurant.menu.items.show', [
+                        'restaurant' => $item->item->restaurant_id,
+                        'id' => $item->item_id,
+                    ]) : null,
                 'sku' => $item->sku,
+                'categories' => $item->item instanceof FoodItem
+                    ? $item->item->categories->map(fn ($category) => [
+                        'name' => $category->name,
+                        'parent_name' => $category->parent?->name,
+                    ])->all() : [],
+                'item_image' => $item->item instanceof FoodItem
+                    ? ($item->item->image['url'] ?? null) : null,
                 'price' => $item->price,
                 'quantity' => $item->quantity,
                 'selected_options' => $item->selected_options,
@@ -842,6 +810,7 @@ class OrderService
 
         return [
             'order_id' => $order->id,
+            ...app(OrderPresentationService::class)->metadata($order),
             'order_number' => $order->order_number,
             'status' => $order->status,
             'formatted_status' => $order->formatted_status,
@@ -851,13 +820,16 @@ class OrderService
             'coupon_code' => $order->coupon_code,
             'payment_method' => $order->payment_method,
             'payment_method_name' => $this->getPaymentMethodName($order->payment_method),
+            'is_cod_order' => app(CodPaymentService::class)->isCodPaymentMethod($order->payment_method),
             'payment_status' => $order->payment_status,
             'estimated_delivery_time' => $order->estimated_delivery_time,
             'actual_delivery_time' => $order->actual_delivery_time,
             'delivery_instructions' => $order->delivery_instructions,
             'phone_number' => $order->phone_number,
             'order_items' => $itemsData,
+            'refunds' => $order->refunds()->with(['payment', 'histories.actor'])->get(),
             'order_summary' => [
+                ...app(OrderPresentationService::class)->pricing($order),
                 'subtotal' => $order->subtotal,
                 'discount' => $order->discount,
                 'tax' => $order->tax,
@@ -882,7 +854,7 @@ class OrderService
                 'id' => $restaurant->id,
                 'name' => $restaurant->name,
                 'phone' => $restaurant->phone ?? '',
-                'address' => ($restaurant->address_line1 ?? '') . ' ' . ($restaurant->address_line2 ?? ''),
+                'address' => ($restaurant->address_line1 ?? '').' '.($restaurant->address_line2 ?? ''),
                 'city' => $restaurant->city ?? '',
             ] : [
                 'id' => null,
@@ -902,7 +874,7 @@ class OrderService
                     'amount' => $transaction->amount,
                     'status' => $transaction->status,
                     'currency' => $transaction->currency,
-                    'notes' => $transaction->notes,
+                    'notes' => $transaction->display_notes,
                     'gateway_reference' => $transaction->gateway_reference,
                     'metadata' => $transaction->metadata,
                     'processed_at' => $transaction->processed_at,
@@ -910,6 +882,8 @@ class OrderService
                 ];
             })->toArray(),
             'order_note' => $order->notes,
+            'cancelled_at' => $order->cancelled_at,
+            'cancellation_reason' => $order->cancellation_reason,
             'created_at' => $order->created_at,
             'updated_at' => $order->updated_at,
         ];
@@ -937,15 +911,15 @@ class OrderService
         // Calculate tax using FoodItemTaxService if customer is available
         $tax = 0.0;
         $isInclusive = false;
-        if (!empty($orderData['customer_details']['id'])) {
+        if (! empty($orderData['customer_details']['id'])) {
             try {
-                $customer = \Modules\Acl\Models\Customer::find($orderData['customer_details']['id']);
+                $customer = Customer::find($orderData['customer_details']['id']);
                 if ($customer) {
                     $taxCalculation = $this->calculateTaxForOrder($orderData, $customer);
                     $tax = $taxCalculation['tax_amount'];
                     $isInclusive = $taxCalculation['is_inclusive'];
                 }
-            } catch (\Exception $e) {
+            } catch (Exception $e) {
                 // Fallback: no tax if calculation fails
                 $tax = 0.0;
                 $isInclusive = false;
@@ -976,13 +950,13 @@ class OrderService
      */
     public function markOrderPaymentFailed(Order $order, ?string $reason = null): Order
     {
-        if (!$order->exists) {
+        if (! $order->exists) {
             return $order;
         }
 
         return DB::transaction(function () use ($order, $reason) {
-            // Use the latest persisted state and serialize with cancellation so only
-            // one terminal flow can restore inventory for this order.
+            // Use the latest persisted state and serialize with cancellation to avoid
+            // conflicting terminal status changes.
             $order = Order::whereKey($order->getKey())->lockForUpdate()->firstOrFail();
             $status = $order->status ?? null;
 
@@ -996,7 +970,7 @@ class OrderService
                 'payment_status' => Order::PAYMENT_FAILED,
                 'cancelled_at' => now(),
                 'cancellation_reason' => $failureReason,
-                'notes' => ($order->notes ? $order->notes . "\n\n" : '') . 'Payment failed: ' . $failureReason,
+                'notes' => ($order->notes ? $order->notes."\n\n" : '').'Payment failed: '.$failureReason,
             ]);
 
             return $order->fresh()->load('items', 'customer');
@@ -1018,11 +992,11 @@ class OrderService
                 'customer_id',
                 'customer_type',
                 'cancelled_at',
-                'cancellation_reason'
+                'cancellation_reason',
             ])));
 
             // Update items if needed
-            if ($updateItems && !empty($updateData['items'])) {
+            if ($updateItems && ! empty($updateData['items'])) {
                 // Simple implementation - you can make this more sophisticated
                 $order->items()->delete();
                 $this->processOrderItems($order, $updateData['items']);
@@ -1037,6 +1011,19 @@ class OrderService
      */
     public function recalculateOrderTotals(Order $order): Order
     {
+        if (($order->discount_breakdown['summary_version'] ?? null) === 1) {
+            $order->load('items');
+            $subtotal = $order->items->sum(fn ($item) => (float) $item->total_price + (float) $item->discount_amount);
+            $coupon = (float) ($order->discount_breakdown['coupon_discount_amount'] ?? 0);
+            $itemDiscount = $order->items->sum('discount_amount');
+            $order->update([
+                'subtotal' => round($subtotal, 2), 'discount' => round($itemDiscount + $coupon, 2),
+                'tax' => round($order->items->sum(fn ($item) => $item->getTaxAmount()), 2),
+                'total' => round(max(0, $order->items->sum('final_price') - $coupon) + (float) $order->delivery_fee + (float) $order->service_charge, 2),
+            ]);
+
+            return $order;
+        }
         // Calculate subtotal from all items
         $subtotal = $order->items->sum('total_price');
 
@@ -1062,7 +1049,7 @@ class OrderService
             'subtotal' => $subtotal,
             'tax' => $taxAmount,
             'discount' => $discountAmount,
-            'total' => $total
+            'total' => $total,
         ]);
 
         return $order->fresh();
@@ -1071,7 +1058,7 @@ class OrderService
     /**
      * Resolve the payment method name for order and transaction details.
      */
-    public function getPaymentMethodName($paymentMethodId, ?\Modules\Payments\Models\Payments $payment = null): string
+    public function getPaymentMethodName($paymentMethodId, ?Payments $payment = null): string
     {
         $paymentConfig = $payment?->method;
         if ($paymentConfig) {
@@ -1082,13 +1069,13 @@ class OrderService
             return 'N/A';
         }
 
-        if (!is_numeric($paymentMethodId)) {
+        if (! is_numeric($paymentMethodId)) {
             return in_array(strtolower($paymentMethodId), ['cod', 'cash', 'cash_on_delivery'], true)
                 ? 'Cash on Delivery'
                 : ucwords(str_replace('_', ' ', $paymentMethodId));
         }
 
-        $paymentConfig = \Modules\Payments\Models\PaymentConfiguration::with('method')->find($paymentMethodId);
+        $paymentConfig = PaymentConfiguration::with('method')->find($paymentMethodId);
         if ($paymentConfig && $paymentConfig->method) {
             return $paymentConfig->merchant_name ?: ($paymentConfig->method->name ?: 'Unknown');
         }

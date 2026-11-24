@@ -4,16 +4,40 @@ class ModernToast {
     constructor() {
         this.container = document.getElementById('toast-container');
         this.toasts = [];
-        this.maxToasts = 5;
+        this.maxToasts = 3;
+        this.recentToasts = new Map(); // signature -> timestamp for deduplication
     }
 
     show(message, type = 'info', title = '', duration = 5000) {
-        // Remove oldest toast if we have too many
-        if (this.toasts.length >= this.maxToasts) {
-            this.remove(this.toasts[0]);
+        if (!this.container) {
+            this.container = document.getElementById('toast-container');
+            if (!this.container) {
+                this.container = document.createElement('div');
+                this.container.id = 'toast-container';
+                this.container.className = 'toast-container';
+                document.body.appendChild(this.container);
+            }
         }
 
-        // console.log(this.container);
+        // Deduplication: prevent identical messages appearing within 2.5s
+        const plainMsg = String(message || '').trim();
+        if (!plainMsg) return null;
+        const signature = `${type}:${title}:${plainMsg}`;
+        const now = Date.now();
+        if (this.recentToasts.has(signature) && (now - this.recentToasts.get(signature) < 2500)) {
+            return null;
+        }
+        this.recentToasts.set(signature, now);
+
+        // Clean up old entries from recentToasts map
+        for (const [key, time] of this.recentToasts.entries()) {
+            if (now - time > 10000) this.recentToasts.delete(key);
+        }
+
+        // Limit concurrent visible toasts to maxToasts (3)
+        while (this.toasts.length >= this.maxToasts) {
+            this.remove(this.toasts[0]);
+        }
 
         const toast = this.create(message, type, title, duration);
         this.container.appendChild(toast);
@@ -68,13 +92,21 @@ class ModernToast {
         <div class="toast-message">${message}</div>
     </div>
 
-    <button class="toast-close" onclick="toastSystem.remove(this.parentElement)">
-        <span class="material-icons-outlined">close</span>
+    <button type="button" class="toast-close" aria-label="Dismiss notification">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false">
+            <path d="m6 6 12 12M18 6 6 18" />
+        </svg>
     </button>
 
     ${duration > 0 ? `<div class="toast-progress" style="animation-duration:${duration}ms;"></div>` : ''}
 `;
 
+
+        toast.querySelector('.toast-close').addEventListener('click', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            this.remove(toast);
+        });
 
         // Click to dismiss
         toast.addEventListener('click', (e) => {

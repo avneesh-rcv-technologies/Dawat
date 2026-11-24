@@ -5,9 +5,9 @@
     <p class="correction-menu-note" data-correction-menu-note hidden>Available after this step is submitted.</p>
 </div>
 <dialog id="correction-request-dialog" class="correction-dialog" aria-labelledby="correction-dialog-title" aria-describedby="correction-dialog-description"
-    data-has-errors="{{ ($errors->has('reason') || $errors->has('step_key')) ? 'true' : 'false' }}"
-    data-previous-step="{{ old('step_key') }}" data-previous-reason="{{ old('reason') }}"
-    data-previous-error="{{ $errors->first('reason') ?: $errors->first('step_key') }}">
+    data-has-errors="{{ ($errors->has('reason') || ($errors->has('step_key') || $errors->has('submission_id'))) ? 'true' : 'false' }}"
+    data-previous-document="{{ old('submission_id') }}" data-previous-step="{{ old('step_key') }}" data-previous-reason="{{ old('reason') }}"
+    data-previous-error="{{ $errors->first('reason') ?: ($errors->first('step_key') ?: $errors->first('submission_id')) }}">
     <form method="POST" id="correction-request-form">
         @csrf
         <input type="hidden" name="step_key" id="correction-step">
@@ -20,10 +20,19 @@
             <p class="correction-target" id="correction-target"></p>
             <p id="correction-dialog-description">Explain what needs to be corrected or reuploaded. The owner must resubmit this information for review.</p>
             <div id="correction-edit-panel">
+                <div id="correction-document-field" hidden>
+                    <label for="correction-document">Documents to update</label>
+                    <select name="submission_id" id="correction-document" disabled>
+                        <option value="">All submitted documents</option>
+                        @foreach(($kycSubmissions ?? collect())->filter(fn ($document) => $document->status !== 'draft' && $document->kycType?->is_active) as $document)
+                            <option value="{{ $document->id }}">{{ $document->kycType?->name ?? 'KYC document' }}</option>
+                        @endforeach
+                    </select>
+                </div>
                 <label for="correction-reason">Reason and required corrections <span aria-hidden="true">*</span></label>
                 <textarea name="reason" id="correction-reason" rows="5" required maxlength="500" placeholder="Describe the details or documents the owner needs to update…" aria-describedby="correction-reason-count correction-request-error"></textarea>
                 <p id="correction-reason-count" class="correction-reason-count">0 / 500</p>
-                <p id="correction-kyc-note" class="correction-info" hidden>This requests all submitted KYC documents again. Use a document’s action menu to request changes to just that document.</p>
+                <p id="correction-kyc-note" class="correction-info" hidden>The selected documents will reopen for corrections and require a new review.</p>
             </div>
             <div id="correction-confirm-panel" hidden>
                 <h3>Send this change request?</h3>

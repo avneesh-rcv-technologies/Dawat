@@ -18,6 +18,7 @@ class RestaurantServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        require_once __DIR__.'/../Helpers/helpers.php';
         // Merge all module config files
         $this->registerModuleConfigs();
 
@@ -128,6 +129,7 @@ class RestaurantServiceProvider extends ServiceProvider
             if (file_exists($apiRoutePath)) {
                 $this->loadRoutesFrom($apiRoutePath);
             }
+            $this->loadRoutesFrom(__DIR__.'/../Routes/api-v2.php');
         } catch (\Exception $e) {
             Log::error("Error in {$this->moduleName}ServiceProvider registerRoutes: " . $e->getMessage());
             throw $e;

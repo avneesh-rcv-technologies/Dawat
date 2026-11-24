@@ -176,7 +176,7 @@
     border-radius: 0.5rem;
     font-weight: 600;
     font-size: 0.875rem;
-    background-color: #621F09;
+    background-color: #FF6210;
     color: #ffffff;
     border: none;
     transition: all 0.2s ease-in-out;
@@ -184,8 +184,8 @@
 }
 
 .btn-primary:hover {
-    background-color: #2563eb;
+    background-color: #E0530B;
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+    box-shadow: 0 4px 12px rgba(255, 98, 16, 0.4);
 }
 </style>

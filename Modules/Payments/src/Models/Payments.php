@@ -52,6 +52,11 @@ class Payments extends Model
 
     /* ================= Relationships ================= */
 
+    public function refunds()
+    {
+        return $this->hasMany(Refund::class, 'payment_id');
+    }
+
     public function order()
     {
         return $this->belongsTo(Order::class);

@@ -80,20 +80,8 @@ class FoodCategoryRepository
                 return [
                     'id' => $category->id,
                     'name' => $category->name,
-                    'slug' => $category->slug,
                     'description' => $category->description,
                     'image_url' => fn_get_image('category_image', $category->id)['url'] ?? '',
-                    'type' => $category->food_type,
-                    'subcategories' => $category->children->map(function ($child) {
-                        return [
-                            'id' => $child->id,
-                            'name' => $child->name,
-                            'slug' => $child->slug,
-                            'description' => $child->description,
-                            'image_url' => fn_get_image('category_image', $child->id)['url'] ?? '',
-                            'type' => $child->food_type,
-                        ];
-                    })
                 ];
             });
     }

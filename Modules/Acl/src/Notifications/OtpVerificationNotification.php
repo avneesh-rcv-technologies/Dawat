@@ -3,6 +3,7 @@
 namespace Modules\Acl\Notifications;
 
 use Exception;
+use Illuminate\Support\Facades\Route;
 use Modules\Notifications\Contracts\Notification;
 use Modules\Notifications\Models\NotificationEvent;
 use Modules\Notifications\Models\NotificationChannel;
@@ -65,7 +66,7 @@ class OtpVerificationNotification implements Notification
         $purpose = $this->data['purpose'] ?? 'login';
         $expiryMinutes = $this->data['expiryMinutes'] ?? 5;
         
-        $action = $purpose === 'register' ? 'registration' : 'login';
+        $action = $this->actionForPurpose($purpose);
         $maskedPhone = $this->maskPhone($phone);
 
         return [
@@ -79,6 +80,8 @@ class OtpVerificationNotification implements Notification
             'verification_message' => $this->getVerificationMessage($phone, $otp, $purpose, $expiryMinutes),
             'security_warning' => 'Do not share this code with anyone.',
             'notification_type' => 'otp_verification',
+            'support_url' => e(Route::has('website.contact') ? route('website.contact') : url('/contact')),
+            'current_year' => now()->year,
         ];
     }
 
@@ -88,12 +91,14 @@ class OtpVerificationNotification implements Notification
             'phone_number' => 'Customer phone number',
             'masked_phone' => 'Masked phone number (e.g., +123456****)',
             'otp_code' => 'One-time password code',
-            'purpose' => 'Purpose of OTP (login, register, verify_phone)',
-            'action' => 'Action description (login or registration)',
+            'purpose' => 'Purpose of OTP (login, register, email verification, phone verification, or password reset)',
+            'action' => 'Description of the requested verification action',
             'expiry_minutes' => 'OTP expiry time in minutes',
             'expiry_seconds' => 'OTP expiry time in seconds',
             'verification_message' => 'Complete verification message',
             'security_warning' => 'Security warning message',
+            'support_url' => 'Contact support page URL',
+            'current_year' => 'Current year',
         ];
     }
 
@@ -128,12 +133,23 @@ class OtpVerificationNotification implements Notification
         ];
     }
 
+    private function actionForPurpose(string $purpose): string
+    {
+        return match ($purpose) {
+            'register', 'register_email_verification' => 'registration',
+            'forget_password', 'forgot_password', 'reset_password' => 'password reset',
+            'verify_phone' => 'phone verification',
+            'verify_email', 'email_verification', 'login_email_verification' => 'email verification',
+            default => 'login',
+        };
+    }
+
     /**
      * Get verification message
      */
     private function getVerificationMessage(string $phone, string $otp, string $purpose, int $expiryMinutes): string
     {
-        $action = $purpose === 'register' ? 'registration' : 'login';
+        $action = $this->actionForPurpose($purpose);
         return "Your verification code for {$action} is: {$otp}. Valid for {$expiryMinutes} minutes. Do not share this code with anyone.";
     }
 

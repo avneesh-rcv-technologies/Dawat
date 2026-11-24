@@ -179,30 +179,6 @@ class KycSubmission extends Model
         ]);
     }
 
-    /**
-     * Activity Log Configuration
-     */
-    protected function getLogAttributes(): array
-    {
-        return ['status', 'reviewed_by', 'rejection_reason'];
-    }
-
-    protected function getDisplayName(): string
-    {
-        return "KYC Submission #{$this->id}";
-    }
-
-    protected function getActivityDescription(string $eventName): string
-    {
-        $userName = auth('admin')->user()->name ?? auth()->user()->name ?? 'System';
-
-        return match ($eventName) {
-            'created' => "{$userName} created KYC submission #{$this->id}",
-            'updated' => "{$userName} updated KYC submission #{$this->id}",
-            'deleted' => "{$userName} deleted KYC submission #{$this->id}",
-            default => "{$userName} performed {$eventName} on KYC submission #{$this->id}"
-        };
-    }
 
     /**
      * Create a new factory instance for the model.

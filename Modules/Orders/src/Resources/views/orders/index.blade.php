@@ -13,6 +13,18 @@
 <x-breadcrumbs :breadcrumbs="$breadcrumbs" :name="'Orders'" />
 @endsection
 
+@push('styles')
+<style>
+    #analytics-summary > div { min-width: 0; }
+    #analytics-summary > div > div { gap: 12px; }
+    #analytics-summary > div > div > div:first-child { min-width: 0; flex: 1; }
+    #analytics-summary .w-10 { flex-shrink: 0; }
+    #analytics-summary [id] { white-space: nowrap; font-size: clamp(18px, 1.5vw, 24px); font-variant-numeric: tabular-nums; }
+    #analytics-summary [id][title] { position: relative; }
+    #analytics-summary [id][title]:focus::after { content: attr(title); position: absolute; top: 100%; left: 0; z-index: 20; width: max-content; max-width: 260px; padding: 6px 10px; border-radius: 6px; background: #111827; color: #fff; font-size: 12px; font-weight: 400; white-space: normal; overflow-wrap: anywhere; }
+</style>
+@endpush
+
 @section('content')
 <!-- Analytics Summary Section -->
 <div class="mb-6">
@@ -46,7 +58,8 @@
         <div class="bg-white rounded-lg shadow p-4">
             <div class="flex items-center justify-between">
                 <div>
-                    <p class="text-sm text-gray-600 mb-1">Total Revenue</p>
+                    <p class="text-sm text-gray-600 mb-1">{{ $analyticsData->data->revenue->label ?? 'Commission revenue' }}</p>
+                    <p class="text-xs text-gray-500 mb-1">After successful refund reversals</p>
                     <p class="text-xl font-bold text-gray-900" id="total-revenue">
                         <i class="fas fa-spinner fa-spin text-gray-400"></i>
                     </p>
@@ -181,8 +194,8 @@
 
     .tab-btn.tab-active {
         background-color: #EFF6FF;
-        color: #2563EB;
-        border-bottom-color: #2563EB;
+        color: #C2470A;
+        border-bottom-color: #FF6210;
     }
 </style>
 <script>
@@ -217,12 +230,24 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function updateOrdersAnalytics(data) {
-    // Update summary cards
-    document.getElementById('total-orders').textContent = data.orders.total.toLocaleString();
-    document.getElementById('total-revenue').textContent = data.revenue.total_formatted;
-    document.getElementById('paid-payments').textContent = data.payments.paid_formatted;
-    document.getElementById('failed-payments').textContent = data.payments.failed_formatted;
-    document.getElementById('pending-payments').textContent = data.payments.pending_formatted;
+    const compact = new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 2 });
+    const setKpi = (id, value, exact, money = false) => {
+        const element = document.getElementById(id);
+        // Keep the existing currency symbol/code and replace only its numeric value.
+        element.textContent = Math.abs(value) >= 1000
+            ? (money ? exact.replace(/-?[\d,]+(?:\.\d+)?/, compact.format(value)) : compact.format(value))
+            : exact;
+        element.title = exact;
+        element.setAttribute('aria-label', exact);
+        element.tabIndex = 0;
+    };
+    setKpi('total-orders', data.orders.total, data.orders.total.toLocaleString('en-US'));
+    setKpi('total-revenue', data.revenue.total, data.revenue.total_formatted, true);
+    for (const status of ['paid', 'failed', 'pending']) {
+        setKpi(`${status}-payments`, data.payments[status], data.payments[`${status}_formatted`], true);
+    }
+
+    if (!document.getElementById('status-breakdown')) return;
 
     // Update status breakdown
     let statusHtml = '';
@@ -245,7 +270,7 @@ function updateOrdersAnalytics(data) {
     let revenueHtml = `
         <div class="space-y-3">
             <div class="flex justify-between items-center p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
-                <span class="text-gray-700 font-medium">Total Revenue</span>
+                <span class="text-gray-700 font-medium">${data.revenue.label}</span>
                 <span class="font-bold text-green-600 text-lg">${data.revenue.total_formatted}</span>
             </div>
             <div class="flex justify-between items-center p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
@@ -253,11 +278,11 @@ function updateOrdersAnalytics(data) {
                 <span class="font-bold text-gray-900 text-lg">${data.revenue.average_order_value_formatted}</span>
             </div>
             <div class="flex justify-between items-center p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
-                <span class="text-gray-700 font-medium">Highest Order</span>
+                <span class="text-gray-700 font-medium">Highest earnings per order</span>
                 <span class="font-bold text-green-600 text-lg">${data.revenue.highest_order_formatted}</span>
             </div>
             <div class="flex justify-between items-center p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
-                <span class="text-gray-700 font-medium">Lowest Order</span>
+                <span class="text-gray-700 font-medium">Lowest earnings per order</span>
                 <span class="font-bold text-gray-900 text-lg">${data.revenue.lowest_order_formatted}</span>
             </div>
         </div>
@@ -294,7 +319,7 @@ function updateOrdersAnalytics(data) {
                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${day.date}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${day.total_orders}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-green-600 font-medium">${day.completed_orders}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">$${parseFloat(day.revenue).toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">${day.revenue_formatted}</td>
                 </tr>
             `;
         });

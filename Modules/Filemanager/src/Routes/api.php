@@ -14,8 +14,6 @@ use Modules\Filemanager\Http\Controllers\Api\HomeController;
 |
 */
 
-Route::prefix('api/filemanager')->name('api.filemanager.')->group(function () {
-    Route::get('/', [HomeController::class, 'index'])->name('home');
-});
+
 
 // Api\HomeController will be generated automatically by the module generator 

@@ -20,6 +20,8 @@ use Modules\Countries\Models\CountryState;
 use Modules\Countries\Models\City;
 use Modules\Filemanager\Services\FileService;
 use Modules\Restaurant\Services\RestaurantCacheService;
+use Modules\Restaurant\Services\RestaurantGalleryService;
+use Modules\Restaurant\Services\RestaurantDeliveryPolicy;
 
 class RestaurantAuthApiController extends Controller
 {
@@ -305,7 +307,22 @@ class RestaurantAuthApiController extends Controller
             return response()->json(['success' => false, 'message' => 'Restaurant not found.'], 404);
         }
 
-        $settings = [
+        $settings = $this->settingsData($restaurant);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Restaurant settings fetched successfully.',
+            'data' => $settings,
+        ], 200);
+    }
+
+    private function settingsData(Restaurant $restaurant): array
+    {
+        return [
+            'delivery_radius_miles' => $restaurant->delivery_radius_miles,
+            'delivery_cost_per_mile' => $restaurant->delivery_cost_per_mile ?? '0.00',
+            'free_delivery_enabled' => (bool) $restaurant->free_delivery_enabled,
+            'free_delivery_threshold' => $restaurant->free_delivery_threshold,
             'food_type' => $restaurant->food_type ?? 'all',
             'is_takeaway' => (bool) ($restaurant->is_takeaway ?? false),
             'is_delivery' => (bool) ($restaurant->is_delivery ?? false),
@@ -317,12 +334,6 @@ class RestaurantAuthApiController extends Controller
                 ? $restaurant->cancellable_statuses
                 : (is_string($restaurant->cancellable_statuses) ? json_decode($restaurant->cancellable_statuses, true) : ($restaurant->cancellable_statuses ?? ['P','O','H'])),
         ];
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Restaurant settings fetched successfully.',
-            'data' => $settings,
-        ], 200);
     }
 
     // Update restaurant details (owner) - name, phone, description, password, image
@@ -863,7 +874,7 @@ class RestaurantAuthApiController extends Controller
     public function updateSettings(Request $request): JsonResponse
     {
         try {
-            $data = $request->validate([
+            $data = $request->validate(array_merge([
                 'food_type' => ['nullable', 'in:all,veg,non_veg,vegan'],
                 'status' => ['nullable', 'in:draft,active,inactive'],
                 'order_time_limit' => ['nullable', 'integer', 'min:0', 'max:1440'],
@@ -874,12 +885,7 @@ class RestaurantAuthApiController extends Controller
                 'is_delivery' => ['sometimes', 'boolean'],
                 'is_accepting_orders' => ['sometimes', 'boolean'],
                 'allow_order_cancellation' => ['sometimes', 'boolean'],
-            ]);
-
-            $data['is_takeaway'] = $request->boolean('is_takeaway');
-            $data['is_delivery'] = $request->boolean('is_delivery');
-            $data['is_accepting_orders'] = $request->boolean('is_accepting_orders');
-            $data['allow_order_cancellation'] = $request->boolean('allow_order_cancellation');
+            ], RestaurantDeliveryPolicy::rules()), RestaurantDeliveryPolicy::messages());
 
             $admin = $request->user('sanctum');
             if (!$admin) {
@@ -892,13 +898,12 @@ class RestaurantAuthApiController extends Controller
             }
 
             $restaurantService = app(RestaurantService::class);
-            $data['status'] = $data['status'] ?? $restaurant->status;
-            $restaurantService->updateSettings($restaurant->id, $data);
+            $updated = $restaurantService->updateSettings($restaurant->id, $data);
 
-            return response()->json(['success' => true, 'message' => 'Settings updated successfully.'], 200);
+            return response()->json(['success' => true, 'message' => 'Settings updated successfully.', 'data' => $this->settingsData($updated)], 200);
         } catch (ValidationException $e) {
             Log::warning('UpdateSettings validation failed', ['errors' => $e->errors()]);
-            return response()->json(['success' => false, 'message' => 'Validation failed.', 'errors' => $e->errors()], 422);
+            return response()->json(['success' => false, 'message' => collect($e->errors())->flatten()->first() ?? 'Please check your settings.', 'errors' => $e->errors()], 422);
         } catch (\Throwable $e) {
             Log::error('UpdateSettings error', ['error' => $e->getMessage()]);
             return response()->json(['success' => false, 'message' => 'Unable to update settings.'], 500);
@@ -907,17 +912,12 @@ class RestaurantAuthApiController extends Controller
 
     /**
      * Update restaurant gallery images via API (mobile)
-     * Accepts up to 5 images, only jpg/png/jpeg, max size 2MB each.
+     * Appends JPG, JPEG, PNG, or WebP images, up to 10 total, max 2 MB each.
      */
     public function updateGallery(Request $request): JsonResponse
     {
         try {
-            $validated = $request->validate([
-                'images' => ['nullable', 'array', 'max:5'],
-                'images.*' => ['file', 'image', 'mimes:jpeg,jpg,png', 'max:2048'], // 2048 KB = 2 MB
-                'remove_ids' => ['nullable', 'array'],
-                'remove_ids.*' => ['integer'],
-            ]);
+            $validated = $request->validate(RestaurantGalleryService::rules(), RestaurantGalleryService::messages());
 
             $admin = $request->user('sanctum');
             if (!$admin) {
@@ -931,59 +931,20 @@ class RestaurantAuthApiController extends Controller
 
             $fileService = app(FileService::class);
 
-            // Handle replace (delete all existing) or selective removals
-            $existingFiles = $fileService->getFiles('restaurant_gallery', $restaurant->id);
-
-            // (replace flag removed) — use `remove_ids` to delete specific file_link ids before upload
-
-            // Remove specific file link ids if provided
-            if (!empty($validated['remove_ids']) && is_array($validated['remove_ids'])) {
-                foreach ($validated['remove_ids'] as $removeId) {
-                    // attempt delete; ignore failures
-                    try {
-                        $fileService->deleteFileWithId($removeId);
-                    } catch (\Throwable $e) {
-                        Log::warning('Failed to delete gallery file', ['id' => $removeId, 'error' => $e->getMessage()]);
-                    }
-                }
-
-                // refresh existing files list after deletion
-                $existingFiles = $fileService->getFiles('restaurant_gallery', $restaurant->id);
-            }
-
-            $existingCount = is_array($existingFiles) ? count($existingFiles) : $existingFiles->count();
-            $uploadFiles = $request->hasFile('images') ? $request->file('images') : [];
-            $uploadCount = is_array($uploadFiles) ? count($uploadFiles) : ($uploadFiles ? 1 : 0);
-
-            // ensure total after upload does not exceed 5
-            if ($existingCount + $uploadCount > 5) {
-                return response()->json(['success' => false, 'message' => 'Maximum 5 gallery images are allowed.'], 422);
-            }
-
-            // Upload new images (if any)
-            if (!empty($uploadFiles)) {
-                foreach ($uploadFiles as $index => $image) {
-                    // position: append after existing; use position index as existingCount + index
-                    $position = $existingCount + $index;
-                    $fileService->uploadFile($image, 'restaurant_gallery', $restaurant->id, 'A', $position);
-                }
-            }
-
-            // Clear restaurant gallery cache so next read returns updated images
-            try {
-                $cacheService = app(RestaurantCacheService::class);
-                $cacheService->forgetGallery($restaurant->id);
-            } catch (\Throwable $e) {
-                Log::warning('Failed to forget gallery cache', ['error' => $e->getMessage()]);
-            }
+            app(RestaurantGalleryService::class)->update(
+                $restaurant,
+                $request->file('images', []) ?? [],
+                $validated['remove_ids'] ?? []
+            );
 
             // Return formatted gallery list (urls)
             $restaurantGalleryRaw = $fileService->getFiles('restaurant_gallery', $restaurant->id);
             $restaurantGallery = collect($restaurantGalleryRaw)->map(function ($image) {
                 return [
                     'id' => $image['id'] ?? ($image->id ?? null),
+                    'file_link_id' => $image['file_link_id'] ?? null,
                     'url' => $image['url'] ?? ($image->url ?? null),
-                    'filename' => $image['filename'] ?? ($image->filename ?? null),
+                    'filename' => $image['file_name'] ?? null,
                 ];
             })->unique('id')->values()->toArray();
 
@@ -995,7 +956,7 @@ class RestaurantAuthApiController extends Controller
 
         } catch (ValidationException $e) {
             Log::warning('UpdateGallery validation failed', ['errors' => $e->errors()]);
-            return response()->json(['success' => false, 'message' => 'Validation failed.', 'errors' => $e->errors()], 422);
+            return response()->json(['success' => false, 'message' => collect($e->errors())->flatten()->first() ?? 'Please check your gallery images.', 'errors' => $e->errors()], 422);
         } catch (\Throwable $e) {
             Log::error('UpdateGallery error', ['error' => $e->getMessage()]);
             return response()->json(['success' => false, 'message' => 'Unable to update gallery.'], 500);

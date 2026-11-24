@@ -24,7 +24,18 @@ class Files extends Seeder
             array('file_id' => '2', 'object_type' => 'company_favicon', 'object_id' => '0', 'type' => 'A', 'position' => '0', 'created_at' => '2025-12-11 08:00:18', 'updated_at' => '2025-12-11 08:00:18')
         );
 
-        DB::table('files')->insert($files);
+        // DB::table('files')->insert($files);
+        // DB::table('file_links')->insert($file_links);
+
+        $fileIds = [];
+
+        foreach ($files as $file) {
+            $fileIds[] = DB::table('files')->insertGetId($file);
+        }
+
+        $file_links[0]['file_id'] = $fileIds[0];
+        $file_links[1]['file_id'] = $fileIds[1];
+
         DB::table('file_links')->insert($file_links);
     }
 }

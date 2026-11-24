@@ -1,0 +1,38 @@
+.onboarding-status-marker {
+    --timeline-marker-bg: #f1f5f9;
+    --timeline-marker-ink: #94a3b8;
+    --timeline-marker-border: #94a3b8;
+    background: var(--timeline-marker-bg);
+    color: var(--timeline-marker-ink);
+    border-color: var(--timeline-marker-border);
+}
+.onboarding-status-marker:is([data-timeline-status="submitted"], [data-timeline-status="pending"], [data-timeline-status="resubmitted"]) {
+    --timeline-marker-bg: #dbeafe;
+    --timeline-marker-ink: #2563eb;
+    --timeline-marker-border: #3b82f6;
+}
+.onboarding-status-marker[data-timeline-status="under_review"] {
+    --timeline-marker-bg: #fef3c7;
+    --timeline-marker-ink: #d97706;
+    --timeline-marker-border: #f59e0b;
+}
+.onboarding-status-marker:is([data-timeline-status="action_required"], [data-timeline-status="refill_requested"]) {
+    --timeline-marker-bg: #fff7ed;
+    --timeline-marker-ink: #ea580c;
+    --timeline-marker-border: #f97316;
+}
+.onboarding-status-marker[data-timeline-status="rejected"] {
+    --timeline-marker-bg: #fee2e2;
+    --timeline-marker-ink: #ef4444;
+    --timeline-marker-border: #f87171;
+}
+.onboarding-status-marker:is([data-timeline-status="approved"], [data-timeline-status="active"]) {
+    --timeline-marker-bg: #dcfce7;
+    --timeline-marker-ink: #16a34a;
+    --timeline-marker-border: #4ade80;
+}
+.onboarding-status-marker[data-timeline-status="suspended"] {
+    --timeline-marker-bg: #f3e8ff;
+    --timeline-marker-ink: #9333ea;
+    --timeline-marker-border: #c084fc;
+}

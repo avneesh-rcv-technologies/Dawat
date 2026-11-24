@@ -13,8 +13,10 @@
 /.zed
 /auth.json
 /node_modules
-
+/public/build
+/public/build-website
 /public/hot
+/public/website.hot
 /public/storage
 /storage/*.key
 /storage/pail
@@ -22,3 +24,6 @@
 Homestead.json
 Homestead.yaml
 Thumbs.db
+
+# Per-module Composer output (root composer.json autoloads every module)
+/Modules/*/vendor/

@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\ValidationException;
 use Modules\Notifications\Services\NotificationService;
 
 class AdminAuthController extends Controller
@@ -30,11 +31,18 @@ class AdminAuthController extends Controller
 
    public function login(Request $request)
 {
+    $captchaEnabled = app(\Modules\GeneralSetting\Services\CaptchaSettings::class)->enabled();
     $validator = Validator::make($request->all(), [
         'email' => 'required|email',
         'password' => 'required',
         'remember' => 'boolean',
         'remember-me' => 'boolean',
+        'g-recaptcha-response' => [
+            \Illuminate\Validation\Rule::requiredIf($captchaEnabled),
+            ...($captchaEnabled ? [new \Modules\Website\Rules\Recaptcha] : []),
+        ],
+    ], [
+        'g-recaptcha-response.required' => 'Please complete the reCAPTCHA challenge.',
     ]);
 
     if ($validator->fails()) {
@@ -70,6 +78,14 @@ class AdminAuthController extends Controller
                 'email' => ['Invalid email or password'],
             ],
         ], 200);
+    }
+
+    // Restaurant partners must use their dedicated login; other roles retain access.
+    if (app(\Modules\Restaurant\Services\RestaurantApprovalAccess::class)->isOwner($admin)) {
+        return response()->json([
+            'success' => false,
+            'errors' => ['email' => ['Invalid email or password']],
+        ], 403);
     }
 
     // 1. Check admin account status.
@@ -125,6 +141,7 @@ class AdminAuthController extends Controller
         ], $remember)
     ) {
         $request->session()->regenerate();
+        $request->session()->put('auth.last_activity_at', now()->timestamp);
 
         $admin = Auth::guard($this->guard)->user();
 
@@ -146,19 +163,25 @@ class AdminAuthController extends Controller
 
     public function logout(Request $request)
     {
+        $actor = Auth::guard($this->guard)->user();
+        $redirects = app(\Modules\Acl\Services\LoginRedirector::class);
+        $loginUrl = $redirects->url($request, $actor);
+
         Auth::guard($this->guard)->logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
         if (!$request->expectsJson()) {
-            return redirect()->route('admin.login.form');
+            $response = redirect()->to($loginUrl);
+            return $actor ? $redirects->remember($response, $request, $actor) : $response;
         }
 
-        return response()->json([
+        $response = response()->json([
             'success' => true,
             'message' => 'Logout successful',
-            'redirect_url' => route('admin.login'),
+            'redirect_url' => $loginUrl,
         ]);
+        return $actor ? $redirects->remember($response, $request, $actor) : $response;
     }
 
     public function register(Request $request)
@@ -204,7 +227,16 @@ class AdminAuthController extends Controller
         if (is_string($request->input('email'))) {
             $request->merge(['email' => strtolower(trim($request->input('email')))]);
         }
-        $request->validate(['email' => 'bail|required|string|max:255|email']);
+        $captchaEnabled = app(\Modules\GeneralSetting\Services\CaptchaSettings::class)->enabled();
+        $request->validate([
+            'email' => 'bail|required|string|max:255|email',
+            'g-recaptcha-response' => [
+                \Illuminate\Validation\Rule::requiredIf($captchaEnabled),
+                ...($captchaEnabled ? [new \Modules\Website\Rules\Recaptcha] : []),
+            ],
+        ], [
+            'g-recaptcha-response.required' => 'Please complete the reCAPTCHA challenge.',
+        ]);
 
         try {
             $status = $this->broker()->sendResetLink($request->only('email'), function ($admin, $token) {
@@ -308,9 +340,17 @@ class AdminAuthController extends Controller
 
     protected function resetPassword($user, $password)
     {
+        if (Hash::check($password, $user->getAuthPassword())) {
+            throw ValidationException::withMessages([
+                'password' => ['The new password must be different from your old password.'],
+            ]);
+        }
+
         $user->password = Hash::make($password);
         $user->setRememberToken(Str::random(60));
         $user->save();
+
+        app(\Modules\Acl\Services\AdminSessionRevoker::class)->revoke($user);
 
         event(new PasswordReset($user));
     }

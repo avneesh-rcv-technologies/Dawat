@@ -52,6 +52,8 @@ class OrderTrackingController extends Controller
                 'message' => 'Order tracked successfully',
                 'data' => $data
             ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage(), 'errors' => $e->errors()], 422);
         } catch (Exception $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }

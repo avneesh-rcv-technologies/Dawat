@@ -1,0 +1,138 @@
+/* Shared layout for the onboarding overview and each onboarding step. */
+.onboarding-page main {
+    width: 100%;
+    margin-block: clamp(28px, 6vw, 80px);
+}
+
+.onboarding-page main :is(header > div, .status-notice > div, .detail-field, .kyc-field, .tax-entity-value) {
+    min-width: 0;
+}
+
+.onboarding-page :is(h1, h2, h3, h4, p, label, legend, .restaurant, .badge, .step-arrow, .kyc-previews a) {
+    overflow-wrap: anywhere;
+}
+
+.onboarding-page main :is(form, fieldset, input, select, textarea) {
+    min-width: 0;
+    max-width: 100%;
+}
+
+.onboarding-page main fieldset { margin-inline: 0; }
+.onboarding-page main textarea { resize: vertical; }
+.onboarding-page main :is(input, select, textarea) { font: inherit; }
+.onboarding-page main :is(button, .step-navigation a, .step-arrow, .support-link) {
+    min-height: 44px;
+    max-width: 100%;
+    white-space: normal;
+    text-align: center;
+    overflow-wrap: anywhere;
+}
+
+.onboarding-page main > header > form { flex-shrink: 0; }
+.onboarding-page .status-notice { overflow-wrap: anywhere; }
+.onboarding-page .detail-field-wide { grid-column: 1 / -1; }
+.onboarding-page .step-navigation > * {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+}
+
+.onboarding-page .menu-correction-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+}
+.onboarding-page .menu-correction-grid label { display: block; min-width: 0; }
+.onboarding-page .menu-correction-grid :is(input, select, textarea) {
+    display: block;
+    width: 100%;
+    margin-top: 8px;
+    padding: 10px;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    background: #fff;
+    color: #103647;
+}
+.onboarding-page .menu-correction-form legend { max-width: 100%; padding-inline: 6px; }
+.onboarding-page .menu-correction-actions { display: flex; justify-content: flex-end; margin-top: 24px; }
+.onboarding-page .kyc-preview { min-width: 0; max-width: 100%; }
+.onboarding-page .kyc-image-dialog {
+    box-sizing: border-box;
+    width: min(960px, calc(100% - 32px));
+    max-width: calc(100% - 32px);
+    max-height: calc(100dvh - 32px);
+    margin: auto;
+    overflow: auto;
+}
+.onboarding-page .kyc-image-dialog img { max-height: 70dvh; }
+
+@media (max-width: 900px) {
+    .onboarding-page .kyc-card-header {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        align-items: start;
+        gap: 12px;
+    }
+    .onboarding-page .kyc-card-header :is(.kyc-view, .kyc-action) {
+        grid-column: 2;
+        justify-self: start;
+        margin: 0;
+    }
+    .onboarding-page .kyc-card-header .kyc-action { min-width: 140px; }
+}
+
+@media (max-width: 600px) {
+    .onboarding-page main {
+        padding-left: max(16px, env(safe-area-inset-left));
+        padding-right: max(16px, env(safe-area-inset-right));
+        margin-bottom: max(32px, env(safe-area-inset-bottom));
+    }
+    .onboarding-page main > header { gap: 16px; }
+    .onboarding-page main > header > div { width: 100%; }
+    .onboarding-page h1 { font-size: clamp(26px, 7vw, 34px); margin-bottom: 16px; }
+    .onboarding-page .restaurant { gap: 10px; align-items: flex-start; }
+    .onboarding-page .store-icon { width: 40px; height: 40px; }
+    .onboarding-page .back-link { margin-bottom: 16px; padding-block: 10px; }
+    .onboarding-page .progress { margin-top: 20px; }
+    .onboarding-page .summary { gap: 10px; }
+    .onboarding-page .status-notice { padding: 16px; gap: 10px; }
+    .onboarding-page .step-panel { padding-block: 24px; }
+    .onboarding-page .panel-title { font-size: 24px; }
+    .onboarding-page .details-grid { gap: 12px; margin-block: 20px; }
+    .onboarding-page .detail-field { padding: 14px; }
+    .onboarding-page main :is(input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]), select, textarea) {
+        font-size: 16px;
+        min-height: 44px;
+    }
+    .onboarding-page .menu-correction-grid { grid-template-columns: 1fr; gap: 14px; }
+    .onboarding-page :is(.registration-correction-actions, .menu-correction-actions) { margin-top: 20px; }
+    .onboarding-page :is(.registration-correction-actions, .menu-correction-actions) button { width: 100%; padding-inline: 16px; }
+    .onboarding-page .step-navigation { gap: 12px; margin-top: 24px; }
+    .onboarding-page .step-navigation > * { flex: 1; padding-inline: 12px; }
+    .onboarding-page .step-row { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 12px; padding-block: 20px; }
+    .onboarding-page .step-row .step-arrow { grid-column: 2; justify-self: start; margin: 0; }
+    .onboarding-page .optional { display: block; margin-left: 0; margin-top: 4px; }
+    .onboarding-page :is(.bank-intro, .tax-intro, .kyc-intro p) { font-size: 16px; margin-block: 16px 24px; }
+    .onboarding-page .bank-company-title { font-size: 20px; text-align: left; }
+    .onboarding-page .tax-entity { padding: 16px; }
+    .onboarding-page .tax-entity .tax-entity-copy label { font-size: 18px; }
+    .onboarding-page .tax-check label { min-height: 44px; }
+    .onboarding-page .kyc-intro { margin-block: 20px 24px; }
+    .onboarding-page .kyc-card { padding-block: 20px; }
+    .onboarding-page .kyc-marker { width: 40px; height: 40px; font-size: 20px; }
+    .onboarding-page .kyc-card-heading h4 { font-size: 18px; }
+    .onboarding-page .kyc-card-header :is(.kyc-view, .kyc-action) { grid-column: 1 / -1; width: 100%; }
+    .onboarding-page .kyc-editor { padding-top: 20px; }
+    .onboarding-page .kyc-file-dropzone { padding: 14px; gap: 12px; }
+    .onboarding-page .kyc-file-dropzone-icon { flex-basis: 36px; width: 36px; height: 36px; font-size: 20px; }
+    .onboarding-page .kyc-file-dropzone-copy strong { overflow-wrap: anywhere; }
+    .onboarding-page .kyc-image-dialog { padding: 16px; }
+    .onboarding-page .onboarding-help { padding: 20px; border-radius: 20px; }
+    .onboarding-page .onboarding-help h2 { text-align: left; }
+    .onboarding-page .onboarding-help .support-link { width: 100%; margin-top: 20px; }
+    .onboarding-page #onboarding-confirmation { padding: 20px; }
+    .onboarding-page #onboarding-confirmation .confirmation-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .onboarding-page #onboarding-confirmation button { min-height: 44px; padding-inline: 12px; overflow-wrap: anywhere; }
+    .onboarding-page .onboarding-toast-container .toast-close { width: 44px; min-height: 44px; top: 0; right: 0; }
+}

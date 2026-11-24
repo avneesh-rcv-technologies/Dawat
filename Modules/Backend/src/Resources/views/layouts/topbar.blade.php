@@ -6,7 +6,7 @@
             <div class="flex items-center gap-3">
                 <!-- Mobile hamburger for small screens -->
                 <button id="mobileSidebarToggle" type="button" aria-controls="sidebar" aria-expanded="false"
-                    aria-label="Open navigation menu" class="ml-1 inline-flex h-10 w-10 items-center justify-center rounded-lg text-neutral-300 transition hover:bg-white/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-emerald-400">
+                    aria-label="Open navigation menu" class="ml-1 inline-flex h-10 w-10 items-center justify-center rounded-lg text-neutral-300 transition hover:bg-white/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-[#FF6210]">
                     <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none"
                         aria-hidden="true">
                         <path d="M3 6h18M3 12h18M3 18h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"

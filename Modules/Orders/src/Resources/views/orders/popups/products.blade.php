@@ -1,10 +1,13 @@
-<x-advanced-selector
+<x-autocomplete 
     label=""
-    name="items"
+    field="items"
     table="products"
-    value-column="id"
-    search-column="name"
-    display-column="name"
+    value-field="id"
+    search-fields="name"
+    list-attributes="id,name"
     :multiple="true"
-    :selected="!empty($product->categories) ? $product->categories->pluck('id')->all() : []"
+    :actions="[
+        ['label' => 'Select', 'callback' => 'selectItem'],
+    ]"
+    :selected="!empty($product->categories) ?$product->categories->toArray() : []"
 />

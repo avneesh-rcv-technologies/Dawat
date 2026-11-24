@@ -5,6 +5,7 @@ namespace Modules\Orders\DataView;
 use Modules\DataView\DataGrid;
 use Illuminate\Support\Facades\DB;
 use Modules\Payments\Enums\PaymentStatus;
+use Modules\Orders\Models\Order;
 
 class OrderGrid extends DataGrid
 {
@@ -69,6 +70,7 @@ class OrderGrid extends DataGrid
             ->select(
                 'orders.id',
                 'orders.order_number',
+                'orders.order_type',
                 'orders.customer_id',
                 'orders.customer_type',
                 'orders.status as order_status',
@@ -100,6 +102,7 @@ class OrderGrid extends DataGrid
         }
     $this->addFilter('order_status' , 'orders.status');
     $this->addFilter('created_at' , 'orders.created_at');
+        $this->addFilter('order_type', 'orders.order_type');
         return $query;
     }
 
@@ -181,6 +184,31 @@ class OrderGrid extends DataGrid
             'closure' => function ($row) {
                 return fn_convert_currency($row->total ?? 0, $row->currency);
             }
+        ]);
+
+        $this->addColumn([
+            'index' => 'order_type',
+            'label' => 'Delivery Type',
+            'type' => 'string',
+            'searchable' => false,
+            'filterable' => true,
+            'filterable_type' => 'dropdown',
+            'filterable_options' => [
+                ['label' => 'Delivery', 'value' => Order::TYPE_DELIVERY],
+                ['label' => 'Pickup', 'value' => Order::TYPE_TAKEAWAY],
+                ['label' => 'Dine-in', 'value' => Order::TYPE_DINE_IN],
+            ],
+            'sortable' => true,
+            'closure' => function ($row) {
+                [$label, $color, $background] = match ($row->order_type ?? '') {
+                    Order::TYPE_DELIVERY => ['Delivery', '#1D4ED8', '#EFF6FF'],
+                    Order::TYPE_TAKEAWAY => ['Pickup', '#B8430A', '#FFF4EE'],
+                    Order::TYPE_DINE_IN => ['Dine-in', '#7C3AED', '#F5F3FF'],
+                    default => ['Unknown', '#475569', '#F1F5F9'],
+                };
+
+                return "<span style='background-color: {$background}; color: {$color};' class='inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium'>{$label}</span>";
+            },
         ]);
 
         $orderStatuses = fn_get_order_statuses('O');

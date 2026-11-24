@@ -4,76 +4,66 @@ namespace Modules\Restaurant\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
-use Modules\Filemanager\Services\FileService;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
+use Modules\Filemanager\Models\FileLink;
 use Modules\Restaurant\Models\Restaurant;
+use Modules\Restaurant\Services\RestaurantGalleryService;
 
 class RestaurantGalleryController extends Controller
 {
-    public function __construct(protected FileService $fileService) {}
+    public function __construct(protected RestaurantGalleryService $gallery) {}
 
-    /**
-     * Upload restaurant gallery images
-     */
     public function store(Request $request)
     {
-        $request->validate([
-            'restaurant_id' => 'required|integer|exists:restaurants,id',
-            'images' => 'required|array|max:10|min:1', // Limit to 10 images
-            'images.*' => 'image|mimes:jpeg,png,jpg,gif,webp|max:5120',
-        ]);
+        $request->validate(['restaurant_id' => 'required|integer|exists:restaurants,id']);
+        $restaurant = $this->restaurant($request, (int) $request->input('restaurant_id'));
+        $redirect = route('admin.restaurant.edit', ['id' => $restaurant->id, 'tab' => 'gallery']);
 
         try {
-            $restaurantId = $request->input('restaurant_id');
-            
-            if ($request->hasFile('images')) {
-                foreach ($request->file('images') as $index => $image) {
-                    $this->fileService->uploadFile(
-                        $image,
-                        'restaurant_gallery',
-                        $restaurantId,
-                        'A',
-                        $index
-                    );
-                }
-            }
+            $request->validate(RestaurantGalleryService::rules(true), RestaurantGalleryService::messages());
+            $this->gallery->update($restaurant, $request->file('images', []));
 
-            return redirect()->back()
-                ->with('success', 'Gallery images uploaded successfully.')
-                ->with('tab', 'gallery');
+            return redirect($redirect)->with('success', 'Gallery images added successfully.')->with('tab', 'gallery');
+        } catch (ValidationException $e) {
+            return redirect($redirect)->withErrors($e->errors())->with('tab', 'gallery');
+        } catch (\Throwable $e) {
+            Log::error('Restaurant gallery upload failed.', ['restaurant_id' => $restaurant->id, 'exception' => $e]);
 
-        } catch (\Exception $e) {
-            return redirect()->back()
-                ->with('error', 'Failed to upload images: ' . $e->getMessage())
-                ->with('tab', 'gallery');
+            return redirect($redirect)->with('error', 'Unable to upload gallery images. Please try again.')->with('tab', 'gallery');
         }
     }
 
-    /**
-     * Delete restaurant gallery image (kept for AJAX delete)
-     */
-    public function destroy($id)
+    public function destroy(Request $request, int $id)
     {
-        try {
-            $deleted = $this->fileService->deleteFileWithId($id);
+        $link = FileLink::where('object_type', 'restaurant_gallery')->findOrFail($id);
+        $restaurant = $this->restaurant($request, (int) $link->object_id);
+        $redirect = route('admin.restaurant.edit', ['id' => $restaurant->id, 'tab' => 'gallery']);
 
-            if (!$deleted) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Image not found or already deleted.',
-                ], 404);
+        try {
+            $this->gallery->update($restaurant, [], [$link->id]);
+        } catch (\Throwable $e) {
+            Log::error('Restaurant gallery deletion failed.', ['restaurant_id' => $restaurant->id, 'exception' => $e]);
+            if ($request->expectsJson()) {
+                return response()->json(['success' => false, 'message' => 'Unable to delete this image. Please try again.'], 500);
             }
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Image deleted successfully.',
-            ]);
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to delete image.',
-                'error' => $e->getMessage(),
-            ], 500);
+            return redirect($redirect)->with('error', 'Unable to delete this image. Please try again.')->with('tab', 'gallery');
         }
+
+        if ($request->expectsJson()) {
+            return response()->json(['success' => true, 'message' => 'Gallery image deleted successfully.', 'redirect_url' => $redirect]);
+        }
+
+        return redirect($redirect)->with('success', 'Gallery image deleted successfully.')->with('tab', 'gallery');
+    }
+
+    private function restaurant(Request $request, int $id): Restaurant
+    {
+        $restaurant = Restaurant::findOrFail($id);
+        $admin = $request->user('admin');
+        abort_if(app(\Modules\Restaurant\Services\RestaurantApprovalAccess::class)->isOwner($admin), 403);
+
+        return $restaurant;
     }
 }

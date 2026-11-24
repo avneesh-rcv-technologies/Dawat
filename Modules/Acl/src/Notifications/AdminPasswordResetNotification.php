@@ -24,14 +24,21 @@ class AdminPasswordResetNotification implements Notification
 
     public function getVariables(): array
     {
-        return array_merge(['app_name' => config('app.name', 'Dawat'),
-            'expire_minutes' => config('auth.passwords.admins.expire', 60)], $this->data);
+        return array_replace($this->data, [
+            'app_name' => e(config('app.name', 'Dawat')),
+            'admin_name' => e($this->data['admin_name'] ?? 'Account owner'),
+            'reset_url' => e($this->data['reset_url'] ?? ''),
+            'expire_minutes' => (int) config('auth.passwords.admins.expire', 60),
+            'support_url' => route('website.contact'),
+            'current_year' => now()->year,
+        ]);
     }
 
     public function getAvailableVariables(): array
     {
         return ['app_name' => 'Application name', 'admin_name' => 'Account name',
-            'reset_url' => 'Password reset link', 'expire_minutes' => 'Link lifetime in minutes'];
+            'reset_url' => 'Password reset link', 'expire_minutes' => 'Link lifetime in minutes',
+            'support_url' => 'Contact support URL', 'current_year' => 'Current year'];
     }
 
     public function getAvailableRecipients(): array

@@ -14,6 +14,13 @@ use Modules\Admin\Http\Controllers\TransactionAnalyticsController;
 Route::middleware('web')->group(function () {
     Route::prefix(config('acl::guards.guards.admin.prefix'))->name(config('acl::guards.guards.admin.prefix') . '.')->group(function () {
 
+        // /admin → login page for guests, dashboard for signed-in admins.
+        Route::get('/', function () {
+            return auth('admin')->check()
+                ? redirect()->route('dashboard.index')
+                : redirect()->route(config('acl::guards.guards.admin.prefix') . '.login.form');
+        })->name('home');
+
         Route::middleware('guest:admin')->group(function () {
             Route::get('/login', [AuthController::class, 'showLoginForm'])->name('login.form');
             Route::get('/register', [AuthController::class, 'showRegistrationForm'])->name('register.form');
@@ -24,15 +31,22 @@ Route::middleware('web')->group(function () {
         // API routes delegated to ACL Module (handles authentication logic)
         Route::get('/email/verify/{id}/{hash}', \Modules\Acl\Http\Controllers\AdminEmailVerificationController::class)
             ->middleware('throttle:6,1')->whereNumber('id')->name('verification.verify');
-        Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:5,1')->name('login');
+        Route::post('/login', [AuthController::class, 'login'])->middleware(['throttle:5,1', 'password.transport'])->name('login');
         Route::post('/register', [AuthController::class, 'register'])->name('register');
         Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
         Route::post('/forgot-password', [AuthController::class, 'sendResetLinkEmail'])
             ->middleware('throttle:admin-forgot-password')->name('password.email');
         Route::post('/reset-password', [AuthController::class, 'reset'])
-            ->middleware('throttle:admin-reset-password')->name('password.update');
+            ->middleware(['throttle:admin-reset-password', 'password.transport'])->name('password.update');
+
+        // One-time nonce + RSA public key used by web login/reset forms (admin and restaurant partner).
+        Route::get('/password-challenge', \Modules\Acl\Http\Controllers\PasswordChallengeController::class)
+            ->middleware('throttle:30,1')->name('password.challenge');
     });
     
+    Route::post('profile/dietary-certificates', [ProfileController::class, 'uploadCertificate'])
+        ->middleware(['auth:admin', 'throttle:20,1'])->name('profile.certificates.store');
+
     Route::middleware(['web','check.permission'])->group(function () {
         Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard.index');
         Route::resource('users', UserAdminController::class)->except(['destroy']);

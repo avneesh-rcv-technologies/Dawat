@@ -4,8 +4,12 @@ namespace Modules\DataView;
 
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Crypt;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Maatwebsite\Excel\Facades\Excel;
 use Modules\DataView\Enums\ColumnTypeEnum;
 use Modules\DataView\Exports\DataGridExport;
@@ -458,7 +462,67 @@ abstract class DataGrid
             'format'      => ['sometimes', 'required', 'in:csv,xls,xlsx'],
         ]);
 
+        $this->validatePaginationParams();
+
         return request()->only(['filters', 'sort', 'pagination', 'export', 'format']);
+    }
+
+    /**
+     * Validate pagination[page] and pagination[per_page].
+     *
+     * Invalid values (e.g. ?pagination[page]=abc) previously reached the query
+     * builder and crashed with "Unsupported operand types: string * int".
+     * JSON requests get a 422; page requests are redirected to the same URL
+     * without the bad pagination params and the error is flashed as a toast.
+     */
+    protected function validatePaginationParams(): void
+    {
+        $pagination = request()->input('pagination');
+
+        if (! is_array($pagination)) {
+            return;
+        }
+
+        $perPageOptions = array_values(array_unique(array_merge(
+            array_map('intval', $this->perPageOptions),
+            [(int) $this->itemsPerPage]
+        )));
+
+        $validator = Validator::make(['pagination' => $pagination], [
+            'pagination.page'     => ['sometimes', 'required', 'integer', 'min:1'],
+            'pagination.per_page' => ['sometimes', 'required', 'integer', Rule::in($perPageOptions)],
+        ], [
+            'pagination.page.required'     => 'The page number is required.',
+            'pagination.page.integer'      => 'The page number must be a whole number.',
+            'pagination.page.min'          => 'The page number must be at least 1.',
+            'pagination.per_page.required' => 'The items per page value is required.',
+            'pagination.per_page.integer'  => 'The items per page value must be a whole number.',
+            'pagination.per_page.in'       => 'The items per page value must be one of: ' . implode(', ', $perPageOptions) . '.',
+        ]);
+
+        if (! $validator->fails()) {
+            return;
+        }
+
+        if (request()->expectsJson()) {
+            throw new ValidationException($validator);
+        }
+
+        $query = request()->query();
+        foreach (array_keys($validator->errors()->toArray()) as $key) {
+            unset($query['pagination'][Str::after($key, 'pagination.')]);
+        }
+        if (empty($query['pagination'])) {
+            unset($query['pagination']);
+        }
+
+        $url = request()->url() . ($query ? '?' . http_build_query($query) : '');
+
+        throw new HttpResponseException(
+            redirect()->to($url)
+                ->withErrors($validator)
+                ->with('error', $validator->errors()->first())
+        );
     }
 
     /**
@@ -528,11 +592,16 @@ abstract class DataGrid
     {
         $this->dispatchEvent('process_request.paginated.before', $this);
 
+        // Values are validated in validatePaginationParams(); casting keeps the
+        // query builder safe if a subclass bypasses that validation.
+        $perPage = (int) ($requestedPagination['per_page'] ?? $this->itemsPerPage);
+        $page = (int) ($requestedPagination['page'] ?? 1);
+
         $this->paginator = $this->queryBuilder->paginate(
-            $requestedPagination['per_page'] ?? $this->itemsPerPage,
+            $perPage > 0 ? $perPage : $this->itemsPerPage,
             ['*'],
             'page',
-            $requestedPagination['page'] ?? 1
+            max(1, $page)
         );
 
         $this->dispatchEvent('process_request.paginated.after', $this);

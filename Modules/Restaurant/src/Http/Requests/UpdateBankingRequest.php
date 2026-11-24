@@ -34,7 +34,8 @@ class UpdateBankingRequest extends FormRequest
         $request = new BankingDetailsRequest();
         $request->setMethod('PATCH');
 
-        return $request->rules();
+        // Admins edit banking on the restaurant's behalf; only the owner agrees to the commission.
+        return array_diff_key($request->rules(), [\Modules\Restaurant\Support\PlatformCommission::INPUT => true]);
     }
 
     public function messages(): array

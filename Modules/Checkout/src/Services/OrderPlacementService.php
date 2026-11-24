@@ -129,15 +129,24 @@ class OrderPlacementService
     {
      
         return DB::transaction(function () use ($customer, $checkoutData) {
+            $customer = Customer::whereKey($customer->id)->lockForUpdate()->firstOrFail();
             // Find cart
             $cart = $this->findCustomerCart($customer, $checkoutData['restaurant_id']);
 
             if (!$cart) {
-                throw new Exception('No cart found for customer ID: ' . $customer->id . ' and restaurant ID: ' . $checkoutData['restaurant_id']);
+                throw \Illuminate\Validation\ValidationException::withMessages(['cart' => 'Your cart is empty. Please add items before placing an order.']);
             }
 
             if ($cart->items->isEmpty()) {
-                throw new Exception('Cart is empty');
+                throw \Illuminate\Validation\ValidationException::withMessages(['cart' => 'Your cart is empty. Please add items before placing an order.']);
+            }
+
+            // Price from the current address and trusted cart subtotal immediately before ordering.
+            $cart->updateTotals();
+            if ($checkoutData['shipping_method'] === 'delivery' && !$cart->delivery_available) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'delivery_address' => 'Delivery is unavailable: '.($cart->delivery_unavailable_reason ?? 'address required'),
+                ]);
             }
 
             // Get addresses
@@ -149,8 +158,7 @@ class OrderPlacementService
             $deliveryAddress = null;
             if ($checkoutData['shipping_method'] === 'delivery') {
                 $deliveryAddress = $customer->addresses()
-                    ->where('address_type', 'delivery')
-                    ->latest()
+                    ->whereKey($cart->delivery_address_id)
                     ->first();
 
                 if (!$deliveryAddress) {
@@ -159,13 +167,17 @@ class OrderPlacementService
             }
 
             // Check if payment method is COD
-            $paymentConfig = \Modules\Payments\Models\PaymentConfiguration::where('payment_method_id', $checkoutData['payment_method'])
+            $paymentConfig = \Modules\Payments\Models\PaymentConfiguration::whereKey($checkoutData['payment_method'])
                 ->where('is_active', true)
                 ->first();
+            if (!$paymentConfig || !$paymentConfig->method) {
+                throw \Illuminate\Validation\ValidationException::withMessages(['payment_method' => 'Please select an active payment method.']);
+            }
             $isCod = false;
             if ($paymentConfig && $paymentConfig->method) {
+                $methodCode = strtolower($paymentConfig->method->code ?? '');
                 $methodName = strtolower($paymentConfig->method->name ?? '');
-                $isCod = str_contains($methodName, 'cash') || str_contains($methodName, 'cod') || str_contains($methodName, 'delivery');
+                $isCod = in_array($methodCode, ['cod', 'cash', 'cash_on_delivery'], true) || str_contains($methodName, 'cash on delivery');
             }
 
 
@@ -174,9 +186,15 @@ class OrderPlacementService
                 'customer_id'          => $customer->id,
                 'restaurant_id'        => $checkoutData['restaurant_id'],
                 'order_type'           => $checkoutData['shipping_method'],
+                'delivery_fee'         => $checkoutData['shipping_method'] === 'delivery' ? (float) $cart->delivery_fee : 0,
+                'estimated_delivery_time' => $cart->estimated_delivery_at,
+                'preferred_delivery_date' => $customer->preferred_delivery_date,
                 'payment_method'       => $checkoutData['payment_method'],
                 'billing_address'      => $billingAddress ? $billingAddress->toArray() : null,
-                'delivery_address'     => $deliveryAddress ? $deliveryAddress->toArray() : null,
+                'delivery_address'     => $deliveryAddress ? array_merge($deliveryAddress->toArray(), [
+                    'city' => $deliveryAddress->city?->name ?? $deliveryAddress->city_name,
+                    'state' => $deliveryAddress->state?->name, 'country' => $deliveryAddress->country?->name,
+                ]) : null,
                 'order_items'          => $cart->items->map(function ($item) {
                     return [
                         'item_id'              => $item->item_id,
@@ -195,7 +213,7 @@ class OrderPlacementService
            
 
             // Create order — ab array return hoga
-            $result = $this->orderService->createOrder($orderData);
+            $result = $this->orderService->createOrder($orderData, $cart);
             $order  = $result['order'];
 
             // Cart delete karo
@@ -205,7 +223,7 @@ class OrderPlacementService
             // Get payment method name
             $paymentMethodName = 'Unknown';
             if ($order->payment_method) {
-            $paymentConfig = \Modules\Payments\Models\PaymentConfiguration::where('payment_method_id', $order->payment_method)
+            $paymentConfig = \Modules\Payments\Models\PaymentConfiguration::whereKey($order->payment_method)
                     ->where('is_active', true)
                     ->first();
                 $paymentMethodName = $paymentConfig?->merchant_name ?? 'Unknown';
@@ -220,10 +238,20 @@ class OrderPlacementService
                 'total'                  => $order->total,
                 'currency'               => fn_format_default_currency(),
                 'estimated_delivery_time' => $order->estimated_delivery_time,
+                'preferred_delivery_date' => $order->preferred_delivery_date,
                 'order_type'             => $order->order_type,
                 'payment_method'         => $paymentMethodName,
                 'payment_method_id'      => $order->payment_method,
-                'client_secret'          => $result['client_secret'], 
+                'client_secret'          => $result['client_secret'],
+                'payment_url'            => $result['payment_url'] ?? null,
+                'event_guest_count' => $order->event_guest_count,
+                'delivery_fee' => $order->delivery_fee,
+                'delivery_distance_miles' => $order->delivery_distance_miles,
+                'estimated_delivery_minutes' => $order->estimated_delivery_minutes,
+                'is_free_delivery' => $order->order_type === 'delivery' && (float) $order->delivery_fee === 0.0,
+                'delivery_policy_snapshot' => $order->delivery_policy_snapshot,
+                'pricing' => app(\Modules\Orders\Services\OrderPresentationService::class)->pricing($order),
+                'items' => $order->items->map(fn ($item) => app(\Modules\Orders\Services\OrderPresentationService::class)->item($item))->all(),
             ];
         });
     }

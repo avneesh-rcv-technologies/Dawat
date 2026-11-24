@@ -1,0 +1,5 @@
+/* Preserve the public forms' existing theme without loading dashboard JavaScript. */
+@import '../../Modules/Backend/src/Resources/assets/css/app.css';
+@source '../../Modules/Acl/src/Resources/views/customer/auth';
+@source '../views/frontend/restaurant-onboarding.blade.php';
+@source '../js/public-forms.js';

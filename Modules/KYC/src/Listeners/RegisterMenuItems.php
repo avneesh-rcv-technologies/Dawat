@@ -27,7 +27,7 @@ class RegisterMenuItems
             'label' => 'KYC',
             'icon' => 'verified_user',
             'guard' => 'admin',
-            'permission' => '',
+            'permission' => 'admin.kyc.submissions.index',
             'position' => 45,
             'route' => 'admin.kyc.submissions.index',
         ]);

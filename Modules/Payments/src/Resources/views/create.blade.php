@@ -89,7 +89,7 @@
 
 </form>
 <style>
-    .payment-method-form { --payment-ink: #103647; --payment-muted: #667987; --payment-border: #dce5ea; }
+    .payment-method-form { --payment-ink: #141414; --payment-muted: #667987; --payment-border: #dce5ea; }
     .payment-method-form .payment-method-tabs { margin: 0 -24px 22px; padding: 0 24px; border-color: var(--payment-border); }
     .payment-method-form .payment-method-tabs > div { gap: 8px; }
     .payment-method-form .payment-method-tabs label { position: relative; display: inline-flex; align-items: center; min-height: 46px; margin: 0; padding: 0 15px; border: 1px solid transparent; border-bottom: 0; border-radius: 9px 9px 0 0; color: var(--payment-muted); transition: background .16s ease, color .16s ease, border-color .16s ease; }
@@ -98,16 +98,16 @@
     .payment-method-form .payment-method-tabs label[for="tab-config"]::before { content: 'settings'; }
     .payment-method-form .payment-method-tabs label:hover { background: #eef4f5; color: var(--payment-ink); }
     .payment-method-form:has(#tab-general:checked) .payment-method-tabs label[for="tab-general"],
-    .payment-method-form:has(#tab-config:checked) .payment-method-tabs label[for="tab-config"] { border-color: var(--payment-border); background: #fff; color: #087b57; font-weight: 650; box-shadow: 0 -2px 7px rgba(16, 54, 71, .035); }
+    .payment-method-form:has(#tab-config:checked) .payment-method-tabs label[for="tab-config"] { border-color: var(--payment-border); background: #fff; color: #C2470A; font-weight: 650; box-shadow: 0 -2px 7px rgba(16, 54, 71, .035); }
     .payment-method-form .tab-contents { padding: 22px; border: 1px solid var(--payment-border); border-radius: 0 0 12px 12px; background: #fff; }
     .payment-method-form .tab-contents .tab-general,
     .payment-method-form .tab-contents .tab-config { display: none; }
     .payment-method-form #tab-general:checked ~ .tab-contents .tab-general { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
     .payment-method-form #tab-config:checked ~ .tab-contents .tab-config { display: block; }
     .payment-method-form .payment-method-field { min-width: 0; padding: 15px; border: 1px solid #e7edf0; border-radius: 10px; background: #fbfcfd; }
-    .payment-method-form .payment-method-field .custom-label { display: block; margin-bottom: 7px; color: #294653; font-size: 13px; font-weight: 650; }
-    .payment-method-form .input-field { width: 100%; min-height: 42px; border: 1px solid #cbd7de; border-radius: 8px; background: #fff; color: var(--payment-ink); }
-    .payment-method-form .input-field:focus { border-color: #00a86b; outline: 3px solid rgba(0, 168, 107, .12); }
+    .payment-method-form .payment-method-field .custom-label { display: block; margin-bottom: 7px; color: #1F1F1F; font-size: 13px; font-weight: 650; }
+    .payment-method-form .input-field { width: 100%; min-height: 42px; border: 1px solid #cbd7de; border-radius: 8px; background-color: #fff; color: var(--payment-ink); }
+    .payment-method-form .input-field:focus { border-color: #FF6210; outline: 3px solid rgba(255, 98, 16, .12); }
     .payment-method-form .payment-method-upload { grid-column: 1 / -1; padding: 15px; border: 1px solid #e7edf0; border-radius: 10px; }
     .payment-method-form .payment-method-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
     .payment-method-form .payment-method-actions a,

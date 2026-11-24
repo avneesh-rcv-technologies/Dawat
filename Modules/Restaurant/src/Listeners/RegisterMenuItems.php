@@ -44,6 +44,16 @@ class RegisterMenuItems
             'position' => 77,
         ]);
 
+        // Restaurant owners only: manage their own restaurant's menu.
+        $event->addItem([
+            'label' => 'Menu Management',
+            'route' => 'admin.restaurant.menu.mine',
+            'icon' => 'restaurant_menu',
+            'permission' => \Modules\Restaurant\Http\Controllers\RestaurantMenuController::PERMISSION,
+            'visibility' => [\Modules\Restaurant\Http\Controllers\RestaurantMenuController::class, 'visibleInSidebar'],
+            'position' => 79,
+        ]);
+
         $event->addItem([
             'label' => 'Restaurants',
             'route' => 'admin.restaurant.index',

@@ -25,6 +25,10 @@ class AdminEmailVerificationController
             event(new Verified($admin));
         }
 
-        return redirect()->route('admin.login.form')->with('success', 'Your email has been verified. You can now sign in.');
+        $loginRoute = app(\Modules\Restaurant\Services\RestaurantApprovalAccess::class)->isOwner($admin)
+            && \Illuminate\Support\Facades\Route::has('website.partner-login')
+                ? 'website.partner-login' : 'admin.login.form';
+
+        return redirect()->route($loginRoute)->with('success', 'Your email has been verified. You can now sign in.');
     }
 }

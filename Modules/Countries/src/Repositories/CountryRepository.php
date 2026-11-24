@@ -13,7 +13,7 @@ class CountryRepository
 
     public function getAllCountries()
     {
-        return Country::select('id', 'name')->orderBy('name')->get();
+        return Country::select('id', 'name', 'code', 'phonecode')->orderBy('name')->get();
     }
     
     /**

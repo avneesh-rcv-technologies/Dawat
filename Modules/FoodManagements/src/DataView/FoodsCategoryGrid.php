@@ -68,6 +68,24 @@ class FoodsCategoryGrid extends DataGrid
             'visibility' => false,
         ]);
 
+        $this->addColumn([
+            'index'      => 'category_image',
+            'label'      => 'Image',
+            'type'       => 'string',
+            'sortable'   => false,
+            'searchable' => false,
+            'filterable' => false,
+            'closure'    => function ($row) {
+                $image = fn_get_image('category_image', $row->id);
+                $url = $image['url'] ?? asset('dawat.png');
+
+                return '<img src="' . e($url) . '" alt="' . e($row->category_name) . '"'
+                    . ' width="48" height="48" loading="lazy"'
+                    . ' class="h-12 w-12 rounded-md border border-gray-200 bg-gray-50 object-cover"'
+                    . ' style="width:48px;height:48px;object-fit:cover">';
+            },
+        ]);
+
         // Name
         $this->addColumn([
             'index'      => 'category_name',
@@ -85,6 +103,7 @@ class FoodsCategoryGrid extends DataGrid
             'type'       => 'string',
             'sortable'   => true,
             'searchable' => false,
+            'visibility' => false,
         ]);
 
         // Restaurant
@@ -146,8 +165,9 @@ class FoodsCategoryGrid extends DataGrid
             'label'    => 'Food Type',
             'type'     => 'string',
             'sortable' => true,
-            'filterable' => true,
+            'filterable' => false,
             'filterable_type' => 'dropdown',
+            'visibility' => false,
             'filterable_options' => [
                 ['label' => 'All', 'value' => 'all'],
                 ['label' => 'Veg', 'value' => 'veg'],

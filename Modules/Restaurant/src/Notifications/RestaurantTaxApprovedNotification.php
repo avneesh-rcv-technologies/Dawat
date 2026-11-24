@@ -9,7 +9,7 @@ class RestaurantTaxApprovedNotification extends RestaurantTaxSubmittedNotificati
     public function getVariables(): array
     {
         return array_merge(parent::getVariables(), [
-            'reviewed_at' => $this->data['reviewed_at'] ?? '',
+            'reviewed_at' => $this->data['reviewed_at'] ?? 'Not recorded',
             'rejection_reason' => e($this->data['rejection_reason'] ?? ''),
         ]);
     }
@@ -17,7 +17,7 @@ class RestaurantTaxApprovedNotification extends RestaurantTaxSubmittedNotificati
     public function getAvailableVariables(): array
     {
         return array_merge(parent::getAvailableVariables(), [
-            'reviewed_at' => 'Review time', 'rejection_reason' => 'Reason tax information were rejected',
+            'reviewed_at' => 'Review time', 'rejection_reason' => 'Reason tax information was rejected',
         ]);
     }
 }

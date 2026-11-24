@@ -214,6 +214,223 @@ Headers:
 Authorization: Bearer <token>
 ```
 
+### 7.a) Restaurant categories (simplified API)
+These category endpoints only accept and return the supported fields: `name`, `description`, `status`, and `image`.
+
+#### Create category
+`POST {{base_url}}/api/restaurant/categories`
+
+Headers:
+```http
+Authorization: Bearer <token>
+Content-Type: multipart/form-data
+```
+
+Request body:
+```json
+{
+  "name": "Healthy Drinks",
+  "description": "Fresh juices and smoothies.",
+  "status": true,
+  "image": "<file upload>"
+}
+```
+
+Response example:
+```json
+{
+  "success": true,
+  "message": "Food category created successfully.",
+  "data": {
+    "id": 59,
+    "name": "Healthy Drinks",
+    "description": "Fresh juices and smoothies.",
+    "status": true,
+    "image": "category_image/59/abc.jpg"
+  }
+}
+```
+
+#### List categories
+`GET {{base_url}}/api/restaurant/categories?search=Healthy Drinks&status=active&per_page=5`
+
+Headers:
+```http
+Authorization: Bearer <token>
+```
+
+Response example:
+```json
+{
+  "success": true,
+  "message": "Food categories retrieved successfully.",
+  "data": [
+    {
+      "id": 59,
+      "name": "Healthy Drinks",
+      "description": "Fresh juices and smoothies.",
+      "status": true,
+      "image": "category_image/59/abc.jpg"
+    }
+  ],
+  "meta": {
+    "current_page": 1,
+    "per_page": 5,
+    "total": 1,
+    "last_page": 1,
+    "has_more_pages": false
+  }
+}
+```
+
+#### Get category by id
+`GET {{base_url}}/api/restaurant/categories/59`
+
+Headers:
+```http
+Authorization: Bearer <token>
+```
+
+Response example:
+```json
+{
+  "success": true,
+  "message": "Food category retrieved successfully.",
+  "data": {
+    "id": 59,
+    "name": "Healthy Drinks",
+    "description": "Fresh juices and smoothies.",
+    "status": true,
+    "image": "category_image/59/abc.jpg"
+  }
+}
+```
+
+#### Update category
+`PUT {{base_url}}/api/restaurant/categories/59`
+
+Headers:
+```http
+Authorization: Bearer <token>
+Content-Type: multipart/form-data
+```
+
+Request body:
+```json
+{
+  "name": "Healthy Drinks Updated",
+  "description": "Updated fresh juices and smoothies.",
+  "status": false,
+  "image": "<file upload>"
+}
+```
+
+Response example:
+```json
+{
+  "success": true,
+  "message": "Food category updated successfully.",
+  "data": {
+    "id": 59,
+    "name": "Healthy Drinks Updated",
+    "description": "Updated fresh juices and smoothies.",
+    "status": false,
+    "image": "category_image/59/updated.jpg"
+  }
+}
+```
+
+#### Update category status
+`PATCH {{base_url}}/api/restaurant/categories/60/status`
+
+Headers:
+```http
+Authorization: Bearer <token>
+Content-Type: application/json
+```
+
+Request body:
+```json
+{
+  "status": true
+}
+```
+
+Response example:
+```json
+{
+  "success": true,
+  "message": "Food category status updated successfully."
+}
+```
+
+#### Upload category image
+`POST {{base_url}}/api/restaurant/categories/59/image`
+
+Headers:
+```http
+Authorization: Bearer <token>
+Content-Type: multipart/form-data
+```
+
+Request body:
+```json
+{
+  "image": "<file upload>"
+}
+```
+
+Response example:
+```json
+{
+  "success": true,
+  "message": "Food category image uploaded successfully."
+}
+```
+
+#### Delete category
+`DELETE {{base_url}}/api/restaurant/categories/59`
+
+Headers:
+```http
+Authorization: Bearer <token>
+```
+
+Response example:
+```json
+{
+  "success": true,
+  "message": "Food category deleted successfully."
+}
+```
+
+#### Bulk delete categories
+`POST {{base_url}}/api/restaurant/categories/bulk-delete`
+
+Headers:
+```http
+Authorization: Bearer <token>
+Content-Type: application/json
+```
+
+Request body:
+```json
+{
+  "ids": [47, 59, 60]
+}
+```
+
+Response example:
+```json
+{
+  "success": true,
+  "message": "Selected food categories deleted successfully.",
+  "deleted_count": 3
+}
+```
+
+> Only the fields `name`, `description`, `status`, and `image` are part of the supported restaurant category API contract. Legacy fields such as `food_type`, `parent_id`, and `slug` are intentionally excluded from the public API payload.
+
 ### 8) Update restaurant (owner profile)
 `POST /api/restaurant/me/update`
 

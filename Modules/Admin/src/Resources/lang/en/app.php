@@ -4,7 +4,7 @@ return [
     'admin' => [
         'login' => [
             'email'                  => 'Email Address',
-            'forget-password-link'   => 'Forget Password ?',
+            'forget-password-link'   => 'Forgot password?',
             'password'               => 'Password',
             'submit-btn'             => 'Sign In',
             'title'                  => 'Sign In',

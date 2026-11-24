@@ -15,7 +15,11 @@
                                 </div>
                                 <div class="ml-4">
                                     <div class="flex text-sm font-medium text-black-100">
-                                        <a href="">{{ $item['food_item_name'] ?? $item['part_name'] ?? 'N/A' }}</a>
+                                        @if(!empty($item['item_url']))
+                                            <a href="{{ $item['item_url'] }}">{{ $item['food_item_name'] ?? $item['part_name'] ?? 'N/A' }}</a>
+                                        @else
+                                            <span>{{ $item['food_item_name'] ?? $item['part_name'] ?? 'N/A' }}</span>
+                                        @endif
                                         @if($mode === 'create' || $mode === 'edit')
                                             <span
                                                 class="ml-2 flex justify-end space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -37,6 +41,7 @@
                                         </div>
                                     @endif
 
+                                    @include('orders::orders.components.serving-summary', ['item' => $item])
                                     @if(!empty($item['special_instructions']))
                                         <div class="text-xs text-gray-400 mt-1">
                                             Instructions: {{ $item['special_instructions'] }}
@@ -52,6 +57,7 @@
                                     <span class="text-gray-500 text-sm">{{fn_get_currency_data($currency)->symbol}}</span>
                                 </div>
                                 <input type="text" value="{{ fn_convert_currency_rate($item['price'] ?? 0, $currency) }}"
+                                    @readonly(!empty($item['selected_option_snapshot']))
                                     class="block w-full pl-7 pr-2 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500">
                             </div>
                         </td>
@@ -60,7 +66,9 @@
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                             @php
                                 $taxAmount = 0;
-                                if (isset($item['tax_rate']) && isset($item['price']) && isset($item['quantity'])) {
+                                if (isset($item['tax_amount'])) {
+                                    $taxAmount = $item['tax_amount'];
+                                } elseif (isset($item['tax_rate']) && isset($item['price']) && isset($item['quantity'])) {
                                     $taxAmount = ($item['price'] * $item['quantity']) * ($item['tax_rate'] / 100);
                                 } elseif (isset($item['tax'])) {
                                     $taxAmount = $item['tax'];
@@ -71,17 +79,18 @@
                         @endif
                         <td class="px-6 py-4 whitespace-nowrap">
                             <div class="flex items-center">
-                                @if($mode === 'create' || $mode === 'edit')
+                                @if(($mode === 'create' || $mode === 'edit') && empty($item['selected_option_snapshot']))
                                     <a class="p-1 text-gray-500 hover:text-gray-700 quantity-decrease"
                                         data-item-id="{{ $item['id'] }}">
                                         <i class="fas fa-minus-circle"></i>
                                     </a>
                                 @endif
                                 <input type="text" value="{{ $item['quantity'] }}"
+                                    @readonly(!empty($item['selected_option_snapshot']))
                                     class="w-12 mx-2 text-center border border-gray-300 rounded-md py-1 text-sm quantity-input"
                                     data-item-id="{{ $item['id'] }}" data-price="{{ $item['price'] }}"
                                     data-original-quantity="{{ $item['quantity'] }}">
-                                @if($mode === 'create' || $mode === 'edit')
+                                @if(($mode === 'create' || $mode === 'edit') && empty($item['selected_option_snapshot']))
                                     <a class="p-1 text-gray-500 hover:text-gray-700 quantity-increase"
                                         data-item-id="{{ $item['id'] }}">
                                         <i class="fas fa-plus-circle"></i>

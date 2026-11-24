@@ -5,6 +5,8 @@ namespace Modules\Website\Providers;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\View;
+use Illuminate\Support\Facades\Vite;
 
 class WebsiteServiceProvider extends ServiceProvider
 {
@@ -37,8 +39,25 @@ class WebsiteServiceProvider extends ServiceProvider
         $this->registerViews();
         $this->registerTranslations();
         $this->registerMigrations();
-         $this->registerMiddleware();
+        $this->registerMiddleware();
         $this->registerComponents();
+        $this->configureWebsiteVite();
+    }
+
+    /**
+     * Point Laravel's @vite helper at the website build (public/website.hot + build-website).
+     */
+    protected function configureWebsiteVite(): void
+    {
+        // Child @section('styles') @vite calls render before the layout, so compose pages too.
+        View::composer([
+            'website::layouts.app',
+            'website::pages.*',
+            'frontend.restaurant-onboarding',
+            'acl::customer.auth.*',
+        ], function () {
+            Vite::useHotFile(public_path('website.hot'));
+        });
     }
 
     /**

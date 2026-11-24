@@ -1,6 +1,6 @@
 <?php
 
-namespace Modules\Payments\Notifications;
+namespace Modules\Orders\Notifications;
 
 use Exception;
 use Modules\Orders\Models\Transaction;
