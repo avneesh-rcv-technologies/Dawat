@@ -1,6 +1,6 @@
 {
   "Modules/Backend/src/Resources/assets/css/app.css": {
-    "file": "assets/app-BIj4MlzK.css",
+    "file": "assets/app-CgPUuaeo.css",
     "src": "Modules/Backend/src/Resources/assets/css/app.css",
     "isEntry": true,
     "names": [
@@ -31,7 +31,7 @@
     "isEntry": true
   },
   "Modules/KYC/src/Resources/assets/css/kyc.css": {
-    "file": "assets/kyc-08UTKkwf.css",
+    "file": "assets/kyc-AoH8SvOz.css",
     "src": "Modules/KYC/src/Resources/assets/css/kyc.css",
     "isEntry": true,
     "names": [
@@ -43,7 +43,7 @@
     "name": "index"
   },
   "resources/css/app.css": {
-    "file": "assets/app-D5c0qgLk.css",
+    "file": "assets/app-CTStxxBB.css",
     "src": "resources/css/app.css",
     "isEntry": true,
     "names": [
