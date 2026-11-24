@@ -11,8 +11,8 @@ php artisan migrate --force || true
 echo "🔗 Creating Storage Symlink..."
 php artisan storage:link || true
 
-# echo "🔧 Seeding Database..."
-# php artisan db:seed --force || true
+echo "🔧 Seeding Database..."
+php artisan db:seed --force || true
 
 echo "🚀 Setting permissions..."
 chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
