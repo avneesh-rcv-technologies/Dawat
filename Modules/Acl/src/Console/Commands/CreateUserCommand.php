@@ -6,6 +6,7 @@ use App\Rules\StrongPassword;
 use Exception;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Modules\Acl\Models\Role;
@@ -13,11 +14,11 @@ use Modules\Acl\Models\Role;
 class CreateUserCommand extends Command
 {
     protected $signature = 'user:create 
-                            {--guard= : The guard to create user for (e.g., admin, user, api)} 
+                            {--guard= : The guard to create user for (admin or customer)} 
                             {--name= : User\'s full name} 
                             {--email= : User\'s email} 
                             {--password= : User\'s password (8-16 chars, uppercase, lowercase, number and symbol)}
-                            {--role= : Assign role to the user} 
+                            {--role= : Role name to assign; defaults to the selected guard} 
                             {--verified : Mark email as verified} 
                             {--force : Skip confirmation}';
 
@@ -29,7 +30,7 @@ class CreateUserCommand extends Command
             // Get or ask for guard
             $guard = $this->option('guard') ?: $this->choice(
                 'Select guard',
-                array_keys(config('acl::guards.guards', [])),
+                array_keys($this->guardSettings()['guards']),
                 0
             );
 
@@ -48,18 +49,7 @@ class CreateUserCommand extends Command
             $email = $this->option('email') ?: $this->ask('Enter user email');
             $password = $this->option('password') ?: $this->secret('Enter user password (8-16 characters, uppercase, lowercase, number and symbol)');
 
-            // Get or create role
-            $defaultRole = $this->option('role') ?: $guard;
-            $role = Role::firstOrCreate(
-                ['name' => $guard, 'guard' => $guard],
-                [
-                    'name' => ('admin' === Str::title($guard)) ? 'Admin' : Str::title($guard),
-                    'description' => ucfirst($guard) . ' role',
-                    'guard' => $guard,
-                    'permission_type' => $guard === 'admin' ? 'all' : 'custom',
-                    'permissions' => $guard === 'admin' ? null : ["dashboard.index", "profile.edit", "profile.update"]
-                ]
-            );
+            $roleName = $this->option('role') ?: Str::title($guard);
 
             // Validate inputs
             $validator = Validator::make(
@@ -67,13 +57,13 @@ class CreateUserCommand extends Command
                     'name' => $name,
                     'email' => $email,
                     'password' => $password,
-                    'role_id' => $role->id,
+                    'role_name' => $roleName,
                 ],
                 [
                     'name' => 'required|string|max:255',
                     'email' => 'required|email|unique:' . $table . ',email',
                     'password' => ['required', 'string', new StrongPassword()],
-                    'role_id' => 'required|exists:roles,id',
+                    'role_name' => 'required|string|max:255',
                 ]
             );
 
@@ -83,22 +73,27 @@ class CreateUserCommand extends Command
             }
 
             // Confirm before creating
-            if (!$this->option('force') && !$this->confirm("Create {$guard} user '{$name}' with email '{$email}' and role '{$role->name}'?")) {
+            if (!$this->option('force') && !$this->confirm("Create {$guard} user '{$name}' with email '{$email}' and role '{$roleName}'?")) {
                 $this->info('User creation cancelled.');
                 return 0;
             }
 
-            // Create user
-            $userData = [
-                'name' => $name,
-                'email' => $email,
-                'password' => Hash::make($password),
-                'role_id' => $role->id,
-                'email_verified_at' => $this->option('verified') ? now() : null,
-                'status' => true,
-            ];
+            [$user, $role] = DB::transaction(function () use ($model, $guard, $roleName, $name, $email, $password) {
+                $isAdminRole = $guard === 'admin' && strcasecmp($roleName, 'Admin') === 0;
+                $role = Role::firstOrCreate(['name' => $roleName, 'guard' => $guard], [
+                    'description' => $roleName.' role',
+                    'permission_type' => $isAdminRole ? 'all' : 'custom',
+                    'permissions' => $isAdminRole ? null : ['dashboard.index', 'profile.edit', 'profile.update'],
+                ]);
+                $user = $model::create([
+                    'name' => $name, 'email' => $email, 'password' => Hash::make($password),
+                    'role_id' => $role->id,
+                    'email_verified_at' => $this->option('verified') ? now() : null,
+                    'status' => true,
+                ]);
 
-            $user = $model::create($userData);
+                return [$user, $role];
+            });
 
             $this->info("✅ {$guard} user created successfully!");
             $this->line("ID: {$user->id}");
@@ -123,24 +118,28 @@ class CreateUserCommand extends Command
      */
     protected function getGuardConfig(string $guard): ?array
     {
-        $config = config("acl::guards.guards.{$guard}");
-
+        $settings = $this->guardSettings();
+        $config = $settings['guards'][$guard] ?? null;
         if (!$config) {
-            $this->error("Guard '{$guard}' is not configured in acl.php");
-            $this->line("Available guards: " . implode(', ', array_keys(config('acl::guards.guards', []))));
+            $this->error("Guard '{$guard}' is not configured.");
+            $this->line('Available guards: '.implode(', ', array_keys($settings['guards'])));
             return null;
         }
 
-        $config = array_merge($config, config("acl::guards.providers.{$config['provider']}"));
-        $config = array_merge($config, [
-            'table' => (new $config['model'])->getTable(),
-        ]);
-
-        if (!class_exists($config['model'])) {
-            $this->error("Model class '{$config['model']}' not found for guard '{$guard}'");
+        $provider = $settings['providers'][$config['provider'] ?? ''] ?? null;
+        $model = $provider['model'] ?? null;
+        if (!$model || !class_exists($model)) {
+            $this->error("No valid model is configured for guard '{$guard}'.");
             return null;
         }
 
-        return $config;
+        return array_merge($config, $provider, ['table' => (new $model())->getTable()]);
+    }
+    protected function guardSettings(): array
+    {
+        return array_replace_recursive(
+            require __DIR__.'/../../Config/guards.php',
+            config('acl::guards', [])
+        );
     }
 }

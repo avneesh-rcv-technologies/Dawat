@@ -35,7 +35,7 @@ class GeocodingService
         }
 
         try {
-            $response = Http::get('https://maps.googleapis.com/maps/api/geocode/json', [
+            $response = Http::connectTimeout(3)->timeout(8)->get('https://maps.googleapis.com/maps/api/geocode/json', [
                 'address' => $addressString,
                 'key' => $this->apiKey,
             ]);

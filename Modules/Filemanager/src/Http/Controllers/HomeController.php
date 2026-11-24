@@ -3,12 +3,15 @@
 namespace Modules\Filemanager\Http\Controllers;
 
 use Exception;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use Modules\Filemanager\Models\FileLink;
 use Modules\Filemanager\Services\FileService;
 
 class HomeController extends Controller
 {
+    use AuthorizesRequests;
 
     protected $fileService;
 
@@ -27,7 +30,9 @@ class HomeController extends Controller
     public function deleteFile(Request $request, $id)
     {
         try {
-            // Delete image if exists
+            $fileLink = FileLink::query()->findOrFail($id);
+            $this->authorize('delete', $fileLink);
+
             $this->fileService->deleteFileWithId($id);
 
             return response()->json([
@@ -35,7 +40,11 @@ class HomeController extends Controller
                 'message' => 'Image Deleted successfully!',
                 'redirect_url' => url()->previous(),
             ]);
-
+        } catch (\Illuminate\Auth\Access\AuthorizationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized',
+            ], 403);
         } catch (Exception $e) {
             return response()->json([
                 'errors' => 'Something went wrong. Please try again.'

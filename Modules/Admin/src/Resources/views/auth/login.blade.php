@@ -1,13 +1,14 @@
 <!DOCTYPE html>
-<html class="h-full">
+<html lang="en" class="h-full">
 
 <head>
+    @include('partials.favicon')
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Login</title>
+    <title>{{ request()->routeIs('restaurant.login*') ? 'Restaurant Login' : 'Admin Login' }}</title>
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"
         integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
-    <link rel="stylesheet" href="{{ asset('css/toast.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/toast.css') }}?v={{ substr(hash_file('sha256', public_path('css/toast.css')), 0, 12) }}">
     @vite(['Modules/Backend/src/Resources/assets/css/app.css', 'Modules/Backend/src/Resources/assets/js/app.js'])
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet">
@@ -16,106 +17,96 @@
 
 </head>
 
-<body class="h-full font-sans antialiased">
+<body class="h-full antialiased">
     <div id="toast-container" class="toast-container"></div>
-    <div
-        class="login-bg min-h-full flex items-center justify-center p-4 sm:px-6 lg:px-8">
-        <div class="w-full max-w-lg">
-            <a href="{{ route('index') }}" class="login-home-link">
-                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M19 12H5m0 0 6 6m-6-6 6-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg>
-                <span>Return to home</span>
-            </a>
+    @php
+        $isRestaurantLogin = request()->routeIs('restaurant.login*');
+    @endphp
+    <div class="auth-shell">
+        @include('admin::auth.partials.brand-panel')
 
-            <div class="login-form">
-                <div class="logo flex justify-center items-center w-full border-b-1 border-[#fff] py-8  px-8 md:px-16">
-                    @php
-                    $logo = fn_get_image('company_logo', 0)['url'] ?? '';
-                    @endphp
-                    @if($logo)
-                    <img src="{{ $logo }}" alt="{{ fn_get_setting('general.company.name') }}"
-                        class="h-16 w-auto object-cover">
+        <main class="auth-main">
+            <div class="auth-main-inner">
+                <a href="{{ route('website.home') }}" class="login-home-link">
+                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M19 12H5m0 0 6 6m-6-6 6-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                    <span>Back to website</span>
+                </a>
 
+                <div class="login-form">
+                    <a href="{{ route('website.home') }}" class="logo" aria-label="Dawat home">
+                        <img src="{{ asset('website/images/dawat-wordmark.png') }}" alt="{{ fn_get_setting('general.company.name') ?: 'Dawat' }}">
+                    </a>
 
-                    @else
-                    <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M13 10V3L4 14h7v7l9-11h-7z"></path>
-                    </svg>
-                    <span>{{fn_get_setting('general.company.name') ? fn_get_setting('general.company.name') : "Admin
-                        Panel" }}</span>
-                    @endif
-                </div>
-                <form class="form-ajax space-y-6 py-8 px-8 md:px-16" method="POST" action="{{ route('admin.login') }}">
-                    @csrf
+                    <form id="admin-login-form" data-admin-auth-form data-auth-mode="login"
+                        data-password-challenge-url="{{ route('admin.password.challenge') }}"
+                        data-captcha-enabled="{{ app(\Modules\GeneralSetting\Services\CaptchaSettings::class)->enabled() ? 'true' : 'false' }}"
+                        method="POST" action="{{ route($isRestaurantLogin ? 'restaurant.login' : 'admin.login') }}">
+                        @csrf
 
-                    <div class="welcome mb-8">
-                        <h3 class="text-[var(--color-white)] text-[27.89px] text-center font-semibold">Welcome Back!</h3>
-                        <p>Sign in to manage your Dawat workspace.</p>
-                    </div>
-
-
-                    <div class="space-y-2">
-                        <label for="email" class="block text-sm font-medium text-[var(--color-white)]">
-                            Email Address
-                        </label>
-
-                        <div class="relative flex items-center glass-input">
-                            <div class="icon-wrapper">
-                                <i class="fas fa-envelope"></i>
-                            </div>
-
-                            <input name="email" type="email" autocomplete="email" class="login-input"
-                                placeholder="Enter registered email">
+                        <div class="welcome">
+                            <h3>Welcome back</h3>
+                            <p>{{ $isRestaurantLogin ? 'Sign in to manage your restaurant on Dawat.' : 'Sign in to manage your Dawat workspace.' }}</p>
                         </div>
-                    </div>
 
-
-                    <div class="space-y-2">
-                        <label for="password" class="block text-sm font-medium text-[var(--color-white)]">
-                            Password
-                        </label>
-
-                        <div class="relative flex items-center glass-input">
-                            <div class="icon-wrapper">
-                                <i class="fas fa-lock"></i>
+                        <div class="field">
+                            <label for="email">Email address</label>
+                            <div class="glass-input">
+                                <div class="icon-wrapper"><i class="fas fa-envelope" aria-hidden="true"></i></div>
+                                <input id="email" name="email" type="email" autocomplete="email" class="login-input"
+                                    placeholder="you@company.com" required autofocus>
                             </div>
-
-                            <input id="admin-login-password" name="password" type="password" autocomplete="current-password" class="login-input pr-10"
-                                placeholder="Enter password">
-
-                            <button type="button" class="toggle-password absolute right-4 top-1/2 -translate-y-1/2 text-black opacity-80 hover:opacity-100" aria-label="Show password">
-                                <i class="fas fa-eye"></i>
-                            </button>
                         </div>
-                    </div>
 
-                    <div class="remember-row flex items-center justify-between">
-                        <div class="flex items-center">
-                            <input id="remember-me" name="remember-me" type="checkbox" value="1"
-                                class="h-4 w-4 text-[var(--color-primary)] focus:ring-[var(--color-primary)] border-[var(--color-primary)] rounded">
-                            <label for="remember-me" class="ml-2 block text-sm text-[var(--color-white)]">
-                                Keep me logged in
+                        <div class="field">
+                            <label for="admin-login-password">Password</label>
+                            <div class="glass-input">
+                                <div class="icon-wrapper"><i class="fas fa-lock" aria-hidden="true"></i></div>
+                                <input id="admin-login-password" name="password" type="password" autocomplete="off"
+                                    class="login-input" style="padding-right: 40px;" placeholder="Enter your password" required>
+                                <button type="button" class="toggle-password" aria-label="Show password">
+                                    <i class="fas fa-eye" aria-hidden="true"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="remember-row">
+                            <label for="remember-me" class="flex items-center gap-2">
+                                <input id="remember-me" name="remember-me" type="checkbox" value="1">
+                                <span>Keep me signed in</span>
                             </label>
-                        </div>
-                        <div class="">
-                            <a href="{{ route('admin.password.request') }}" class="forgot-link text-xs font-medium">
+                            <a href="{{ route('admin.password.request') }}" class="forgot-link">
                                 @lang('admin::app.admin.login.forget-password-link')
                             </a>
                         </div>
-                    </div>
 
-                    {{-- <button type="submit" class=" padding: 0.5rem 1rem;
-  border-radius: 0.5rem; bg-white w-full" name="button">
-                        Sign In
-                    </button> --}}
-                    <button type="submit" class="login-submit px-4 py-2 w-full" name="button">
-                        Sign In
-                    </button>
-                </form>
+                        @if (app(\Modules\GeneralSetting\Services\CaptchaSettings::class)->enabled())
+                            <div class="auth-captcha">
+                                <div class="g-recaptcha" data-sitekey="{{ app(\Modules\GeneralSetting\Services\CaptchaSettings::class)->siteKey() }}" data-theme="dark"></div>
+                            </div>
+                            <p id="admin-login-captcha-error" data-captcha-error class="partner-auth-error" role="alert"></p>
+                        @endif
+
+                        <button type="submit" class="login-submit" name="button">
+                            <span>Sign in</span>
+                            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h14m0 0-6-6m6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                        </button>
+                        <p id="admin-login-status" data-auth-status class="auth-status" role="status" aria-live="polite"></p>
+
+                        <p class="auth-secure-note">
+                            <span class="material-icons-outlined" aria-hidden="true">lock</span>
+                            Secure area &middot; sign-in activity is monitored
+                        </p>
+                    </form>
+                </div>
             </div>
-        </div>
+        </main>
     </div>
     <script src="{{ asset('js/toast.js') }}"></script>
+    <script src="{{ asset('js/password-transport.js') }}?v={{ substr(hash_file('sha256', public_path('js/password-transport.js')), 0, 12) }}" defer></script>
+    <script src="{{ asset('js/partner-auth.js') }}?v={{ substr(hash_file('sha256', public_path('js/partner-auth.js')), 0, 12) }}" defer></script>
+    @if (app(\Modules\GeneralSetting\Services\CaptchaSettings::class)->enabled())
+        <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+    @endif
 
     <script>
         document.addEventListener('DOMContentLoaded', function () {

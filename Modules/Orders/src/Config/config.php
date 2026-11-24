@@ -1,6 +1,10 @@
 <?php
 
 return [
+    'delivery' => [
+        'preparation_minutes' => 30,
+        'average_speed_mph' => 25,
+    ],
     /*
     |--------------------------------------------------------------------------
     | Orders Module Configuration
@@ -62,4 +66,4 @@ return [
         'edit' => 'Edit Orders',
         'delete' => 'Delete Orders',
     ],
-]; 
+];

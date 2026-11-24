@@ -12,7 +12,7 @@
             <div class="flex flex-col gap-5 md:gap-10">
                 {{-- Logo --}}
                 <a href="{{ url('/') }}" class="inline-block">
-                    <img src="{{ asset('website/images/dawat-wordmark.png') }}" alt="Dawat" class="block w-[100px] md:w-[132px] h-auto" />
+                    <img {!! \Modules\Website\Support\WebsiteImages::attributes('website/images/dawat-wordmark.png', '(min-width: 768px) 160px, 100px', 320) !!} alt="Dawat" class="block w-[100px] md:w-[132px] h-auto" / loading="lazy" decoding="async">
                 </a>
 
                 {{-- Social Media Icons (Twitter, Facebook, Instagram, LinkedIn) --}}
@@ -113,7 +113,7 @@
                     <h5 class="font-outfit font-medium text-[12px] md:text-[16px] text-white">Policy</h5>
                     <ul class="flex flex-col gap-2.5 md:gap-3.5">
                         <li>
-                            <a href="#" class="font-outfit text-[12px] md:text-[16px] text-white/80 hover:text-white transition-colors">
+                            <a href="{{ route('website.terms-and-conditions') }}" class="font-outfit text-[12px] md:text-[16px] text-white/80 hover:text-white transition-colors">
                                 Terms of Use
                             </a>
                         </li>
@@ -123,7 +123,7 @@
                             </a>
                         </li>
                         <li>
-                            <a href="#" class="font-outfit text-[12px] md:text-[16px] text-white/80 hover:text-white transition-colors">
+                            <a href="{{ route('website.privacy-policy') }}" class="font-outfit text-[12px] md:text-[16px] text-white/80 hover:text-white transition-colors">
                                 Privacy
                             </a>
                         </li>
@@ -145,8 +145,8 @@
         <div class="flex flex-col sm:flex-row items-center justify-between gap-4 text-white/80 text-[12px] md:text-[16px]">
             <p>©2026 Dawat Curated By ROILift</p>
             <div class="flex items-center gap-6">
-                <a href="#" class="hover:text-white transition-colors">Teams &amp; Conditions</a>
-                <a href="#" class="hover:text-white transition-colors">Privacy Policy</a>
+                <a href="{{ route('website.terms-and-conditions') }}" class="hover:text-white transition-colors">Terms &amp; Conditions</a>
+                <a href="{{ route('website.privacy-policy') }}" class="hover:text-white transition-colors">Privacy Policy</a>
             </div>
         </div>
 

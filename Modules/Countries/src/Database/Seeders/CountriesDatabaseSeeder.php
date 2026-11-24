@@ -11,6 +11,6 @@ class CountriesDatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        $this->call([CountriesTableSeeder::class]);
+        // $this->call([CountriesTableSeeder::class]);
     }
 }

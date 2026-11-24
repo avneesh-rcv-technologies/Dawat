@@ -48,8 +48,9 @@ class SanitizeRequest
                 $this->logSuspiciousActivity($request);
             }
 
-            // Sanitize all request data
-            $sanitizedData = $this->sanitizeArray($request->all());
+            // Sanitize input fields only. all() also contains UploadedFile objects;
+            // casting those to strings creates input values that mask the real files.
+            $sanitizedData = $this->sanitizeArray($request->input());
 
             // Replace request data with sanitized version
             $request->replace($sanitizedData);
@@ -77,12 +78,32 @@ class SanitizeRequest
     }
 
     /**
+     * Sanitize one input value exactly as handle() would have for this request.
+     * Used for values that are only available after this middleware has run
+     * (e.g. passwords decrypted by DecryptClientPasswords).
+     */
+    public function sanitizeValueFor(Request $request, string $key, string $value): string
+    {
+        if (!Config::get('acl::sanitization.enabled', true) || $this->isRouteExcluded($request)) {
+            return $value;
+        }
+
+        $sanitized = $this->sanitizeArray([$key => $value]);
+
+        return (string) ($sanitized[$this->sanitizeString($key)] ?? $value);
+    }
+
+    /**
      * Check if the current route should be excluded from sanitization
      */
     private function isRouteExcluded(Request $request): bool
     {
         $excludedRoutes = Config::get('acl::sanitization.excluded_routes', []);
         $currentRoute = $request->route() ? $request->route()->getName() : '';
+        $permissionPrefix = $request->route()?->getAction('permission_name_prefix') ?? '';
+        if ($permissionPrefix !== '' && str_starts_with($currentRoute, $permissionPrefix)) {
+            $currentRoute = substr($currentRoute, strlen($permissionPrefix));
+        }
 
         foreach ($excludedRoutes as $pattern) {
             if (fnmatch($pattern, $currentRoute)) {
@@ -163,6 +184,12 @@ class SanitizeRequest
     {
         $sanitized = [];
         $excludedParams = Config::get('acl::sanitization.excluded_parameters', []);
+        $routeName = request()->route()?->getName() ?? '';
+        foreach (Config::get('acl::sanitization.excluded_parameters_by_route', []) as $pattern => $parameters) {
+            if (fnmatch($pattern, $routeName)) {
+                $excludedParams = array_merge($excludedParams, $parameters);
+            }
+        }
 
         foreach ($data as $key => $value) {
             // Sanitize the key itself

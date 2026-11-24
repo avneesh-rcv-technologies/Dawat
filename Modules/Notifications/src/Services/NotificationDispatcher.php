@@ -2,11 +2,8 @@
 
 namespace Modules\Notifications\Services;
 
-use Exception;
-use Log;
-use Modules\Notifications\Contracts\NotificationChannel;
+use Illuminate\Support\Facades\Log;
 use Modules\Notifications\Models\NotificationEvent;
-use Modules\Notifications\Models\NotificationMapping;
 
 class NotificationDispatcher
 {
@@ -15,29 +12,43 @@ class NotificationDispatcher
     ) {
     }
 
-    public function dispatch(string $eventCode, $notifiables, $notification): void
+    public function dispatch(string $eventCode, $notifiables, $notification, ?array $channels = null): bool
     {
-
-        $event = NotificationEvent::where('event_code', $eventCode)->first();
-        if (!$event) {
-            return;
-        }
-
         try {
-            $mappings = $event->activeMappings()
-                ->get();
-            foreach ($mappings as $mapping) {
-
-                $channel = $this->channelManager->getChannel($mapping->channel->name);
-                if (!$channel || !$channel['is_active']) {
-                    continue;
-                }
-
-                $handler = app($channel['handler'], ['config' => $channel['config']]);
-                $handler->send($notifiables, $notification);
+            $event = NotificationEvent::where('event_code', $eventCode)->first();
+            if (!$event) {
+                return false;
             }
-        } catch (Exception $e) {
-            throw new \Exception('Failed to dispatch.', 0, $e);
+            $mappings = $event->activeMappings()
+                ->when($channels !== null, fn ($query) => $query->whereHas('channel', fn ($query) => $query->whereIn('name', $channels)))
+                ->get();
+            $sent = false;
+            $failed = false;
+            foreach ($mappings as $mapping) {
+                try {
+                    $channel = $this->channelManager->getChannel($mapping->channel->name);
+                    if (!$channel || !$channel['is_active']) {
+                        continue;
+                    }
+                    $handler = app($channel['handler'], ['config' => $channel['config']]);
+                    $handler->send($notifiables, $notification);
+                    $sent = true;
+                } catch (\Throwable $e) {
+                    $failed = true;
+                    Log::warning('Notification channel delivery failed.', [
+                        'event_code' => $eventCode,
+                        'mapping_id' => $mapping->id,
+                        'exception_type' => get_class($e),
+                    ]);
+                }
+            }
+            return $sent && !$failed;
+        } catch (\Throwable $e) {
+            Log::warning('Notification dispatch could not be completed.', [
+                'event_code' => $eventCode,
+                'exception_type' => get_class($e),
+            ]);
+            return false;
         }
     }
 }

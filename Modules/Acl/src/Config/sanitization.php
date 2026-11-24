@@ -151,7 +151,18 @@ return [
         'notification.email-design.update',
         'cms.pages.store',
         'cms.pages.update',
-        'cms.pages.update-content'
+        'cms.pages.update-content',
+        'admin.blogs.blogs.store',
+        'admin.blogs.blogs.update',
+        'admin.blogs.blog_ctas.store',
+        'admin.blogs.blog_ctas.update',
+        'admin.blogs.blog_categories.store',
+        'admin.blogs.blog_categories.update',
+        'admin.seo.settings.update',
+        'admin.seo.analytics.update',
+        'admin.seo.pages.update',
+        'admin.seo.sitemap.regenerate',
+        'admin.seo.robots.update',
 
     ],
 
@@ -167,6 +178,10 @@ return [
     */
     'excluded_parameters' => [
         'phone',
+        // Passwords must reach hashing and authentication byte-for-byte.
+        'password',
+        'password_confirmation',
+        'current_password',
     ],
 
     /*
@@ -179,6 +194,10 @@ return [
     |
     */
     'excluded_parameters_by_route' => [
+        // Cryptographic JSON is validated by the Firebase settings controller.
+        'firebase.update' => ['service_account_json'],
+        // These permission-protected settings intentionally contain tracking markup.
+        'admin.seo.analytics.update' => ['custom_head_scripts', 'custom_body_scripts', 'gsc_verification_code'],
         'catalog.categories.store' => ['description'],
         'catalog.categories.update' => ['description'],
     ],

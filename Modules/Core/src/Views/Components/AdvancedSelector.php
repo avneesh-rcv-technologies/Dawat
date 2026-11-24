@@ -23,6 +23,9 @@ class AdvancedSelector extends Component
     public $orderDirection;
 
     public $ajax;
+    public $iconColumn;
+    public $eligibility;
+    public $eligibilityUrl;
 
     /**
      * Create a new component instance.
@@ -43,7 +46,10 @@ class AdvancedSelector extends Component
         $filters = [],
         $orderBy = 'name',
         $orderDirection = 'asc',
-        $ajax = false
+        $ajax = false,
+        $iconColumn = '',
+        $eligibility = [],
+        $eligibilityUrl = ''
     ) {
 
 
@@ -63,6 +69,9 @@ class AdvancedSelector extends Component
         $this->orderBy = $orderBy;
         $this->orderDirection = $orderDirection;
         $this->ajax = $ajax;
+        $this->iconColumn = $iconColumn;
+        $this->eligibility = $eligibility;
+        $this->eligibilityUrl = $eligibilityUrl;
 
     }
 

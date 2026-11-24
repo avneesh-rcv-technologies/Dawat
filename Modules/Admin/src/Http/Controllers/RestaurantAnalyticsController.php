@@ -5,6 +5,7 @@ namespace Modules\Admin\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Modules\Admin\Services\AnalyticsService;
+use Modules\Restaurant\Services\RestaurantDataScope;
 use Modules\Restaurant\Models\Restaurant;
 
 class RestaurantAnalyticsController extends Controller
@@ -21,6 +22,7 @@ class RestaurantAnalyticsController extends Controller
      */
     public function show(Request $request, $restaurantId)
     {
+        abort_unless(app(RestaurantDataScope::class)->canAccessRestaurant($restaurantId), 404);
         $restaurant = Restaurant::findOrFail($restaurantId);
         
         $dateFrom = $request->input('date_from', now()->subDays(30)->format('Y-m-d'));

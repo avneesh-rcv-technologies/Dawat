@@ -39,6 +39,11 @@ class CheckGuardPermission
         }
 
         $routeName = Route::currentRouteName();
+        // Guard namespaces distinguish URLs while retaining existing role permissions.
+        $permissionPrefix = $request->route()->getAction('permission_name_prefix') ?? '';
+        if ($permissionPrefix !== '' && str_starts_with($routeName, $permissionPrefix)) {
+            $routeName = substr($routeName, strlen($permissionPrefix));
+        }
         foreach ($guards as $guard) {
             $guard = $guard ?: null;
             $user = Auth::guard($guard)->user();
@@ -68,6 +73,13 @@ class CheckGuardPermission
 
         // If no guard passed, redirect to first guard's login if route exists, else abort
         $firstGuard = $guards[0] ?? 'admin';
+        if ($firstGuard === 'admin') {
+            $url = app(\Modules\Acl\Services\LoginRedirector::class)->url($request);
+            if ($request->expectsJson()) {
+                return response()->json(['success' => false, 'message' => 'Authentication required', 'redirect_url' => $url], 401);
+            }
+            return redirect()->guest($url);
+        }
         $loginRoute = "{$firstGuard}.login.form";
         if (\Route::has($loginRoute)) {
             return redirect()->route($loginRoute);

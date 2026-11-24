@@ -53,6 +53,10 @@ class NotificationBellController extends Controller
             $notification->save();
         }
         
+        if ($notification->type === 'contact_query_submitted') {
+            return redirect()->route('website.contact-queries.show', $notification->data['contact_query_id']);
+        }
+
         return view('notifications::show', compact('notification'));
     }
 
@@ -79,12 +83,22 @@ class NotificationBellController extends Controller
     /**
      * Get recent notifications for dropdown (last 10)
      */
-    public function recent()
+    public function recent(Request $request)
     {
         $user = Auth::user();
         
         if (!$user) {
             return response()->json(['notifications' => []]);
+        }
+
+        if ($request->boolean('fragment')) {
+            $query = Notification::where('notifiable_type', get_class($user))->where('notifiable_id', $user->id);
+            $notifications = (clone $query)->latest('id')->limit(5)->get();
+            $notifCount = (clone $query)->whereNull('read_at')->count();
+            return response()->json([
+                'html' => view('notifications::components.bell-content', compact('notifications', 'notifCount'))->render(),
+                'count' => $notifCount,
+            ]);
         }
 
         $notifications = Notification::where('notifiable_type', get_class($user))

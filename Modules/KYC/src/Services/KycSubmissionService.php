@@ -14,7 +14,6 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Database\Eloquent\Collection;
-use Modules\Activitylog\Services\ActivityLoggerService;
 use Modules\Acl\Models\Admin;
 use Modules\Restaurant\Models\Restaurant;
 use Modules\Restaurant\Enums\OnboardingStatus;
@@ -80,7 +79,7 @@ class KycSubmissionService
     /**
      * Create a new submission
      */
-    public function createSubmission(int $userId, int $kycTypeId, array $data, bool $allowUnapprovedReplacement = false): KycSubmission
+    public function createSubmission(int $userId, int $kycTypeId, array $data, bool $allowUnapprovedReplacement = false, bool $notifyResubmission = true): KycSubmission
     {
         try {
             $this->logKycOperation('Creating KYC submission', [
@@ -142,8 +141,8 @@ class KycSubmissionService
                 ->first();
 
             if ($existingSubmission) {
-                // Explicit onboarding reuploads may replace any unapproved submission.
-                if ($existingSubmission->status === 'approved' || (!$allowUnapprovedReplacement && $existingSubmission->status !== 'rejected')) {
+                // Onboarding reuploads can replace editable submissions only.
+                if (in_array($existingSubmission->status, ['approved', 'under_review'], true) || (!$allowUnapprovedReplacement && $existingSubmission->status !== 'rejected')) {
                     throw new KycException(
                         "Cannot submit new document for this type because an existing submission is in status '{$existingSubmission->status}'.",
                         'DUPLICATE_SUBMISSION',
@@ -156,7 +155,14 @@ class KycSubmissionService
                 }
             }
 
-            return DB::transaction(function () use ($userId, $kycTypeId, $data, $kycType, $existingSubmission) {
+            return DB::transaction(function () use ($userId, $kycTypeId, $data, $kycType, $existingSubmission, $notifyResubmission) {
+                if ($kycType->type === 'kyc') {
+                    foreach (\Modules\Restaurant\Models\Restaurant::where('admin_id', $userId)->lockForUpdate()->get() as $restaurant) {
+                        \Modules\Restaurant\Services\RestaurantOnboardingAccessService::assertStepEditable(
+                            $restaurant, \Modules\Restaurant\Enums\OnboardingStep::KYC
+                        );
+                    }
+                }
                 $oldPaths = [];
                 if ($existingSubmission) {
                     $oldPaths = $existingSubmission->files->pluck('file_path')->all();
@@ -171,20 +177,6 @@ class KycSubmissionService
                     'kyc_type_id' => $kycTypeId,
                     'status' => 'pending'
                 ]);
-
-                // Log KYC submission creation
-                // ActivityLoggerService::logContent(
-                //     "New KYC submission created",
-                //     $submission,
-                //     [
-                //         'user_id' => $userId,
-                //         'kyc_type_id' => $kycTypeId,
-                //         'kyc_type_name' => $kycType->name,
-                //         'submission_id' => $submission->id,
-                //         'event' => 'kyc_submission_created',
-                //         'severity' => 'info'
-                //     ]
-                // );
 
                 // Process each field and save data
                 foreach ($kycType->fields as $field) {
@@ -211,6 +203,9 @@ class KycSubmissionService
                     DB::afterCommit(function () use ($oldPaths) {
                         Storage::disk('public')->delete($oldPaths);
                     });
+                }
+                if ($existingSubmission && $notifyResubmission) {
+                    $this->notifyDocumentResubmission($userId, [$submission]);
                 }
                 return $submission->fresh(['data', 'files']);
             });
@@ -363,26 +358,35 @@ class KycSubmissionService
             if (!empty($createdSubmissions)) {
                 $owner = Admin::find($userId);
                 if ($owner) {
-                    $documentTypes = collect($createdSubmissions)
-                        ->map(fn (KycSubmission $submission) => $submission->kycType->name ?? 'KYC Document')
-                        ->unique()
-                        ->values()
-                        ->all();
+                    $replacedTypeIds = collect($existingSubmissionsToDelete)->pluck('kyc_type_id')->all();
+                    $resubmitted = collect($createdSubmissions)->whereIn('kyc_type_id', $replacedTypeIds);
+                    $initialSubmissions = collect($createdSubmissions)->whereNotIn('kyc_type_id', $replacedTypeIds);
+                    if ($resubmitted->isNotEmpty()) {
+                        $this->notifyDocumentResubmission($userId, $resubmitted->values()->all());
+                    }
+                    if ($initialSubmissions->isNotEmpty()) {
+                        $documentTypes = $initialSubmissions
+                            ->map(fn (KycSubmission $submission) => $submission->kycType->name ?? 'KYC Document')
+                            ->unique()
+                            ->values()
+                            ->all();
 
-                    $notificationService = app(\Modules\Notifications\Services\NotificationService::class);
-                    $notificationService->trigger('KYC', 'KycDocumentSubmission', $owner, [
-                        'title' => 'KYC Documents Submitted',
-                        'owner_name' => $owner->name,
-                        'document_types' => $documentTypes,
-                        'submission_count' => count($createdSubmissions),
-                        'submission_url' => url('/restaurant/kyc/history'),
-                        'request_message' => 'Your KYC documents have been submitted successfully. Our team will review them shortly.',
-                        'company_name' => config('app.name', 'Our Company'),
-                        'current_year' => date('Y'),
-                        'data' => [
-                            'submission_ids' => collect($createdSubmissions)->pluck('id')->all(),
-                        ],
-                    ]);
+                        $notificationService = app(\Modules\Notifications\Services\NotificationService::class);
+                        $notificationService->trigger('KYC', 'KycDocumentSubmission', $owner, [
+                            'title' => 'KYC Documents Submitted',
+                            'owner_name' => $owner->name,
+                            'document_types' => $documentTypes,
+                            'submission_count' => $initialSubmissions->count(),
+                            'submitted_at' => $initialSubmissions->last()?->created_at?->format('M d, Y h:i A T'),
+                            'submission_url' => route('restaurant.onboarding.kyc', ['step' => 'kyc']),
+                            'request_message' => 'Your KYC documents have been submitted successfully. Our team will review them shortly.',
+                            'company_name' => config('app.name', 'Our Company'),
+                            'current_year' => date('Y'),
+                            'data' => [
+                                'submission_ids' => $initialSubmissions->pluck('id')->all(),
+                            ],
+                        ]);
+                    }
                 }
 
                 // Update restaurant onboarding status to 'submitted' when multiple documents uploaded
@@ -499,6 +503,7 @@ class KycSubmissionService
                 ]);
             }
 
+            $changed = false;
             //  process file uploads (status is already "pending")
             foreach ($data as $fieldKey => $fieldValue) {
                 $submissionData = $submission->data()
@@ -512,13 +517,46 @@ class KycSubmissionService
                         // Handle file upload
                         $this->handleFileUpload($submission, $field, $fieldValue);
                         $fieldValue = 'file_uploaded';
+                        $changed = true;
                     }
 
-                    $submissionData->update(['field_value' => $fieldValue]);
+                    $submissionData->fill(['field_value' => $fieldValue]);
+                    $changed = $submissionData->isDirty('field_value') || $changed;
+                    $submissionData->save();
                 }
             }
 
+            if ($changed && $submission->kycType?->type === 'kyc') {
+                $submission->update(['status' => 'pending', 'reviewed_by' => null, 'reviewed_at' => null, 'rejection_reason' => null]);
+                $submission->touch();
+                $this->notifyDocumentResubmission($submission->user_id, [$submission]);
+            }
             return $submission->fresh(['data', 'files']);
+        });
+    }
+
+    public function notifyDocumentResubmission(int $userId, array $submissions): void
+    {
+        $documents = collect($submissions)->filter(fn ($submission) => $submission instanceof KycSubmission
+            && $submission->kycType?->type === 'kyc');
+        if ($documents->isEmpty()) return;
+
+        $data = [
+            'document_types' => $documents->map(fn ($document) => $document->kycType->name)->unique()->values()->all(),
+            'submission_count' => $documents->count(),
+            'resubmitted_at' => $documents->last()?->updated_at?->format('M d, Y h:i A T'),
+            'submission_url' => route('restaurant.onboarding.kyc', ['step' => 'kyc']),
+        ];
+        DB::afterCommit(function () use ($userId, $data) {
+            try {
+                $owner = Admin::find($userId);
+                if (!$owner) return;
+                app(\Modules\Notifications\Services\NotificationService::class)->trigger(
+                    'KYC', 'KycDocumentReSubmission', $owner, $data + ['owner_name' => $owner->name]
+                );
+            } catch (\Throwable $exception) {
+                Log::warning('Unable to send KYC document resubmission notification.', ['owner_id' => $userId]);
+            }
         });
     }
 
@@ -749,8 +787,10 @@ class KycSubmissionService
                 throw KycException::submissionNotFound($id);
             }
             // validate submission can be reviewed
-            $startingRefillReview = $action === 'under_review' && $submission->refill_requested;
-            if (!in_array($submission->status, ['pending', 'under_review']) && !$startingRefillReview) {
+            if ($submission->refill_requested) {
+                throw new KycException('Wait for the owner to resubmit the requested corrections before reviewing this document.', 'AWAITING_RESUBMISSION', 422);
+            }
+            if (!in_array($submission->status, ['pending', 'under_review'])) {
                 throw new KycException(
                     "Submission cannot be reviewed in '{$submission->status}' status",
                     'INVALID_SUBMISSION_STATUS',
@@ -762,7 +802,7 @@ class KycSubmissionService
             if (!in_array($action, $validActions)) {
                 throw KycException::invalidAction($action);
             }
-            return DB::transaction(function () use ($submission, $adminId, $action, $reason, $startingRefillReview) {
+            return DB::transaction(function () use ($submission, $adminId, $action, $reason) {
                 switch ($action) {
                     case 'under_review':
                         if ($submission->status === 'under_review') {
@@ -773,12 +813,6 @@ class KycSubmissionService
                             );
                         }
                         $submission->markAsUnderReview($adminId);
-                        if ($startingRefillReview) {
-                            $submission->messages()->create([
-                                'sender_type' => 'admin', 'sender_id' => $adminId,
-                                'message' => 'Refill request moved to review.', 'is_read' => false,
-                            ]);
-                        }
                         $this->sendKycNotification($submission, 'under_review');
                         break;
                     case 'approve':
@@ -1012,7 +1046,7 @@ class KycSubmissionService
             'status' => $status,
             'status_message' => $statusMessages[$status] ?? '',
             'rejection_reason' => $reason,
-            'reviewed_at' => now()->format('Y-m-d H:i:s'),
+            'reviewed_at' => $submission->reviewed_at?->format('M d, Y h:i A T'),
             'company_name' => config('app.name'),
             'current_year' => date('Y')
         ];

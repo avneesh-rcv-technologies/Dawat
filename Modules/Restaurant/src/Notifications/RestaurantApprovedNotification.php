@@ -57,54 +57,38 @@ class RestaurantApprovedNotification implements Notification
     {
         if ($this->variables !== null) return $this->variables;
 
-        $restaurant = null;
-        $passwordInfo = $this->data['password']
-            ?? $this->restaurant['password']
-            ?? '(Use Forgot Password if needed)';
-
-        if ($this->restaurant instanceof Restaurant) {
-            $restaurant = $this->restaurant;
-        } elseif (isset($this->data['restaurant'])) {
-            $restaurant = $this->data['restaurant'];
-        } elseif (isset($this->restaurant['restaurant'])) {
-           
-            $restaurant = $this->restaurant['restaurant'];
-        }
-
-        if (!$restaurant) {
+        $payload = array_replace(is_array($this->restaurant) ? $this->restaurant : [], $this->data);
+        $restaurant = $this->restaurant instanceof Restaurant ? $this->restaurant : ($payload['restaurant'] ?? null);
+        if (!$restaurant instanceof Restaurant) {
             return [];
-        }
-
-        if (isset($this->data['data']['restaurant_password'])) {
-            $passwordInfo = $this->data['data']['restaurant_password'];
-        } elseif (isset($this->restaurant['data']['restaurant_password'])) {
-            $passwordInfo = $this->restaurant['data']['restaurant_password'];
         }
 
         $admin = $restaurant->admin;
         $steps = app(RestaurantOnboardingSummaryService::class)->build(
             $restaurant,
-            $this->data['pending_kyc_requests'] ?? $this->restaurant['pending_kyc_requests'] ?? []
+            $payload['pending_kyc_requests'] ?? []
         );
+        $approvedAt = $restaurant->approved_at
+            ?? $restaurant->onboardingSteps->firstWhere('step_key', OnboardingStep::REGISTRATION->value)?->reviewed_at;
 
         return $this->variables = [
             "company_logo" =>  fn_get_image('company_logo', 0)['url'] ?? '',
             'restaurant_name' => $restaurant->name ?? 'Restaurant',
-            'restaurant_owner_name' => $admin->name ?? 'Owner',
-            'restaurant_email' => $admin->email ?? '',
-            'restaurant_password' => $passwordInfo,
-            'restaurant_phone' => $restaurant->phone ?? '',
+            'restaurant_name_html' => e($restaurant->name ?? 'Restaurant'),
+            'restaurant_owner_name' => e($admin->name ?? 'Owner'),
+            'restaurant_email' => e($admin->email ?? ''),
+            'restaurant_phone' => e($restaurant->phone ?: 'Not provided'),
             'restaurant_id' => $restaurant->id,
-            'approved_date' => $restaurant->approved_at?->format('Y-m-d H:i:s') ?? now()->format('Y-m-d H:i:s'),
+            'approved_date' => $approvedAt?->format('M d, Y h:i A T') ?? 'Not recorded',
             'approved_step_key' => OnboardingStep::REGISTRATION->value,
             'approved_step_label' => OnboardingStep::REGISTRATION->label(),
             'onboarding_steps_html' => view('restaurant::emails.partials.onboarding-summary', compact('steps'))->render(),
-            'dashboard_link' => config('app.url', 'https://app.local') . '/dashboard',
-            'login_url' => config('app.url', 'https://app.local') . '/admin/login',
-            'app_name' => fn_get_setting('general.company.name'),
+            'dashboard_link' => route('dashboard.index'),
+            'login_url' => route('website.partner-login'),
+            'app_name' => 'Dawat',
             'current_year' => date('Y'),
-            'support_url' => config('app.url', 'https://app.local') . '/support',
-            'privacy_url' => config('app.url', 'https://app.local') . '/privacy-policy',
+            'support_url' => route('website.contact'),
+            'privacy_url' => route('website.privacy-policy'),
         ];
     }
 
@@ -112,9 +96,9 @@ class RestaurantApprovedNotification implements Notification
     {
         return [
             'restaurant_name' => 'Name of the restaurant',
+            'restaurant_name_html' => 'Restaurant name escaped for email HTML',
             'restaurant_owner_name' => 'Name of the restaurant owner',
             'restaurant_email' => 'Restaurant owner email address',
-            'restaurant_password' => 'Temporary password for restaurant login',
             'restaurant_phone' => 'Restaurant phone number',
             'restaurant_id' => 'Unique ID of the restaurant',
             'approved_date' => 'Date and time when restaurant was approved',

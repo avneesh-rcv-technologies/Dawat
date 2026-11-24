@@ -5,6 +5,7 @@ namespace Modules\Admin\Http\Controllers\Api;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Modules\Admin\Services\AnalyticsService;
+use Modules\Restaurant\Services\RestaurantDataScope;
 use Illuminate\Routing\Controller;
 
 class AnalyticsController extends Controller
@@ -25,6 +26,8 @@ class AnalyticsController extends Controller
      */
     public function restaurantAnalytics(Request $request, $restaurantId): JsonResponse
     {
+        abort_unless(app(RestaurantDataScope::class)->canAccessRestaurant($restaurantId), 404);
+
         try {
             $dateFrom = $request->input('date_from');
             $dateTo = $request->input('date_to');
@@ -53,11 +56,13 @@ class AnalyticsController extends Controller
      */
     public function customerAnalytics(Request $request, $customerId): JsonResponse
     {
+        abort_unless(app(RestaurantDataScope::class)->canAccessCustomer($customerId), 404);
+
         try {
             $dateFrom = $request->input('date_from');
             $dateTo = $request->input('date_to');
 
-            $analytics = $this->analyticsService->getCustomerAnalytics($customerId, $dateFrom, $dateTo);
+            $analytics = $this->analyticsService->getCustomerAnalytics($customerId, $dateFrom, $dateTo, app(RestaurantDataScope::class)->restaurantId());
 
             return response()->json([
                 'success' => true,
@@ -80,6 +85,8 @@ class AnalyticsController extends Controller
      */
     public function orderAnalytics($orderId): JsonResponse
     {
+        abort_unless(app(RestaurantDataScope::class)->canAccessOrder($orderId), 404);
+
         try {
             $analytics = $this->analyticsService->getOrderAnalytics($orderId);
 
@@ -104,6 +111,8 @@ class AnalyticsController extends Controller
      */
     public function transactionAnalytics($transactionId): JsonResponse
     {
+        abort_unless(app(RestaurantDataScope::class)->canAccessTransaction($transactionId), 404);
+
         try {
             $analytics = $this->analyticsService->getTransactionAnalytics($transactionId);
 

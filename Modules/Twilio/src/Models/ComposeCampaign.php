@@ -4,11 +4,9 @@ namespace Modules\Twilio\Models;
 
 use Modules\Acl\Models\Admin;
 use Illuminate\Database\Eloquent\Model;
-use Modules\Activitylog\Traits\LogsActivity;
 
 class ComposeCampaign extends Model
 {
-    use LogsActivity;
 
     protected $table = 'twilio_compose_campaigns';
     protected $fillable = [

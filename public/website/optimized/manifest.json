@@ -1,0 +1,862 @@
+{
+  "dawat.png": {
+    "width": 824,
+    "height": 234,
+    "sourceBytes": 12782,
+    "sourceSha256": "6f07a4db24ce5ea570ca0d99d12ecd36742849ff6695aa2cd912cbd2dd1069a4",
+    "variants": [
+      {
+        "path": "website/optimized/34cf7130680b6664a17e-160.webp",
+        "width": 160,
+        "height": 45,
+        "bytes": 2076
+      },
+      {
+        "path": "website/optimized/20e1bd03af93fd9899f8-320.webp",
+        "width": 320,
+        "height": 91,
+        "bytes": 5028
+      },
+      {
+        "path": "website/optimized/5959fa700f90563bfc9b-640.webp",
+        "width": 640,
+        "height": 182,
+        "bytes": 11094
+      },
+      {
+        "path": "website/optimized/79e512d948deb0c59b41-824.webp",
+        "width": 824,
+        "height": 234,
+        "bytes": 8254
+      }
+    ]
+  },
+  "website/73964bf77c75b2eba31ec165f554afb485d18dad.jpg": {
+    "width": 4096,
+    "height": 2341,
+    "sourceBytes": 4878163,
+    "sourceSha256": "34667e1b99667893ec754d13008a4299bfbd89936d3b4d4867a4b58133bab74e",
+    "variants": [
+      {
+        "path": "website/optimized/70023f207c2fa50ad60d-480.webp",
+        "width": 480,
+        "height": 274,
+        "bytes": 23392
+      },
+      {
+        "path": "website/optimized/989cf993e02251ba9146-960.webp",
+        "width": 960,
+        "height": 549,
+        "bytes": 54976
+      },
+      {
+        "path": "website/optimized/93b31b32fdde7458acbd-1600.webp",
+        "width": 1600,
+        "height": 914,
+        "bytes": 107032
+      },
+      {
+        "path": "website/optimized/cc9f6a4023a70348182f-2400.webp",
+        "width": 2400,
+        "height": 1372,
+        "bytes": 174192
+      }
+    ]
+  },
+  "website/9fb055111b8ba926a7cb6eef104950b4819e61ce.png": {
+    "width": 1024,
+    "height": 1536,
+    "sourceBytes": 1293959,
+    "sourceSha256": "c7cde8e9dc745447256fa1020b44a9ac854c806bea73aff7066afcd1061336ce",
+    "variants": [
+      {
+        "path": "website/optimized/4ebb39b3394442602953-480.webp",
+        "width": 480,
+        "height": 720,
+        "bytes": 52784
+      },
+      {
+        "path": "website/optimized/2316d85f280aa9a1ac03-960.webp",
+        "width": 960,
+        "height": 1440,
+        "bytes": 163934
+      },
+      {
+        "path": "website/optimized/bdb68683fef8136b51aa-1024.webp",
+        "width": 1024,
+        "height": 1536,
+        "bytes": 180934
+      }
+    ]
+  },
+  "website/images/4647d78a91cd2c0c1d9eda99c2429ba4d36e4e7f.png": {
+    "width": 1293,
+    "height": 1216,
+    "sourceBytes": 1411986,
+    "sourceSha256": "fec87126894dfc0c992759837358d31945f281734d60429014647e2eab6b21b0",
+    "variants": [
+      {
+        "path": "website/optimized/9603227a3baccefeb2f8-480.webp",
+        "width": 480,
+        "height": 451,
+        "bytes": 47386
+      },
+      {
+        "path": "website/optimized/4d4f81bf6f12bcc901bf-960.webp",
+        "width": 960,
+        "height": 903,
+        "bytes": 127562
+      },
+      {
+        "path": "website/optimized/456e91b86f1e7888fdba-1293.webp",
+        "width": 1293,
+        "height": 1216,
+        "bytes": 177022
+      }
+    ]
+  },
+  "website/images/9b78d4783ee0deb27fedc85b8cdedf832ebd87ae.jpg": {
+    "width": 736,
+    "height": 736,
+    "sourceBytes": 78143,
+    "sourceSha256": "f6019ae77e62bb7a2be4be1d4266cb62d6fb3b4823f0017aa581d376c4f71cb6",
+    "variants": [
+      {
+        "path": "website/optimized/19a00384f16a9fbe8ad0-480.webp",
+        "width": 480,
+        "height": 480,
+        "bytes": 45504
+      },
+      {
+        "path": "website/optimized/1faa56bcab1ce698b377-736.webp",
+        "width": 736,
+        "height": 736,
+        "bytes": 83080
+      }
+    ]
+  },
+  "website/images/Blog-details/Ellipse 58.png": {
+    "width": 80,
+    "height": 80,
+    "sourceBytes": 9672,
+    "sourceSha256": "1fed02386ff10ee78a7f357c358ddf78b935a7a0472176ce9f7a40738b26035d",
+    "variants": [
+      {
+        "path": "website/optimized/0a652a14b8f63ecac51f-80.webp",
+        "width": 80,
+        "height": 80,
+        "bytes": 6374
+      }
+    ]
+  },
+  "website/images/Blog-details/Rectangle 161125084.png": {
+    "width": 1050,
+    "height": 1288,
+    "sourceBytes": 2077523,
+    "sourceSha256": "a34c395797d2dc2da6bc8db78b8acaabd2d4a10642360914f8633d15fb401d5b",
+    "variants": [
+      {
+        "path": "website/optimized/9820c9980d5e0c45b671-480.webp",
+        "width": 480,
+        "height": 589,
+        "bytes": 41828
+      },
+      {
+        "path": "website/optimized/6a90f9349127e7e4544f-960.webp",
+        "width": 960,
+        "height": 1178,
+        "bytes": 126664
+      },
+      {
+        "path": "website/optimized/c147c8c068a3161ef8c4-1050.webp",
+        "width": 1050,
+        "height": 1288,
+        "bytes": 146772
+      }
+    ]
+  },
+  "website/images/Frames/09f5c0334805df864a95c3fbd49314ca3d5bdf7f.png": {
+    "width": 2500,
+    "height": 2500,
+    "sourceBytes": 2060394,
+    "sourceSha256": "8adf96eb144b47f7e92f8305303fdacf0944ac1cddc9aab5a127236707fdd42a",
+    "variants": [
+      {
+        "path": "website/optimized/6283f1e19915462fb908-80.webp",
+        "width": 80,
+        "height": 80,
+        "bytes": 5838
+      },
+      {
+        "path": "website/optimized/22ef9aab1a0a1cd20353-160.webp",
+        "width": 160,
+        "height": 160,
+        "bytes": 16670
+      },
+      {
+        "path": "website/optimized/282a7a34d678fd8cd554-240.webp",
+        "width": 240,
+        "height": 240,
+        "bytes": 30980
+      }
+    ]
+  },
+  "website/images/Frames/7e71ba0e8dfe7cabd816d0b74f7d9d39a1e09712.png": {
+    "width": 800,
+    "height": 800,
+    "sourceBytes": 373017,
+    "sourceSha256": "b48b66e32b631ee738a81c29a9904d43a0173af49b20bcf6a0286070bf03d74b",
+    "variants": [
+      {
+        "path": "website/optimized/eb33dacb4e4d42558a53-80.webp",
+        "width": 80,
+        "height": 80,
+        "bytes": 2658
+      },
+      {
+        "path": "website/optimized/794feace3c4b63474a2f-160.webp",
+        "width": 160,
+        "height": 160,
+        "bytes": 6558
+      },
+      {
+        "path": "website/optimized/3a8c9ee1330429e2250a-240.webp",
+        "width": 240,
+        "height": 240,
+        "bytes": 11618
+      }
+    ]
+  },
+  "website/images/Frames/c7f3505b4dd05596862621bb8aac977b1d93d17a.png": {
+    "width": 740,
+    "height": 740,
+    "sourceBytes": 875128,
+    "sourceSha256": "a184f0cb335cc339141daa365c7c465306039487823cb1744de8f2ef99156449",
+    "variants": [
+      {
+        "path": "website/optimized/b834c41964b42a8bc359-80.webp",
+        "width": 80,
+        "height": 80,
+        "bytes": 5028
+      },
+      {
+        "path": "website/optimized/7fd264ac7d2293f03ab9-160.webp",
+        "width": 160,
+        "height": 160,
+        "bytes": 14092
+      },
+      {
+        "path": "website/optimized/e211136c452fe3a22426-240.webp",
+        "width": 240,
+        "height": 240,
+        "bytes": 26534
+      }
+    ]
+  },
+  "website/images/Frames/da12cbdd41962b8137096d6f6e60746a9c586f60.png": {
+    "width": 740,
+    "height": 740,
+    "sourceBytes": 701124,
+    "sourceSha256": "991e63f9e7c5f4cbc597e6f3dc77fc32a488ec008163c890a8eaf28b7716d59c",
+    "variants": [
+      {
+        "path": "website/optimized/4d84a357afb73426f895-80.webp",
+        "width": 80,
+        "height": 80,
+        "bytes": 3836
+      },
+      {
+        "path": "website/optimized/b735619703a52b3662f8-160.webp",
+        "width": 160,
+        "height": 160,
+        "bytes": 10190
+      },
+      {
+        "path": "website/optimized/4b2a7eab2cb93894ebc1-240.webp",
+        "width": 240,
+        "height": 240,
+        "bytes": 19366
+      }
+    ]
+  },
+  "website/images/Frames/eca1011c9ab7e87855b5231f7c8f5c44a60fe8e0.png": {
+    "width": 360,
+    "height": 360,
+    "sourceBytes": 32737,
+    "sourceSha256": "188a7a4470218502f870deba42c683c937c350f9185e717a4972e7951c743de6",
+    "variants": [
+      {
+        "path": "website/optimized/a9645d34568640dc6102-80.webp",
+        "width": 80,
+        "height": 80,
+        "bytes": 4102
+      },
+      {
+        "path": "website/optimized/48f8a05a9e95384ab4cb-160.webp",
+        "width": 160,
+        "height": 160,
+        "bytes": 10312
+      },
+      {
+        "path": "website/optimized/2e7a181121f66cf2c864-240.webp",
+        "width": 240,
+        "height": 240,
+        "bytes": 18562
+      }
+    ]
+  },
+  "website/images/OBJECTS (1).png": {
+    "width": 216,
+    "height": 636,
+    "sourceBytes": 17503,
+    "sourceSha256": "c8169ea4e0319cea8c7a92d869f432c97266ecef0f597804409fb171692e08f3",
+    "variants": [
+      {
+        "path": "website/optimized/d29923b88d473e4e2491-216.webp",
+        "width": 216,
+        "height": 636,
+        "bytes": 7156
+      }
+    ]
+  },
+  "website/images/OBJECTS (2).png": {
+    "width": 545,
+    "height": 1270,
+    "sourceBytes": 36602,
+    "sourceSha256": "0b594a1126a86a138f0ce0c9ecb1944adf09497e5edc0ed861894963241c10b3",
+    "variants": [
+      {
+        "path": "website/optimized/7080363403984788b827-320.webp",
+        "width": 320,
+        "height": 746,
+        "bytes": 12172
+      },
+      {
+        "path": "website/optimized/8f504320eb2d04526c03-545.webp",
+        "width": 545,
+        "height": 1270,
+        "bytes": 13720
+      }
+    ]
+  },
+  "website/images/OBJECTS (3).png": {
+    "width": 540,
+    "height": 1203,
+    "sourceBytes": 36583,
+    "sourceSha256": "5c48cfbff96ee8ca32ea632e4f820e569fd21c601b9d1b2789339b672a6413bd",
+    "variants": [
+      {
+        "path": "website/optimized/49be4ff7f5140a3f077c-320.webp",
+        "width": 320,
+        "height": 713,
+        "bytes": 11858
+      },
+      {
+        "path": "website/optimized/76ae434b0eb42dc0e099-540.webp",
+        "width": 540,
+        "height": 1203,
+        "bytes": 13520
+      }
+    ]
+  },
+  "website/images/OBJECTS (4).png": {
+    "width": 216,
+    "height": 636,
+    "sourceBytes": 17500,
+    "sourceSha256": "8b24e050f5c0d3d79442d62e7e7032238f9a1ccff713d9fddad6053729410404",
+    "variants": [
+      {
+        "path": "website/optimized/fb2a0f02f2bf040d4c00-216.webp",
+        "width": 216,
+        "height": 636,
+        "bytes": 7158
+      }
+    ]
+  },
+  "website/images/OBJECTS.png": {
+    "width": 525,
+    "height": 1270,
+    "sourceBytes": 33748,
+    "sourceSha256": "e2cacbf23cf371e3b14d576774718821db263305b011be56ce999986540e750b",
+    "variants": [
+      {
+        "path": "website/optimized/e5945979d6c71cdddbdc-320.webp",
+        "width": 320,
+        "height": 774,
+        "bytes": 11960
+      },
+      {
+        "path": "website/optimized/5dce17bc8724f02e283c-525.webp",
+        "width": 525,
+        "height": 1270,
+        "bytes": 12714
+      }
+    ]
+  },
+  "website/images/about/enjoying-street-food-fest 1.png": {
+    "width": 2880,
+    "height": 1714,
+    "sourceBytes": 7960990,
+    "sourceSha256": "2d550ce04314335c848966347348dfe6ad9458e797da7f4262bf64d9e70025f0",
+    "variants": [
+      {
+        "path": "website/optimized/7ab3987c81f1f8a0c676-480.webp",
+        "width": 480,
+        "height": 286,
+        "bytes": 32302
+      },
+      {
+        "path": "website/optimized/7254943816ad50fd0883-960.webp",
+        "width": 960,
+        "height": 571,
+        "bytes": 89666
+      },
+      {
+        "path": "website/optimized/e521991494eba16d35ad-1600.webp",
+        "width": 1600,
+        "height": 952,
+        "bytes": 197870
+      },
+      {
+        "path": "website/optimized/304b052f39b540f3b332-2400.webp",
+        "width": 2400,
+        "height": 1428,
+        "bytes": 351676
+      }
+    ]
+  },
+  "website/images/about/girl.png": {
+    "width": 1290,
+    "height": 1018,
+    "sourceBytes": 1398699,
+    "sourceSha256": "dad0dcf4219a5a6a8797093dfdfc2977b5af3c0f80118e5244e58e990ebf3896",
+    "variants": [
+      {
+        "path": "website/optimized/632e2bd5c4c0d0dd603d-480.webp",
+        "width": 480,
+        "height": 379,
+        "bytes": 46500
+      },
+      {
+        "path": "website/optimized/86ba4d79afd573d1b7e7-960.webp",
+        "width": 960,
+        "height": 758,
+        "bytes": 136558
+      },
+      {
+        "path": "website/optimized/473e87436693592a4f38-1290.webp",
+        "width": 1290,
+        "height": 1018,
+        "bytes": 195642
+      }
+    ]
+  },
+  "website/images/about/plate-complete.png": {
+    "width": 1254,
+    "height": 1254,
+    "sourceBytes": 2545015,
+    "sourceSha256": "86aeadb07a51a789014558299af385f0273b5f50dd8db35ff84542a8147c5e2a",
+    "variants": [
+      {
+        "path": "website/optimized/a0442eb03fd226f7b82c-480.webp",
+        "width": 480,
+        "height": 480,
+        "bytes": 93176
+      },
+      {
+        "path": "website/optimized/5c1a3b4d5a6d700055d9-960.webp",
+        "width": 960,
+        "height": 960,
+        "bytes": 277746
+      },
+      {
+        "path": "website/optimized/7df14e5b5bde5de64425-1254.webp",
+        "width": 1254,
+        "height": 1254,
+        "bytes": 407946
+      }
+    ]
+  },
+  "website/images/dawat-wordmark.png": {
+    "width": 824,
+    "height": 234,
+    "sourceBytes": 16500,
+    "sourceSha256": "ad31c75aea0926bbe88192454573660840b7f72a02564caaa58ab84c91706efa",
+    "variants": [
+      {
+        "path": "website/optimized/0d058be3cdd54d4035ac-160.webp",
+        "width": 160,
+        "height": 45,
+        "bytes": 2106
+      },
+      {
+        "path": "website/optimized/3f38cb3ab04d195c2fbf-320.webp",
+        "width": 320,
+        "height": 91,
+        "bytes": 5040
+      },
+      {
+        "path": "website/optimized/186ca4c22f081303ee1f-640.webp",
+        "width": 640,
+        "height": 182,
+        "bytes": 11110
+      },
+      {
+        "path": "website/optimized/b571c41ea569960a1a84-824.webp",
+        "width": 824,
+        "height": 234,
+        "bytes": 8270
+      }
+    ]
+  },
+  "website/images/e4c902957ed634404076ae416d26b967b43bc0f4.jpg": {
+    "width": 4096,
+    "height": 2296,
+    "sourceBytes": 8256719,
+    "sourceSha256": "56be22fbe1caa516b31c92641b2e6b802bc7154f756baaab5bc088e8dcceeeef",
+    "variants": [
+      {
+        "path": "website/optimized/d9e78c1a6920a6c11d5c-480.webp",
+        "width": 480,
+        "height": 269,
+        "bytes": 31344
+      },
+      {
+        "path": "website/optimized/135074d53cb6afc9cb91-960.webp",
+        "width": 960,
+        "height": 538,
+        "bytes": 73002
+      },
+      {
+        "path": "website/optimized/8826af7aca6962ebb7b7-1600.webp",
+        "width": 1600,
+        "height": 897,
+        "bytes": 144626
+      },
+      {
+        "path": "website/optimized/02644ba577d392d57710-2400.webp",
+        "width": 2400,
+        "height": 1345,
+        "bytes": 240450
+      }
+    ]
+  },
+  "website/images/enjoying-street-food-fest 1 (1).png": {
+    "width": 2880,
+    "height": 1040,
+    "sourceBytes": 4726207,
+    "sourceSha256": "90336262c908aeaccb5e072a7bfc9a59c9a4a3da27f824c9c000ef17577ea60d",
+    "variants": [
+      {
+        "path": "website/optimized/875646407040d9cfd537-480.webp",
+        "width": 480,
+        "height": 173,
+        "bytes": 22856
+      },
+      {
+        "path": "website/optimized/6edfbdb23a4c570555e2-960.webp",
+        "width": 960,
+        "height": 347,
+        "bytes": 65150
+      },
+      {
+        "path": "website/optimized/af02303f11d1ab4ff84b-1600.webp",
+        "width": 1600,
+        "height": 578,
+        "bytes": 133970
+      },
+      {
+        "path": "website/optimized/175102ec3389c4dfbf2a-2400.webp",
+        "width": 2400,
+        "height": 867,
+        "bytes": 228816
+      }
+    ]
+  },
+  "website/images/enjoying-street-food-fest 1.png": {
+    "width": 2880,
+    "height": 1040,
+    "sourceBytes": 4769849,
+    "sourceSha256": "241f5151255e781f4bf858941b08e0fa7617c6459049016fdf4e274d5acd431a",
+    "variants": [
+      {
+        "path": "website/optimized/8f23857aa0e1b5ce5216-480.webp",
+        "width": 480,
+        "height": 173,
+        "bytes": 19810
+      },
+      {
+        "path": "website/optimized/55f050f8d86466e1b06d-960.webp",
+        "width": 960,
+        "height": 347,
+        "bytes": 49908
+      },
+      {
+        "path": "website/optimized/19f31fa733c18e4e56f0-1600.webp",
+        "width": 1600,
+        "height": 578,
+        "bytes": 104046
+      },
+      {
+        "path": "website/optimized/fa10c99c9027311d99a2-2400.webp",
+        "width": 2400,
+        "height": 867,
+        "bytes": 175626
+      }
+    ]
+  },
+  "website/images/enjoying-street-food-fest1.png": {
+    "width": 2880,
+    "height": 1040,
+    "sourceBytes": 4255005,
+    "sourceSha256": "da7e1177e9eabed05988a13a9c77a0f65cee6fcc115d99696ea523237f163a6b",
+    "variants": [
+      {
+        "path": "website/optimized/cedbcab047a8bd472705-480.webp",
+        "width": 480,
+        "height": 173,
+        "bytes": 17756
+      },
+      {
+        "path": "website/optimized/0a667b5733a7cc3242d8-960.webp",
+        "width": 960,
+        "height": 347,
+        "bytes": 49126
+      },
+      {
+        "path": "website/optimized/4e85be85aa56a9d170ce-1600.webp",
+        "width": 1600,
+        "height": 578,
+        "bytes": 100842
+      },
+      {
+        "path": "website/optimized/645b10f8451ad480d018-2400.webp",
+        "width": 2400,
+        "height": 867,
+        "bytes": 173640
+      }
+    ]
+  },
+  "website/images/restaurants/curry-house-comp.jpg": {
+    "width": 3456,
+    "height": 5184,
+    "sourceBytes": 1678223,
+    "sourceSha256": "9fdeb223a6bb53c7371e1fef0706d0febb8fc4ea4e939cf397152ccdf454218e",
+    "variants": [
+      {
+        "path": "website/optimized/e8ec187c4ced2a42c6b3-320.webp",
+        "width": 320,
+        "height": 480,
+        "bytes": 40370
+      },
+      {
+        "path": "website/optimized/8ec497be62cbb6b56c35-640.webp",
+        "width": 640,
+        "height": 960,
+        "bytes": 111028
+      },
+      {
+        "path": "website/optimized/4f4148d0fad281b53ed3-960.webp",
+        "width": 960,
+        "height": 1440,
+        "bytes": 205676
+      }
+    ]
+  },
+  "website/images/restaurants/flavor-garden-comp.jpg": {
+    "width": 4781,
+    "height": 3613,
+    "sourceBytes": 1291403,
+    "sourceSha256": "1f1fa6431d83970dfce33f8e1a8a007235b14166bab2c138f116f3aef4d3b7d4",
+    "variants": [
+      {
+        "path": "website/optimized/307d61e132cc9326147e-320.webp",
+        "width": 320,
+        "height": 242,
+        "bytes": 18916
+      },
+      {
+        "path": "website/optimized/39f168a510579fd47d58-640.webp",
+        "width": 640,
+        "height": 484,
+        "bytes": 48728
+      },
+      {
+        "path": "website/optimized/4d70ad38bf996be4bee0-960.webp",
+        "width": 960,
+        "height": 725,
+        "bytes": 84268
+      }
+    ]
+  },
+  "website/images/restaurants/masala-kitchen-comp.jpg": {
+    "width": 2488,
+    "height": 4416,
+    "sourceBytes": 950132,
+    "sourceSha256": "f4d4a6ea6648e99e03a15590fd3472eef65a19b3df800017409eb86b6ecf43fd",
+    "variants": [
+      {
+        "path": "website/optimized/95288d6c80e70a477cb4-320.webp",
+        "width": 320,
+        "height": 568,
+        "bytes": 26484
+      },
+      {
+        "path": "website/optimized/210a0c03555af1792b77-640.webp",
+        "width": 640,
+        "height": 1136,
+        "bytes": 68488
+      },
+      {
+        "path": "website/optimized/2cf4cc628b1b68a389e1-960.webp",
+        "width": 960,
+        "height": 1704,
+        "bytes": 152042
+      }
+    ]
+  },
+  "website/images/restaurants/royal-feast-comp.jpg": {
+    "width": 4000,
+    "height": 6000,
+    "sourceBytes": 2112446,
+    "sourceSha256": "88ef671671187b0ba45b958801ef552c03b1fa7e87fc19436ab4235684c4f46c",
+    "variants": [
+      {
+        "path": "website/optimized/b7a445a9def311df5c59-320.webp",
+        "width": 320,
+        "height": 480,
+        "bytes": 41634
+      },
+      {
+        "path": "website/optimized/8f70fbf69183d7430d52-640.webp",
+        "width": 640,
+        "height": 960,
+        "bytes": 103150
+      },
+      {
+        "path": "website/optimized/be1b5383a663ed413d47-960.webp",
+        "width": 960,
+        "height": 1440,
+        "bytes": 175490
+      }
+    ]
+  },
+  "website/images/restaurants/spice-palace-comp.jpg": {
+    "width": 2338,
+    "height": 3500,
+    "sourceBytes": 575691,
+    "sourceSha256": "098681c0664d1d7799b61b4279e264b87c9b0c6d6eb0ff2a8a6044b0f562266d",
+    "variants": [
+      {
+        "path": "website/optimized/79891152827e8c251fb9-320.webp",
+        "width": 320,
+        "height": 479,
+        "bytes": 37520
+      },
+      {
+        "path": "website/optimized/05cb900183d959e70d08-640.webp",
+        "width": 640,
+        "height": 958,
+        "bytes": 94784
+      },
+      {
+        "path": "website/optimized/749cef7d3376cb763500-960.webp",
+        "width": 960,
+        "height": 1437,
+        "bytes": 155632
+      }
+    ]
+  },
+  "website/images/restaurants/spice-symphony-comp.jpg": {
+    "width": 5464,
+    "height": 8192,
+    "sourceBytes": 2791755,
+    "sourceSha256": "ae365532212907100ccdc98eecdc00e2dcf3fa5213a4933e05036de48688959a",
+    "variants": [
+      {
+        "path": "website/optimized/31d2f664a0744d8334a8-320.webp",
+        "width": 320,
+        "height": 480,
+        "bytes": 25090
+      },
+      {
+        "path": "website/optimized/64d7b9152911fc7ad490-640.webp",
+        "width": 640,
+        "height": 960,
+        "bytes": 57582
+      },
+      {
+        "path": "website/optimized/511ea81b27fd92f3a535-960.webp",
+        "width": 960,
+        "height": 1439,
+        "bytes": 101284
+      }
+    ]
+  },
+  "website/images/restaurants/taj-flavors-comp.jpg": {
+    "width": 3456,
+    "height": 5184,
+    "sourceBytes": 1678223,
+    "sourceSha256": "9fdeb223a6bb53c7371e1fef0706d0febb8fc4ea4e939cf397152ccdf454218e",
+    "variants": [
+      {
+        "path": "website/optimized/e8ec187c4ced2a42c6b3-320.webp",
+        "width": 320,
+        "height": 480,
+        "bytes": 40370
+      },
+      {
+        "path": "website/optimized/8ec497be62cbb6b56c35-640.webp",
+        "width": 640,
+        "height": 960,
+        "bytes": 111028
+      },
+      {
+        "path": "website/optimized/4f4148d0fad281b53ed3-960.webp",
+        "width": 960,
+        "height": 1440,
+        "bytes": 205676
+      }
+    ]
+  },
+  "website/images/young-people-enjoying-street-food 1.png": {
+    "width": 1008,
+    "height": 1168,
+    "sourceBytes": 2068820,
+    "sourceSha256": "647963a0adcda88734c4b77f9221cd9c947fdac249837a4fd9c7bf24afe9f4f9",
+    "variants": [
+      {
+        "path": "website/optimized/d120f13285d811ff06cd-480.webp",
+        "width": 480,
+        "height": 556,
+        "bytes": 47824
+      },
+      {
+        "path": "website/optimized/dfc9b822be661b464916-960.webp",
+        "width": 960,
+        "height": 1112,
+        "bytes": 141770
+      },
+      {
+        "path": "website/optimized/b3dea961a667a87a14cb-1008.webp",
+        "width": 1008,
+        "height": 1168,
+        "bytes": 155314
+      }
+    ]
+  },
+  "website/two-vibrant-red-pepper-slices-revealing-seeds-and-a-fleshy-interior-against-white-photo 2.png": {
+    "width": 338,
+    "height": 454,
+    "sourceBytes": 160389,
+    "sourceSha256": "ba9d3afe2e2f9094b7ff9f822f2b4ebd1b660d3f90f34876320d8aad7f64f92a",
+    "variants": [
+      {
+        "path": "website/optimized/85ac487b85eaccb8e97a-338.webp",
+        "width": 338,
+        "height": 454,
+        "bytes": 27598
+      }
+    ]
+  }
+}

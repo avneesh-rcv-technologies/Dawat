@@ -39,7 +39,7 @@ class MobileCmsGrid extends DataGrid
 
         $this->addColumn([
             'index' => 'name',
-            'label' => 'Name',
+            'label' => 'Title',
             'type' => 'string',
             'searchable' => true,
             'filterable' => true,
@@ -47,20 +47,8 @@ class MobileCmsGrid extends DataGrid
         ]);
 
         $this->addColumn([
-            'index' => 'page_title',
-            'label' => 'CMS Page',
-            'type' => 'string',
-            'searchable' => true,
-            'filterable' => false,
-            'sortable' => true,
-            'closure' => function ($row) {
-                return $row->page_title ?: 'Page not found';
-            },
-        ]);
-
-        $this->addColumn([
             'index' => 'page_slug',
-            'label' => 'Page Slug',
+            'label' => 'Slug',
             'type' => 'string',
             'searchable' => true,
             'filterable' => false,
@@ -161,7 +149,7 @@ class MobileCmsGrid extends DataGrid
         if (bouncer(\Illuminate\Support\Facades\Auth::getDefaultDriver())->hasPermission('mobileconfiguration.cms.create')) {
             $this->addMassAction([
                 'icon' => 'add',
-                'title' => 'Create Mobile CMS',
+                'title' => 'Create Page',
 
                 'method' => 'GET',
                 'action' => 'text-white bg-blue-500',

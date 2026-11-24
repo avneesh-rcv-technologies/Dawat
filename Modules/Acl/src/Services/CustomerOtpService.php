@@ -267,7 +267,11 @@ class CustomerOtpService
 
     protected function generateOtp(): string
     {
-        return '1234';
+        $length = max(4, $this->otpLength);
+        $min = (int) str_repeat('1', $length - 1);
+        $max = (int) str_repeat('9', $length);
+
+        return (string) random_int($min, $max);
     }
 
     protected function normalizePhone(string $phone): string

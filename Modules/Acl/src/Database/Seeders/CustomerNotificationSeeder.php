@@ -7,6 +7,7 @@ use Modules\Notifications\Models\NotificationEvent;
 use Modules\Notifications\Models\NotificationChannel;
 use Modules\Notifications\Models\NotificationMapping;
 use Modules\EmailNotification\Models\NotificationTemplate as EmailTemplate;
+use Modules\EmailNotification\Support\DawatEmail;
 use Modules\WebPushNotification\Models\NotificationTemplate as WebPushTemplate;
 
 class CustomerNotificationSeeder extends Seeder
@@ -17,6 +18,7 @@ class CustomerNotificationSeeder extends Seeder
         $customerCreatedEvent = NotificationEvent::updateOrCreate(
             ['event_code' => 'customer_created'],
             [
+                'notification_class' => \Modules\Acl\Notifications\CustomerCreatedNotification::class,
                 'event_name' => 'Customer Created',
                 'event_description' => 'Triggered when a new customer account is created',
             ]
@@ -25,6 +27,7 @@ class CustomerNotificationSeeder extends Seeder
         $customerRegisteredEvent = NotificationEvent::updateOrCreate(
             ['event_code' => 'customer_registered'],
             [
+                'notification_class' => \Modules\Acl\Notifications\CustomerRegisteredNotification::class,
                 'event_name' => 'Customer Registered',
                 'event_description' => 'Triggered when customer completes registration',
             ]
@@ -33,6 +36,7 @@ class CustomerNotificationSeeder extends Seeder
         $customerProfileUpdatedEvent = NotificationEvent::updateOrCreate(
             ['event_code' => 'customer_profile_updated'],
             [
+                'notification_class' => \Modules\Acl\Notifications\CustomerProfileUpdatedNotification::class,
                 'event_name' => 'Customer Profile Updated',
                 'event_description' => 'Triggered when customer updates their profile',
             ]
@@ -40,7 +44,7 @@ class CustomerNotificationSeeder extends Seeder
 
         // Create Email Templates
         $customerCreatedEmailTemplate = EmailTemplate::updateOrCreate(
-            ['name' => 'customer_created'],
+            ['name' => 'customer_created', 'locale' => 'en'],
             [
                 'subject' => 'Welcome to {{app_name}}!',
                 'content' => $this->getCustomerCreatedEmailTemplate(),
@@ -50,7 +54,7 @@ class CustomerNotificationSeeder extends Seeder
         );
 
         $customerRegisteredEmailTemplate = EmailTemplate::updateOrCreate(
-            ['name' => 'customer_registered'],
+            ['name' => 'customer_registered', 'locale' => 'en'],
             [
                 'subject' => 'Account Registration Successful',
                 'content' => $this->getCustomerRegisteredEmailTemplate(),
@@ -60,7 +64,7 @@ class CustomerNotificationSeeder extends Seeder
         );
 
         $customerProfileUpdatedEmailTemplate = EmailTemplate::updateOrCreate(
-            ['name' => 'customer_profile_updated'],
+            ['name' => 'customer_profile_updated', 'locale' => 'en'],
             [
                 'subject' => 'Profile Update Confirmation',
                 'content' => $this->getCustomerProfileUpdatedEmailTemplate(),
@@ -75,10 +79,10 @@ class CustomerNotificationSeeder extends Seeder
             [
                 'subject' => 'Welcome!',
                 'body' => 'Welcome to {{app_name}}, {{customer_name}}! Start exploring now.',
-                'variables' => json_encode([
+                'variables' => [
                     'app_name' => 'Application name',
                     'customer_name' => 'Customer name',
-                ]),
+                ],
                 'is_active' => true,
             ]
         );
@@ -88,9 +92,9 @@ class CustomerNotificationSeeder extends Seeder
             [
                 'subject' => 'Registration Complete',
                 'body' => 'Your account has been successfully created. Start ordering now!',
-                'variables' => json_encode([
+                'variables' => [
                     'customer_name' => 'Customer name',
-                ]),
+                ],
                 'is_active' => true,
             ]
         );
@@ -100,9 +104,9 @@ class CustomerNotificationSeeder extends Seeder
             [
                 'subject' => 'Profile Updated',
                 'body' => 'Your profile has been updated successfully.',
-                'variables' => json_encode([
+                'variables' => [
                     'customer_name' => 'Customer name',
-                ]),
+                ],
                 'is_active' => true,
             ]
         );
@@ -121,10 +125,10 @@ class CustomerNotificationSeeder extends Seeder
                 [
                     'template_id' => (string)$customerCreatedEmailTemplate->id,
                     'priority' => 1,
-                    'custom_config' => json_encode([
+                    'recipients' => [
                         'notify_customer' => true,
                         'notify_admin' => true,
-                    ]),
+                    ],
                 ]
             );
         }
@@ -138,9 +142,9 @@ class CustomerNotificationSeeder extends Seeder
                 [
                     'template_id' => (string)$customerCreatedPushTemplate->id,
                     'priority' => 2,
-                    'custom_config' => json_encode([
+                    'recipients' => [
                         'notify_customer' => true,
-                    ]),
+                    ],
                 ]
             );
         }
@@ -155,9 +159,9 @@ class CustomerNotificationSeeder extends Seeder
                 [
                     'template_id' => (string)$customerRegisteredEmailTemplate->id,
                     'priority' => 1,
-                    'custom_config' => json_encode([
+                    'recipients' => [
                         'notify_customer' => true,
-                    ]),
+                    ],
                 ]
             );
         }
@@ -171,9 +175,9 @@ class CustomerNotificationSeeder extends Seeder
                 [
                     'template_id' => (string)$customerRegisteredPushTemplate->id,
                     'priority' => 2,
-                    'custom_config' => json_encode([
+                    'recipients' => [
                         'notify_customer' => true,
-                    ]),
+                    ],
                 ]
             );
         }
@@ -188,9 +192,9 @@ class CustomerNotificationSeeder extends Seeder
                 [
                     'template_id' => (string)$customerProfileUpdatedEmailTemplate->id,
                     'priority' => 1,
-                    'custom_config' => json_encode([
+                    'recipients' => [
                         'notify_customer' => true,
-                    ]),
+                    ],
                 ]
             );
         }
@@ -204,9 +208,9 @@ class CustomerNotificationSeeder extends Seeder
                 [
                     'template_id' => (string)$customerProfileUpdatedPushTemplate->id,
                     'priority' => 2,
-                    'custom_config' => json_encode([
+                    'recipients' => [
                         'notify_customer' => true,
-                    ]),
+                    ],
                 ]
             );
         }
@@ -214,121 +218,70 @@ class CustomerNotificationSeeder extends Seeder
 
     private function getCustomerCreatedEmailTemplate(): string
     {
-        return <<<'HTML'
-<html>
-<body style="font-family: Arial, sans-serif; color: #333;">
-    <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
-        <h2 style="color: #007bff;">Welcome to {{app_name}}!</h2>
-        <p>Dear {{customer_name}},</p>
-        <p>Thank you for creating an account with us. We're excited to have you on board!</p>
-        
-        <h3 style="color: #007bff; border-bottom: 2px solid #007bff; padding-bottom: 10px;">Account Details</h3>
-        <table style="width: 100%; margin: 20px 0;">
-            <tr>
-                <td style="padding: 8px;"><strong>Email:</strong></td>
-                <td style="padding: 8px;">{{customer_email}}</td>
-            </tr>
-            <tr style="background-color: #f9f9f9;">
-                <td style="padding: 8px;"><strong>Account Created:</strong></td>
-                <td style="padding: 8px;">{{created_date}}</td>
-            </tr>
-        </table>
-
-        <h3 style="color: #007bff; border-bottom: 2px solid #007bff; padding-bottom: 10px;">What's Next?</h3>
-        <ul style="line-height: 1.8;">
-            <li>Complete your profile information</li>
-            <li>Add delivery addresses</li>
-            <li>Browse restaurants and place your first order</li>
-            <li>Enjoy exclusive offers and rewards</li>
-        </ul>
-
-        <div style="margin-top: 30px; text-align: center;">
-            <a href="{{app_url}}" style="background-color: #007bff; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block;">Start Exploring</a>
-        </div>
-        
-        <p style="margin-top: 30px; color: #666; font-size: 12px;">
-            Best regards,<br>
-            {{app_name}} Team
-        </p>
-    </div>
-</body>
-</html>
-HTML;
+        return DawatEmail::render([
+            'title' => 'Welcome to Dawat',
+            'preheader' => 'Your Dawat account is ready. Start exploring restaurants near you.',
+            'badge' => 'WELCOME',
+            'headline' => 'Welcome<br>to the table',
+            'greeting' => 'Hello {{customer_name}},',
+            'intro' => "Thank you for creating an account with us. We're excited to have you on board!",
+            'blocks' => [
+                DawatEmail::details('Account details', [
+                    'Email' => '{{customer_email}}',
+                    'Account created' => '{{created_date}}',
+                ]),
+                DawatEmail::list("What's next?", [
+                    'Complete your profile information',
+                    'Add your delivery addresses',
+                    'Browse restaurants and place your first order',
+                    'Enjoy exclusive offers and rewards',
+                ]),
+            ],
+            'buttons' => [DawatEmail::button('Start exploring', '{{app_url}}')],
+            'footer' => 'You received this email because an account was created for you on Dawat.',
+        ]);
     }
 
     private function getCustomerRegisteredEmailTemplate(): string
     {
-        return <<<'HTML'
-<html>
-<body style="font-family: Arial, sans-serif; color: #333;">
-    <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
-        <h2 style="color: #007bff;">Registration Successful!</h2>
-        <p>Dear {{customer_name}},</p>
-        <p>Your account registration is now complete. You can now place orders and enjoy our services.</p>
-        
-        <h3 style="color: #007bff; border-bottom: 2px solid #007bff; padding-bottom: 10px;">Account Information</h3>
-        <table style="width: 100%; margin: 20px 0; border-collapse: collapse;">
-            <tr style="background-color: #f9f9f9;">
-                <td style="padding: 12px; border-bottom: 1px solid #ddd;"><strong>Name:</strong></td>
-                <td style="padding: 12px; border-bottom: 1px solid #ddd;">{{customer_name}}</td>
-            </tr>
-            <tr>
-                <td style="padding: 12px; border-bottom: 1px solid #ddd;"><strong>Email:</strong></td>
-                <td style="padding: 12px; border-bottom: 1px solid #ddd;">{{customer_email}}</td>
-            </tr>
-            <tr style="background-color: #f9f9f9;">
-                <td style="padding: 12px;"><strong>Phone:</strong></td>
-                <td style="padding: 12px;">{{customer_phone}}</td>
-            </tr>
-        </table>
-        
-        <div style="margin-top: 30px; text-align: center;">
-            <a href="{{profile_link}}" style="background-color: #007bff; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block;">View Profile</a>
-        </div>
-        
-        <p style="margin-top: 30px; color: #666; font-size: 12px;">
-            Best regards,<br>
-            {{app_name}} Team
-        </p>
-    </div>
-</body>
-</html>
-HTML;
+        return DawatEmail::render([
+            'title' => 'Registration successful — Dawat',
+            'preheader' => 'Your Dawat account registration is complete.',
+            'badge' => 'REGISTRATION COMPLETE',
+            'headline' => "You're all set",
+            'dot' => true,
+            'greeting' => 'Hello {{customer_name}},',
+            'intro' => 'Your account registration is complete. You can now place orders and enjoy our services.',
+            'blocks' => [
+                DawatEmail::details('Account information', [
+                    'Name' => '{{customer_name}}',
+                    'Email' => '{{customer_email}}',
+                    'Phone' => '{{customer_phone}}',
+                ]),
+            ],
+            'buttons' => [DawatEmail::button('View profile', '{{profile_link}}')],
+            'footer' => 'You received this email because you registered an account on Dawat.',
+        ]);
     }
 
     private function getCustomerProfileUpdatedEmailTemplate(): string
     {
-        return <<<'HTML'
-<html>
-<body style="font-family: Arial, sans-serif; color: #333;">
-    <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
-        <h2 style="color: #007bff;">Profile Update Confirmation</h2>
-        <p>Dear {{customer_name}},</p>
-        <p>Your profile has been successfully updated.</p>
-        
-        <h3 style="color: #007bff; border-bottom: 2px solid #007bff; padding-bottom: 10px;">Updated Information</h3>
-        <table style="width: 100%; margin: 20px 0; border-collapse: collapse;">
-            <tr style="background-color: #f9f9f9;">
-                <td style="padding: 12px; border-bottom: 1px solid #ddd;"><strong>Update Time:</strong></td>
-                <td style="padding: 12px; border-bottom: 1px solid #ddd;">{{updated_date}}</td>
-            </tr>
-            <tr>
-                <td style="padding: 12px;"><strong>Status:</strong></td>
-                <td style="padding: 12px; color: #28a745; font-weight: bold;">Updated Successfully</td>
-            </tr>
-        </table>
-        
-        <div style="margin-top: 30px; text-align: center;">
-            <a href="{{profile_link}}" style="background-color: #007bff; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block;">View Profile</a>
-        </div>
-        
-        <p style="margin-top: 30px; color: #666; font-size: 12px;">
-            Best regards,<br>
-            {{app_name}} Team
-        </p>
-    </div>
-</body>
-</html>
-HTML;
+        return DawatEmail::render([
+            'title' => 'Profile updated — Dawat',
+            'preheader' => 'Your Dawat profile was updated on {{updated_date}}.',
+            'badge' => 'PROFILE UPDATED',
+            'headline' => 'Your profile<br>was updated',
+            'greeting' => 'Hello {{customer_name}},',
+            'intro' => 'Your profile has been updated successfully.',
+            'blocks' => [
+                DawatEmail::details('Update details', [
+                    'Updated on' => '{{updated_date}}',
+                    'Status' => 'Updated successfully',
+                ]),
+                DawatEmail::callout("Didn't make this change?", 'If you did not update your profile, please change your password and contact support right away.'),
+            ],
+            'buttons' => [DawatEmail::button('View profile', '{{profile_link}}')],
+            'footer' => 'You received this email because your Dawat profile was changed.',
+        ]);
     }
 }

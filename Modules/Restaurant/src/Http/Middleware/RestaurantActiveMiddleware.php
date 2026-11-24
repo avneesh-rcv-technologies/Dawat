@@ -167,6 +167,8 @@ class RestaurantActiveMiddleware
         |--------------------------------------------------------------------------
         */
 
+
+
         switch ($onboardingStatus) {
 
             /*

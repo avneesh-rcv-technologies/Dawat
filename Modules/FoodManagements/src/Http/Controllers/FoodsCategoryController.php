@@ -50,7 +50,7 @@ class FoodsCategoryController extends Controller
     public function create()
     {
         $currentAdmin = auth('admin')->user();
-        $isRestaurantAdmin = $currentAdmin->role_id == 2;
+        $isRestaurantAdmin = app(\Modules\Restaurant\Services\RestaurantOwnerRoleResolver::class)->isOwner($currentAdmin);
 
         // Check if coming from restaurant context
         $restaurantContext = session('category_restaurant_id');
@@ -93,7 +93,7 @@ class FoodsCategoryController extends Controller
     {
         $category = $this->service->find($id);
         $currentAdmin = auth('admin')->user();
-        $isRestaurantAdmin = $currentAdmin->role_id == 2;
+        $isRestaurantAdmin = app(\Modules\Restaurant\Services\RestaurantOwnerRoleResolver::class)->isOwner($currentAdmin);
 
         // Check if coming from restaurant context
         $restaurantContext = session('category_restaurant_id');
@@ -183,7 +183,7 @@ class FoodsCategoryController extends Controller
         $currentAdmin = auth('admin')->user();
 
         // Resolve the restaurant before checking uniqueness or saving the category.
-        if ($currentAdmin->role_id == 2) {
+        if (app(\Modules\Restaurant\Services\RestaurantOwnerRoleResolver::class)->isOwner($currentAdmin)) {
             $input['restaurant_id'] = Restaurant::where('admin_id', $currentAdmin->id)->value('id');
         } else {
             $input['restaurant_id'] = session('category_restaurant_id') ?? ($input['restaurant_id'] ?? null);
@@ -202,14 +202,8 @@ class FoodsCategoryController extends Controller
                     ->where(fn ($query) => $query->where('restaurant_id', $restaurantId))
                     ->ignore($id),
             ],
-            'slug'          => [
-                'nullable', 'string', 'max:255',
-                Rule::unique('food_categories', 'slug')
-                    ->where(fn ($query) => $query->where('restaurant_id', $restaurantId))
-                    ->ignore($id),
-            ],
             'description'   => 'nullable|string|max:255',
-            'food_type'     => 'required|in:all,veg,non_veg,vegan',
+            'food_type'     => 'nullable|in:all,veg,non_veg,vegan',
             'parent_id'     => 'nullable|exists:food_categories,id',
             'status'        => 'nullable|boolean',
             'category_image' => 'nullable|file|image|mimes:jpg,jpeg,png|max:2048',

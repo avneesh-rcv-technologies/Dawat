@@ -11,7 +11,7 @@
 
     {{-- Image Container (272px x 270px) --}}
     <div class="relative w-full h-[128px] sm:h-[270px] rounded-[9px] sm:rounded-[16px] overflow-hidden bg-[#EDE8DF]">
-        <img src="{{ $image }}"
+        <img {!! \Modules\Website\Support\WebsiteImages::attributes($image, '(min-width: 640px) 272px, 42vw', 640) !!}
              alt="{{ $name }}"
              class="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
              loading="lazy"

@@ -7,8 +7,6 @@ use Modules\Cms\Listeners\RegisterMenuItems;
 use Modules\Cms\Listeners\RegisterAdminPermissions;
 use Modules\Core\Events\RegisterMenu;
 use Modules\Core\Events\RegisterPermissions;
-use Modules\Cms\Listeners\RegisterCmsSettings;
-use Modules\Core\Events\RegisterSettingsMenu;
 class CmsEventServiceProvider extends ServiceProvider
 {
     /**
@@ -22,9 +20,6 @@ class CmsEventServiceProvider extends ServiceProvider
         ],
         RegisterPermissions::class => [
             RegisterAdminPermissions::class,
-        ],
-        RegisterSettingsMenu::class => [
-            RegisterCmsSettings::class,
         ],
     ];
 

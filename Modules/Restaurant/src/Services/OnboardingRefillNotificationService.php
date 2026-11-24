@@ -40,8 +40,8 @@ class OnboardingRefillNotificationService
                 'restaurant_name' => $restaurant?->name ?? $owner->name,
                 'restaurant_id' => $restaurant?->id ?? 0, 'owner_name' => $owner->name,
                 'step_name' => $step->label(), 'document_name' => $document ?? 'All details in this step',
-                'reason' => $reason, 'requested_at' => now()->format('M d, Y h:i A'),
-                'correction_url' => $restaurant ? route('restaurant.onboarding.kyc', ['step' => $step->value]) : route('admin.login.form'),
+                'reason' => $reason, 'requested_at' => now()->format('M d, Y h:i A T'),
+                'correction_url' => $restaurant ? route('restaurant.onboarding.kyc', ['step' => $step->value]) : route('website.partner-login'),
             ]);
             if (!$sent) Log::warning('Unable to dispatch onboarding refill request notification.', ['owner_id' => $owner->id, 'step' => $step->value]);
         } catch (\Throwable $exception) {

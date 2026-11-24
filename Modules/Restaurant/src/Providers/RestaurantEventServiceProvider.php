@@ -12,6 +12,9 @@ class RestaurantEventServiceProvider extends ServiceProvider
      * @var array
      */
     protected $listen = [
+        \Modules\Core\Events\RegisterSettingsMenu::class => [
+            \Modules\Restaurant\Listeners\Settings::class,
+        ],
         \Modules\Core\Events\RegisterMenu::class => [
             \Modules\Restaurant\Listeners\RegisterMenuItems::class,
         ],
@@ -27,4 +30,4 @@ class RestaurantEventServiceProvider extends ServiceProvider
     {
         parent::boot();
     }
-} 
+}

@@ -35,6 +35,18 @@ class KycSubmissionController extends Controller
     public function index(Request $request)
     {
         try {
+            $actor = $request->user('admin');
+            $ownerOnly = app(\Modules\Restaurant\Services\RestaurantApprovalAccess::class)->isOwner($actor);
+
+            if ($ownerOnly) {
+                $submission = \Modules\KYC\Models\KycSubmission::where('user_id', $actor->id)
+                    ->orderByDesc('created_at')->orderByDesc('id')->first();
+
+                return $submission
+                    ? redirect()->route('admin.kyc.submissions.show', $submission->id)
+                    : view('kyc::admin.submissions.empty');
+            }
+
             if ($request->has('user_id')) {
                 $firstSubmission = \Modules\KYC\Models\KycSubmission::where('user_id', $request->user_id)
                     ->orderBy('created_at', 'desc')
@@ -51,8 +63,6 @@ class KycSubmissionController extends Controller
             }
 
             $lists = $grid->process();
-            $actor = $request->user('admin');
-            $ownerOnly = app(\Modules\Restaurant\Services\RestaurantApprovalAccess::class)->isOwner($actor);
             $statistics = $this->submissionService->getStatistics($ownerOnly ? ['user_id' => $actor->id] : []);
 
             if ($request->ajax()) {
@@ -340,6 +350,7 @@ class KycSubmissionController extends Controller
     public function addMessage(Request $request, $id)
     {
         try {
+            $request->merge(['message' => is_string($request->input('message')) ? trim($request->input('message')) : $request->input('message')]);
             $request->validate([
                 'message' => 'required|string|max:1000'
             ]);
@@ -370,7 +381,9 @@ class KycSubmissionController extends Controller
 
             // Send notification
             try {
-                $this->notificationService->sendNewMessageNotification($submission, $message);
+                if ((int) $submission->user_id !== (int) $adminId) {
+                    $this->notificationService->sendNewMessageNotification($submission, $message);
+                }
             } catch (Exception $notificationError) {
                 // Log notification error but don't fail the message creation
                 \Log::warning('Failed to send message notification', [

@@ -7,6 +7,7 @@ use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Modules\Acl\Models\Admin;
 use Illuminate\Validation\Rule;
+use Modules\Restaurant\Support\PlatformCommission;
 
 class BankingDetailsRequest extends FormRequest
 {
@@ -42,6 +43,7 @@ class BankingDetailsRequest extends FormRequest
             'state_id' => [...$required, 'integer', Rule::exists('country_states', 'id')],
             'city_id' => [...$required, 'integer', Rule::exists('cities', 'id')],
             'postal_code' => [...$required, 'string', 'max:20'],
+            PlatformCommission::INPUT => ['required', 'accepted'],
             'restaurant_id' => ['prohibited'],
             'admin_id' => ['prohibited'],
             'city' => ['prohibited'],
@@ -70,6 +72,8 @@ class BankingDetailsRequest extends FormRequest
             'city_id.required' => 'Please select a city.',
             'city_id.exists' => 'Please select a valid city.',
             'postal_code.required' => 'Please enter your zip or postal code.',
+            PlatformCommission::INPUT . '.required' => 'Please agree to the platform commission to continue.',
+            PlatformCommission::INPUT . '.accepted' => 'Please agree to the platform commission to continue.',
         ];
     }
 

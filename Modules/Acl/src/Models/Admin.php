@@ -70,14 +70,14 @@ class Admin extends Authenticatable
     }
 
     /**
-     * Accessor to get formatted avatar data via FileService (uses object type 'avatar').
+     * Accessor to get formatted avatar data via FileService (uses private object type 'admin_avatar').
      * Returns array from FileService::getFile() or null.
      */
     public function getAvatarAttribute()
     {
         try {
             $fileService = app(\Modules\Filemanager\Services\FileService::class);
-            $data = $fileService->getFile('avatar', $this->id);
+            $data = $fileService->getFile('admin_avatar', $this->id);
             return $data ?: null;
         } catch (\Throwable $e) {
             return null;

@@ -1,0 +1,831 @@
+{
+  "version": 1,
+  "name": "Food item serving options",
+  "scope": "One configuration applied independently to each serving_options row.",
+  "default_serve_type": "tray",
+  "collection": {
+    "field": "serving_options",
+    "validation": [
+      "required",
+      "array",
+      "min:1",
+      "max:50"
+    ],
+    "item_validation": [
+      "required",
+      "array:id,serve_type,serving_name,quantity,unit,serves,price,discount_price,is_available,min_guests,max_guests"
+    ],
+    "id": {
+      "input": "hidden",
+      "validation": [
+        "nullable",
+        "integer",
+        "distinct"
+      ],
+      "ownership": "Existing option ID must belong to the food item being edited."
+    },
+    "min_items": 1,
+    "max_items": 50
+  },
+  "resolution": {
+    "validation_format": "Laravel validation rules. Wildcards refer to the same serving option row.",
+    "enabled_fields": "Show and enable only the fields listed for the selected serve type.",
+    "disabled_fields": "Hide, disable, and exclude these fields from validation and submission.",
+    "validation": "Use fields[field].validation and replace it with serve_types[type].validation_overrides[field] when present. Never validate disabled fields.",
+    "required_fields": "Apply required only to the fields listed for the selected serve type.",
+    "labels": "Use type-specific field_labels when present, otherwise fields[field].label.",
+    "unit_changes": "Only allow units listed for the selected serve type; apply unit_fields[unit] to quantity.",
+    "cross_field_validation": "Revalidate discount_price when price changes and max_guests when min_guests changes."
+  },
+  "on_change": {
+    "serve_type": [
+      "Resolve configuration for the selected type; reject unknown types.",
+      "Update visible, enabled, and required fields for this row.",
+      "Remove validation errors for disabled fields.",
+      "Replace unit options with allowed_units.",
+      "Keep the current unit if allowed; otherwise select defaults.unit.",
+      "Apply type-specific field labels and validation overrides.",
+      "Apply unit-specific quantity settings when quantity is enabled.",
+      "Revalidate enabled fields and refresh the price summary."
+    ],
+    "unit": [
+      "Reject units not allowed by the selected serve type.",
+      "Update quantity label, step, and validation from unit_fields.",
+      "Revalidate quantity without converting or replacing its entered value."
+    ],
+    "price": [
+      "Revalidate discount_price and refresh the price summary."
+    ],
+    "discount_price": [
+      "Refresh the price summary."
+    ],
+    "min_guests": [
+      "Revalidate max_guests."
+    ]
+  },
+  "fields": {
+    "serve_type": {
+      "label": "Serve type",
+      "input": "select",
+      "validation": [
+        "required",
+        "in:tray,plate,bowl,box,portion,piece,by_weight,by_volume,per_person,package"
+      ],
+      "help": "Choose how this option is sold. Use the serving name for sizes such as Half tray or Family box."
+    },
+    "serving_name": {
+      "label": "Serving name",
+      "input": "text",
+      "validation": [
+        "required",
+        "string",
+        "max:100"
+      ],
+      "help": "Name customers will see, e.g. Half tray, Large bowl, or Family box.",
+      "placeholder": "e.g. Standard"
+    },
+    "quantity": {
+      "label": "Size (quantity)",
+      "input": "number",
+      "step": 0.01,
+      "min": 0.01,
+      "max": 99999999.99,
+      "validation": [
+        "required",
+        "numeric",
+        "decimal:0,2",
+        "gt:0",
+        "max:99999999.99"
+      ],
+      "help": "Amount included in one option. Example: 15 with Pieces means 15 pieces."
+    },
+    "unit": {
+      "label": "Unit",
+      "input": "select",
+      "validation": [
+        "required",
+        "string",
+        "max:30"
+      ],
+      "options_source": "serve_types.{serve_type}.allowed_units",
+      "help": "Choose a unit matching this serving option."
+    },
+    "serves": {
+      "label": "Number of serves",
+      "input": "number",
+      "step": 1,
+      "min": 1,
+      "max": 4294967295,
+      "validation": [
+        "required",
+        "integer",
+        "min:1",
+        "max:4294967295"
+      ],
+      "help": "Number of people one purchased option feeds. Enter 1 for an individual serving."
+    },
+    "min_guests": {
+      "label": "Minimum guests",
+      "input": "number",
+      "step": 1,
+      "min": 1,
+      "max": 4294967295,
+      "validation": [
+        "required",
+        "integer",
+        "min:1",
+        "max:4294967295"
+      ],
+      "help": "Smallest guest count accepted for this option, e.g. 10 people."
+    },
+    "max_guests": {
+      "label": "Maximum guests",
+      "input": "number",
+      "step": 1,
+      "min": 1,
+      "max": 4294967295,
+      "validation": [
+        "nullable",
+        "integer",
+        "gte:serving_options.*.min_guests",
+        "max:4294967295"
+      ],
+      "help": "Largest guest count accepted. Leave empty for no limit; must be at least the minimum."
+    },
+    "price": {
+      "label": "Price for this size",
+      "input": "number",
+      "step": 0.01,
+      "min": 0,
+      "max": 99999999.99,
+      "validation": [
+        "required",
+        "numeric",
+        "decimal:0,2",
+        "min:0",
+        "max:99999999.99"
+      ],
+      "help": "Total price for this size before tax. Tax is added using the item tax percentage.",
+      "placeholder": "0.00"
+    },
+    "discount_price": {
+      "label": "Discount price",
+      "input": "number",
+      "step": 0.01,
+      "min": 0,
+      "validation": [
+        "nullable",
+        "numeric",
+        "decimal:0,2",
+        "min:0",
+        "lt:serving_options.*.price"
+      ],
+      "help": "Optional reduced price before tax, not the amount off. Must be lower than price; leave blank for no discount.",
+      "placeholder": "0.00"
+    },
+    "is_available": {
+      "label": "Available",
+      "input": "checkbox",
+      "default": true,
+      "validation": [
+        "required",
+        "boolean"
+      ],
+      "help": "Uncheck to temporarily stop offering this option while keeping its details."
+    }
+  },
+  "serve_types": {
+    "tray": {
+      "label": "Tray",
+      "enabled_fields": [
+        "serve_type",
+        "serving_name",
+        "price",
+        "discount_price",
+        "is_available",
+        "quantity",
+        "unit",
+        "serves"
+      ],
+      "required_fields": [
+        "serve_type",
+        "serving_name",
+        "price",
+        "is_available",
+        "quantity",
+        "unit",
+        "serves"
+      ],
+      "disabled_fields": [
+        "min_guests",
+        "max_guests"
+      ],
+      "allowed_units": [
+        "Trays",
+        "Pieces"
+      ],
+      "defaults": {
+        "unit": "Trays"
+      },
+      "field_labels": {
+        "serving_name": "Serving name",
+        "price": "Price for this size"
+      },
+      "validation_overrides": {
+        "unit": [
+          "required",
+          "string",
+          "max:30",
+          "in:Trays,Pieces"
+        ]
+      },
+      "pricing_basis": "per_option",
+      "help": "Tray: set the amount included in one option and its total price before tax. Add another option for a different size.",
+      "field_help": {}
+    },
+    "plate": {
+      "label": "Plate",
+      "enabled_fields": [
+        "serve_type",
+        "serving_name",
+        "price",
+        "discount_price",
+        "is_available",
+        "quantity",
+        "unit",
+        "serves"
+      ],
+      "required_fields": [
+        "serve_type",
+        "serving_name",
+        "price",
+        "is_available",
+        "quantity",
+        "unit",
+        "serves"
+      ],
+      "disabled_fields": [
+        "min_guests",
+        "max_guests"
+      ],
+      "allowed_units": [
+        "Plates"
+      ],
+      "defaults": {
+        "unit": "Plates"
+      },
+      "field_labels": {
+        "serving_name": "Serving name",
+        "price": "Price for this size"
+      },
+      "validation_overrides": {
+        "unit": [
+          "required",
+          "string",
+          "max:30",
+          "in:Plates"
+        ]
+      },
+      "pricing_basis": "per_option",
+      "help": "Plate: set the amount included in one option and its total price before tax. Add another option for a different size.",
+      "field_help": {}
+    },
+    "bowl": {
+      "label": "Bowl",
+      "enabled_fields": [
+        "serve_type",
+        "serving_name",
+        "price",
+        "discount_price",
+        "is_available",
+        "quantity",
+        "unit",
+        "serves"
+      ],
+      "required_fields": [
+        "serve_type",
+        "serving_name",
+        "price",
+        "is_available",
+        "quantity",
+        "unit",
+        "serves"
+      ],
+      "disabled_fields": [
+        "min_guests",
+        "max_guests"
+      ],
+      "allowed_units": [
+        "Bowls"
+      ],
+      "defaults": {
+        "unit": "Bowls"
+      },
+      "field_labels": {
+        "serving_name": "Serving name",
+        "price": "Price for this size"
+      },
+      "validation_overrides": {
+        "unit": [
+          "required",
+          "string",
+          "max:30",
+          "in:Bowls"
+        ]
+      },
+      "pricing_basis": "per_option",
+      "help": "Bowl: set the amount included in one option and its total price before tax. Add another option for a different size.",
+      "field_help": {}
+    },
+    "box": {
+      "label": "Box / container",
+      "enabled_fields": [
+        "serve_type",
+        "serving_name",
+        "price",
+        "discount_price",
+        "is_available",
+        "quantity",
+        "unit",
+        "serves"
+      ],
+      "required_fields": [
+        "serve_type",
+        "serving_name",
+        "price",
+        "is_available",
+        "quantity",
+        "unit",
+        "serves"
+      ],
+      "disabled_fields": [
+        "min_guests",
+        "max_guests"
+      ],
+      "allowed_units": [
+        "Boxes",
+        "Pieces"
+      ],
+      "defaults": {
+        "unit": "Boxes"
+      },
+      "field_labels": {
+        "serving_name": "Serving name",
+        "price": "Price for this size"
+      },
+      "validation_overrides": {
+        "unit": [
+          "required",
+          "string",
+          "max:30",
+          "in:Boxes,Pieces"
+        ]
+      },
+      "pricing_basis": "per_option",
+      "help": "Box / container: set the amount included in one option and its total price before tax. Add another option for a different size.",
+      "field_help": {}
+    },
+    "portion": {
+      "label": "Portion",
+      "enabled_fields": [
+        "serve_type",
+        "serving_name",
+        "price",
+        "discount_price",
+        "is_available",
+        "quantity",
+        "unit",
+        "serves"
+      ],
+      "required_fields": [
+        "serve_type",
+        "serving_name",
+        "price",
+        "is_available",
+        "quantity",
+        "unit",
+        "serves"
+      ],
+      "disabled_fields": [
+        "min_guests",
+        "max_guests"
+      ],
+      "allowed_units": [
+        "Portions",
+        "Pieces"
+      ],
+      "defaults": {
+        "unit": "Portions"
+      },
+      "field_labels": {
+        "serving_name": "Serving name",
+        "price": "Price for this size"
+      },
+      "validation_overrides": {
+        "unit": [
+          "required",
+          "string",
+          "max:30",
+          "in:Portions,Pieces"
+        ]
+      },
+      "pricing_basis": "per_option",
+      "help": "Portion: set the amount included in one option and its total price before tax. Add another option for a different size.",
+      "field_help": {}
+    },
+    "piece": {
+      "label": "Piece / item",
+      "enabled_fields": [
+        "serve_type",
+        "serving_name",
+        "price",
+        "discount_price",
+        "is_available",
+        "quantity",
+        "unit",
+        "serves"
+      ],
+      "required_fields": [
+        "serve_type",
+        "serving_name",
+        "price",
+        "is_available",
+        "quantity",
+        "unit",
+        "serves"
+      ],
+      "disabled_fields": [
+        "min_guests",
+        "max_guests"
+      ],
+      "allowed_units": [
+        "Pieces"
+      ],
+      "defaults": {
+        "unit": "Pieces"
+      },
+      "field_labels": {
+        "serving_name": "Serving name",
+        "price": "Price for this size"
+      },
+      "validation_overrides": {
+        "unit": [
+          "required",
+          "string",
+          "max:30",
+          "in:Pieces"
+        ]
+      },
+      "pricing_basis": "per_option",
+      "help": "Piece / item: set the amount included in one option and its total price before tax. Add another option for a different size.",
+      "field_help": {}
+    },
+    "by_weight": {
+      "label": "By weight",
+      "enabled_fields": [
+        "serve_type",
+        "serving_name",
+        "price",
+        "discount_price",
+        "is_available",
+        "quantity",
+        "unit",
+        "serves"
+      ],
+      "required_fields": [
+        "serve_type",
+        "serving_name",
+        "price",
+        "is_available",
+        "quantity",
+        "unit",
+        "serves"
+      ],
+      "disabled_fields": [
+        "min_guests",
+        "max_guests"
+      ],
+      "allowed_units": [
+        "Kg",
+        "Grams",
+        "Oz",
+        "Lb"
+      ],
+      "defaults": {
+        "unit": "Kg"
+      },
+      "field_labels": {
+        "serving_name": "Serving name",
+        "price": "Price for this size"
+      },
+      "validation_overrides": {
+        "unit": [
+          "required",
+          "string",
+          "max:30",
+          "in:Kg,Grams,Oz,Lb"
+        ]
+      },
+      "pricing_basis": "per_option",
+      "help": "By weight: set the amount included in one option and its total price before tax. Add another option for a different size.",
+      "field_help": {
+        "quantity": "Fixed weight included in this option. Example: 0.5 Kg for a 500 g option."
+      }
+    },
+    "by_volume": {
+      "label": "By volume",
+      "enabled_fields": [
+        "serve_type",
+        "serving_name",
+        "price",
+        "discount_price",
+        "is_available",
+        "quantity",
+        "unit",
+        "serves"
+      ],
+      "required_fields": [
+        "serve_type",
+        "serving_name",
+        "price",
+        "is_available",
+        "quantity",
+        "unit",
+        "serves"
+      ],
+      "disabled_fields": [
+        "min_guests",
+        "max_guests"
+      ],
+      "allowed_units": [
+        "Litres",
+        "Ml",
+        "Fl oz",
+        "Cups"
+      ],
+      "defaults": {
+        "unit": "Litres"
+      },
+      "field_labels": {
+        "serving_name": "Serving name",
+        "price": "Price for this size"
+      },
+      "validation_overrides": {
+        "unit": [
+          "required",
+          "string",
+          "max:30",
+          "in:Litres,Ml,Fl oz,Cups"
+        ]
+      },
+      "pricing_basis": "per_option",
+      "help": "By volume: set the amount included in one option and its total price before tax. Add another option for a different size.",
+      "field_help": {
+        "quantity": "Fixed volume included in this option. Example: 1 with Litres for a 1-litre option."
+      }
+    },
+    "per_person": {
+      "label": "Per person",
+      "enabled_fields": [
+        "serve_type",
+        "serving_name",
+        "price",
+        "discount_price",
+        "is_available",
+        "min_guests",
+        "max_guests"
+      ],
+      "required_fields": [
+        "serve_type",
+        "serving_name",
+        "price",
+        "is_available",
+        "min_guests"
+      ],
+      "disabled_fields": [
+        "quantity",
+        "unit",
+        "serves"
+      ],
+      "allowed_units": [],
+      "defaults": {
+        "unit": null
+      },
+      "field_labels": {
+        "serving_name": "Serving name",
+        "price": "Price per person"
+      },
+      "validation_overrides": {},
+      "pricing_basis": "per_person",
+      "help": "Per person: customer enters the guest count. Total = price × guests.",
+      "field_help": {
+        "price": "Price for one guest before tax. Example: 12.00 × 10 guests = 120.00 before tax.",
+        "discount_price": "Optional reduced price per guest before tax. Must be lower than the regular per-person price."
+      }
+    },
+    "package": {
+      "label": "Package / combo",
+      "enabled_fields": [
+        "serve_type",
+        "serving_name",
+        "price",
+        "discount_price",
+        "is_available",
+        "serves"
+      ],
+      "required_fields": [
+        "serve_type",
+        "serving_name",
+        "price",
+        "is_available",
+        "serves"
+      ],
+      "disabled_fields": [
+        "quantity",
+        "unit",
+        "min_guests",
+        "max_guests"
+      ],
+      "allowed_units": [],
+      "defaults": {
+        "unit": null
+      },
+      "field_labels": {
+        "serving_name": "Package name",
+        "price": "Package price"
+      },
+      "validation_overrides": {},
+      "pricing_basis": "per_option",
+      "help": "Package: one fixed price for a set number of serves. Extra guests are not included.",
+      "field_help": {
+        "price": "Total package price before tax for the stated number of serves."
+      }
+    }
+  },
+  "unit_fields": {
+    "Trays": {
+      "quantity_label": "Size (Trays)",
+      "quantity_step": 0.01,
+      "quantity_validation": [
+        "required",
+        "numeric",
+        "decimal:0,2",
+        "gt:0",
+        "max:99999999.99"
+      ]
+    },
+    "Pieces": {
+      "quantity_label": "Size (Pieces)",
+      "quantity_step": 0.01,
+      "quantity_validation": [
+        "required",
+        "numeric",
+        "decimal:0,2",
+        "gt:0",
+        "max:99999999.99"
+      ]
+    },
+    "Plates": {
+      "quantity_label": "Size (Plates)",
+      "quantity_step": 0.01,
+      "quantity_validation": [
+        "required",
+        "numeric",
+        "decimal:0,2",
+        "gt:0",
+        "max:99999999.99"
+      ]
+    },
+    "Bowls": {
+      "quantity_label": "Size (Bowls)",
+      "quantity_step": 0.01,
+      "quantity_validation": [
+        "required",
+        "numeric",
+        "decimal:0,2",
+        "gt:0",
+        "max:99999999.99"
+      ]
+    },
+    "Boxes": {
+      "quantity_label": "Size (Boxes)",
+      "quantity_step": 0.01,
+      "quantity_validation": [
+        "required",
+        "numeric",
+        "decimal:0,2",
+        "gt:0",
+        "max:99999999.99"
+      ]
+    },
+    "Portions": {
+      "quantity_label": "Size (Portions)",
+      "quantity_step": 0.01,
+      "quantity_validation": [
+        "required",
+        "numeric",
+        "decimal:0,2",
+        "gt:0",
+        "max:99999999.99"
+      ]
+    },
+    "Kg": {
+      "quantity_label": "Size (Kg)",
+      "quantity_step": 0.01,
+      "quantity_validation": [
+        "required",
+        "numeric",
+        "decimal:0,2",
+        "gt:0",
+        "max:99999999.99"
+      ]
+    },
+    "Grams": {
+      "quantity_label": "Size (Grams)",
+      "quantity_step": 0.01,
+      "quantity_validation": [
+        "required",
+        "numeric",
+        "decimal:0,2",
+        "gt:0",
+        "max:99999999.99"
+      ]
+    },
+    "Oz": {
+      "quantity_label": "Size (Oz)",
+      "quantity_step": 0.01,
+      "quantity_validation": [
+        "required",
+        "numeric",
+        "decimal:0,2",
+        "gt:0",
+        "max:99999999.99"
+      ]
+    },
+    "Lb": {
+      "quantity_label": "Size (Lb)",
+      "quantity_step": 0.01,
+      "quantity_validation": [
+        "required",
+        "numeric",
+        "decimal:0,2",
+        "gt:0",
+        "max:99999999.99"
+      ]
+    },
+    "Litres": {
+      "quantity_label": "Size (Litres)",
+      "quantity_step": 0.01,
+      "quantity_validation": [
+        "required",
+        "numeric",
+        "decimal:0,2",
+        "gt:0",
+        "max:99999999.99"
+      ]
+    },
+    "Ml": {
+      "quantity_label": "Size (Ml)",
+      "quantity_step": 0.01,
+      "quantity_validation": [
+        "required",
+        "numeric",
+        "decimal:0,2",
+        "gt:0",
+        "max:99999999.99"
+      ]
+    },
+    "Fl oz": {
+      "quantity_label": "Size (Fl oz)",
+      "quantity_step": 0.01,
+      "quantity_validation": [
+        "required",
+        "numeric",
+        "decimal:0,2",
+        "gt:0",
+        "max:99999999.99"
+      ]
+    },
+    "Cups": {
+      "quantity_label": "Size (Cups)",
+      "quantity_step": 0.01,
+      "quantity_validation": [
+        "required",
+        "numeric",
+        "decimal:0,2",
+        "gt:0",
+        "max:99999999.99"
+      ]
+    }
+  },
+  "field_order": [
+    "serving_name",
+    "quantity",
+    "unit",
+    "serves",
+    "price",
+    "discount_price",
+    "min_guests",
+    "max_guests"
+  ]
+}

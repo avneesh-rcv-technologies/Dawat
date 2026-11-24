@@ -37,12 +37,11 @@ class RestaurantGrid extends DataGrid
         $currentAdmin = auth('admin')->user();
 
         if ($currentAdmin) {
-            // Role ID 1: Super Admin - Show all restaurants
-            // Role ID 2: Restaurant Owner - Show only their restaurant
-            if ($currentAdmin->role_id == 2) {
+            // Restaurant Owner (general.default_role) - show only their own restaurants
+            if (app(\Modules\Restaurant\Services\RestaurantOwnerRoleResolver::class)->isOwner($currentAdmin)) {
                 $query->where('admin_id', $currentAdmin->id);
             }
-            // For role_id == 1 or any other role, show all restaurants (no additional filter)
+            // Any other role sees all restaurants (no additional filter)
         }
 
         return $query;
@@ -236,6 +235,17 @@ class RestaurantGrid extends DataGrid
             ]);
         }
 
+        // Menu Management for admins (owners use the sidebar item instead).
+        if (bouncer('admin')->hasPermission(\Modules\Restaurant\Http\Controllers\RestaurantMenuController::PERMISSION)
+            && !app(\Modules\Restaurant\Services\RestaurantOwnerRoleResolver::class)->isOwner(auth('admin')->user())) {
+            $this->addAction([
+                'icon'   => 'restaurant_menu',
+                'title'  => 'Menu',
+                'method' => 'GET',
+                'url'    => fn($row) => route('admin.restaurant.menu.index', ['restaurant' => $row->id]),
+            ]);
+        }
+
         if (bouncer('admin')->hasPermission('admin.restaurant.view')) {
             $this->addAction([
                 'icon'     => 'visibility',
@@ -245,9 +255,8 @@ class RestaurantGrid extends DataGrid
             ]);
         }
 
-        // Only super admins (role_id = 1) can delete restaurants
-        // Restaurant owners (role_id = 2) cannot delete their own restaurant
-        if (bouncer('admin')->hasPermission('admin.restaurant.delete') && $currentAdmin && $currentAdmin->role_id == 1) {
+        // Anyone with the admin.restaurant.delete permission can delete (owners only their own - enforced in RestaurantService)
+        if (bouncer('admin')->hasPermission('admin.restaurant.delete') && $currentAdmin) {
             $this->addAction([
                 'icon'   => 'delete',
                 'title'  => 'Delete',
@@ -265,8 +274,8 @@ class RestaurantGrid extends DataGrid
     {
         $currentAdmin = auth('admin')->user();
 
-        // Only super admins (role_id = 1) can perform bulk delete
-        if (bouncer('admin')->hasPermission('admin.restaurant.delete') && $currentAdmin && $currentAdmin->role_id == 1) {
+        // Anyone with the admin.restaurant.delete permission can bulk delete
+        if (bouncer('admin')->hasPermission('admin.restaurant.delete') && $currentAdmin) {
             $this->addMassAction([
                 'icon'   => 'delete',
                 'title'  => 'Delete Selected',
@@ -294,13 +303,13 @@ class RestaurantGrid extends DataGrid
 
         // Any admin with create permission can create new restaurants
         if (bouncer('admin')->hasPermission('admin.restaurant.create') && $currentAdmin) {
-            $this->addMassAction([
-                'icon'   => 'add',
-                'title'  => 'Create Restaurant',
-                'method' => 'GET',
-                'url'    => 'admin.restaurant.create',
-                'action'  => 'btn btn-primary',
-            ]);
+            // $this->addMassAction([
+            //     'icon'   => 'add',
+            //     'title'  => 'Create Restaurant',
+            //     'method' => 'GET',
+            //     'url'    => 'admin.restaurant.create',
+            //     'action'  => 'btn btn-primary',
+            // ]);
         }
     }
 }

@@ -5,37 +5,32 @@
 @section('page_class', 'home-page')
 
 @section('styles')
-    <style>
-        .home-page [data-aos][data-aos][data-aos] {
-            transition-duration: 1100ms !important;
-        }
-    </style>
+    @vite(['resources/css/website/pages/home.css'], 'build-website')
 @endsection
 
 @section('content')
 
 {{-- Exported Figma botanical artwork; the PNG already includes its rotation and opacity. --}}
-<img src="{{ asset('website/images/OBJECTS.png') }}"
+<img {!! \Modules\Website\Support\WebsiteImages::attributes('website/images/OBJECTS.png', '300px', 320) !!}
      alt=""
      aria-hidden="true"
-     class="absolute hidden pointer-events-none z-[1] md:block"
-     style="width: 250px; height: auto; top: 1348.11px; left: 0; opacity: 1;">
+     class="home-botanical-art absolute hidden pointer-events-none z-[1] md:block" loading="lazy" decoding="async">
 
 {{-- =========================================================================
      1. HERO SECTION (Desktop - 3 / Frame 2121449829)
      Full-screen gourmet food background with dark top & bottom gradient overlays
      ========================================================================= --}}
 
-<section data-aos="fade" data-aos-duration="900" class="relative min-h-[740px] lg:h-[857px] lg:min-h-0 flex flex-col justify-between overflow-hidden bg-black">
+<section class="relative min-h-[740px] lg:h-[857px] lg:min-h-0 flex flex-col justify-between overflow-hidden bg-black">
 
     {{-- Background Food Image --}}
     <div class="absolute inset-0 z-0">
         <img
-            src="{{ asset('website/73964bf77c75b2eba31ec165f554afb485d18dad.jpg') }}"
+            {!! \Modules\Website\Support\WebsiteImages::attributes('website/73964bf77c75b2eba31ec165f554afb485d18dad.jpg', '(max-width: 1023px) 1600px, 100vw', 1600) !!}
             alt="Dawat gourmet meal feast"
             class="w-full h-full object-cover object-center opacity-60 scale-105"
             loading="eager"
-        />
+        decoding="async" fetchpriority="high" />
 
         {{-- Existing Desktop Top Gradient --}}
         <div class="absolute inset-0 hero-top-gradient pointer-events-none"></div>
@@ -45,14 +40,7 @@
 
         {{-- Mobile Background Gradient: transparent to solid black --}}
         <div
-            class="absolute inset-0 pointer-events-none lg:hidden"
-            style="background: linear-gradient(
-                to bottom,
-                transparent 40%,
-                rgba(0, 0, 0, 0.85) 60%,
-                #000000 76%,
-                #000000 100%
-            );"
+            class="home-mobile-gradient absolute inset-0 pointer-events-none lg:hidden"
         ></div>
 
     </div>
@@ -73,16 +61,17 @@
 
                     <h1 class="select-none leading-none lg:-translate-x-[9.35%] w-[74vw] max-w-[286px] lg:w-[42.36vw] lg:max-w-[610px] mt-[-12px] lg:mt-[-40px]">
                         <img
-                            src="{{ asset('website/images/dawat-wordmark.png') }}"
+                            {!! \Modules\Website\Support\WebsiteImages::attributes('website/images/dawat-wordmark.png', '(min-width: 1024px) 610px, 286px', 640) !!}
                             alt="Dawat"
                             class="block w-full h-auto"
-                        />
+                        / loading="eager" decoding="async">
                     </h1>
                 </div>
 
                 {{-- Description Paragraph --}}
                 <p data-aos="fade-up" data-aos-delay="200" class="font-urbanist border-t border-white/40 py-2 lg:py-4 z-20 font-light text-[10px] sm:text-[13px] lg:text-[20px] text-white leading-[143.4%] max-w-[360px] lg:max-w-[760px] mt-2 lg:mt-3 mb-3 lg:mb-8">
-                    Discover restaurants, explore delicious cuisines, and order your favourite meals with Dawat — fast, simple, and made for every craving.
+                   Bulk food ordering for events, office lunches, and every big gathering. Restaurants cook, Dawat
+delivers, and everyone gets fed.
                 </p>
 
                 {{-- Star Rating Row --}}
@@ -94,22 +83,15 @@
             <div data-aos="fade" data-aos-delay="250" class="relative flex h-[565px] md:h-auto lg:col-span-5 justify-center items-center pointer-events-none -mt-2 lg:mt-0 overflow-hidden lg:overflow-visible">
 
                 <img
-                    src="{{ asset('website/9fb055111b8ba926a7cb6eef104950b4819e61ce.png') }}"
+                    {!! \Modules\Website\Support\WebsiteImages::attributes('website/9fb055111b8ba926a7cb6eef104950b4819e61ce.png', '(min-width: 768px) 50vw, 90vw', 960) !!}
                     alt="Dawat app preview on a smartphone"
                     class="block absolute left-1/2 top-[-20px] -translate-x-1/2 w-[125vw] md:static md:w-[min(75vw,560px)] md:translate-x-0 max-w-none h-auto object-contain lg:w-[700px] lg:translate-y-48"
                     loading="eager"
-                />
+                decoding="async" />
 
                 {{-- Mobile Phone Gradient --}}
                 <div
-                    class="absolute inset-x-0 bottom-0 h-full lg:hidden"
-                    style="background: linear-gradient(
-                        to bottom,
-                        transparent 40%,
-                        rgba(0, 0, 0, 0.85) 60%,
-                        #000000 76%,
-                        #000000 100%
-                    );"
+                    class="home-mobile-gradient absolute inset-x-0 bottom-0 h-full lg:hidden"
                 ></div>
 
             </div>
@@ -127,14 +109,14 @@
 <section data-aos="fade-up" class="relative bg-black pb-4 z-20">
     <div class="w-[90%] max-w-[1700px] mx-auto">
         <div class="mb-4 hidden w-full border-t border-white/20 md:block"></div>
-        <div class="overflow-x-auto scrollbar-hide pb-2">
-            <div class="flex w-full mt-4 min-w-[1106px] items-center gap-3.5">
+        <div class="overflow-x-auto scrollbar-hide py-2">
+            <div class="grid w-full grid-flow-col auto-cols-[min(280px,85vw)] items-stretch gap-3.5 2xl:grid-flow-row 2xl:auto-cols-auto 2xl:grid-cols-5">
 
                 {{-- 1. Breakfast --}}
                 @include('website::components.category-chip', [
                     'title' => 'Breakfast',
-                    'subtitle' => 'The most important meal of the day, fresh.',
-                    'image' => asset('website/images/Frames/7e71ba0e8dfe7cabd816d0b74f7d9d39a1e09712.png'),
+                    'subtitle' => 'Bagel platters, pastries, and morning spreads for team meetings and brunches.',
+                    'image' => \Modules\Website\Support\WebsiteImages::url('website/images/Frames/7e71ba0e8dfe7cabd816d0b74f7d9d39a1e09712.png'),
                     'alt' => 'Breakfast Plate',
                     'delay' => 0
                 ])
@@ -142,8 +124,8 @@
                 {{-- 2. Mexican --}}
                 @include('website::components.category-chip', [
                     'title' => 'Mexican',
-                    'subtitle' => 'Mexican cuisine that pops with spice and life.',
-                    'image' => asset('website/images/Frames/eca1011c9ab7e87855b5231f7c8f5c44a60fe8e0.png'),
+                    'subtitle' => 'Taco bars, burrito trays, and generous sides for the whole crowd.',
+                    'image' => \Modules\Website\Support\WebsiteImages::url('website/images/Frames/eca1011c9ab7e87855b5231f7c8f5c44a60fe8e0.png'),
                     'alt' => 'Mexican Taco Pizza',
                     'delay' => 100
                 ])
@@ -151,8 +133,8 @@
                 {{-- 3. Sandwiches --}}
                 @include('website::components.category-chip', [
                     'title' => 'Sandwiches',
-                    'subtitle' => 'Everything from BLT to the classic Philly Cheesesteak.',
-                    'image' => asset('website/images/Frames/09f5c0334805df864a95c3fbd49314ca3d5bdf7f.png'),
+                    'subtitle' => 'Platters and boxed lunches, from classic BLTs to Philly cheesesteaks, made for groups.',
+                    'image' => \Modules\Website\Support\WebsiteImages::url('website/images/Frames/09f5c0334805df864a95c3fbd49314ca3d5bdf7f.png'),
                     'alt' => 'Artisan Sandwiches',
                     'delay' => 200
                 ])
@@ -160,8 +142,8 @@
                 {{-- 4. Gluten-free --}}
                 @include('website::components.category-chip', [
                     'title' => 'Gluten-free',
-                    'subtitle' => 'Satisfy your cravings, guilt-free.',
-                    'image' => asset('website/images/Frames/c7f3505b4dd05596862621bb8aac977b1d93d17a.png'),
+                    'subtitle' => 'Gluten-free trays and boxed meals, so every guest gets a plate they can enjoy.',
+                    'image' => \Modules\Website\Support\WebsiteImages::url('website/images/Frames/c7f3505b4dd05596862621bb8aac977b1d93d17a.png'),
                     'alt' => 'Gluten Free Bowl',
                     'delay' => 300
                 ])
@@ -169,8 +151,8 @@
                 {{-- 5. Individual --}}
                 @include('website::components.category-chip', [
                     'title' => 'Individual',
-                    'subtitle' => 'Customize your own order according to your will.',
-                    'image' => asset('website/images/Frames/da12cbdd41962b8137096d6f6e60746a9c586f60.png'),
+                    'subtitle' => 'Build your own catering order with the dishes, portions, and quantities you need.',
+                    'image' => \Modules\Website\Support\WebsiteImages::url('website/images/Frames/da12cbdd41962b8137096d6f6e60746a9c586f60.png'),
                     'alt' => 'Individual Platter',
                     'delay' => 400
                 ])
@@ -188,16 +170,16 @@
 <section data-aos="fade-up" class="relative bg-black pt-12 pb-8 md:pt-32 md:pb-16 overflow-hidden">
 
     {{-- Botanical artwork accent beside the headline (Figma: OBJECTS) --}}
-    <img src="{{ asset('website/images/OBJECTS (1).png') }}"
+    <img {!! \Modules\Website\Support\WebsiteImages::attributes('website/images/OBJECTS (1).png', '300px', 320) !!}
          alt=""
          aria-hidden="true"
-         class="absolute right-[-45px] top-0 z-0 w-[200px] pointer-events-none opacity-60 sm:w-[240px] md:right-[-25px] md:top-8 md:w-[280px] md:hidden">
+         class="absolute right-[-45px] top-0 z-0 w-[200px] pointer-events-none opacity-60 sm:w-[240px] md:right-[-25px] md:top-8 md:w-[280px] md:hidden" loading="lazy" decoding="async">
 
     {{-- Decorative floating red pepper on far left (Figma: two-vibrant-red-pepper-slices) --}}
     <div class="absolute -left-[70px] top-10 hidden w-32 pointer-events-none opacity-85 z-10 md:block md:-left-[18px] md:-top-3 md:w-56">
-        <img src="{{ asset('website/two-vibrant-red-pepper-slices-revealing-seeds-and-a-fleshy-interior-against-white-photo 2.png') }}"
+        <img {!! \Modules\Website\Support\WebsiteImages::attributes('website/two-vibrant-red-pepper-slices-revealing-seeds-and-a-fleshy-interior-against-white-photo 2.png', '300px', 320) !!}
              alt="Red pepper slice decoration"
-             class="w-full h-auto object-contain filter drop-shadow-[0_10px_20px_rgba(255,0,0,0.3)]">
+             class="w-full h-auto object-contain filter drop-shadow-[0_10px_20px_rgba(255,0,0,0.3)]" loading="lazy" decoding="async">
     </div>
 
     <div class="w-[90%] max-w-[1700px] mx-auto relative z-10">
@@ -207,8 +189,7 @@
             <div class="lg:col-span-6 flex flex-col justify-center">
 
                 {{-- Heading: Everything you crave, delivered. (Upright NewYork) --}}
-                <h2 data-aos="fade-right" class="font-newyork font-normal text-white leading-[115%] mb-3 md:mb-6"
-                    style="font-size: clamp(28px, 5.5vw, 88px);">
+                <h2 data-aos="fade-right" class="home-orders-heading font-newyork font-normal text-white leading-[115%] mb-3 md:mb-6">
                     {{-- Everything you<br>crave, delivered. --}}
                     Where big orders meet great kitchens.
                 </h2>
@@ -256,10 +237,10 @@
 
                 {{-- Supplied Figma phone mockup artwork --}}
                 <div data-aos="fade" data-aos-delay="250" class="relative z-10 mx-auto w-full max-w-[420px] md:max-w-[420px] lg:max-w-[620px] translate-y-0 lg:translate-y-5">
-                    <img src="{{ asset('website/images/4647d78a91cd2c0c1d9eda99c2429ba4d36e4e7f.png') }}"
+                    <img {!! \Modules\Website\Support\WebsiteImages::attributes('website/images/4647d78a91cd2c0c1d9eda99c2429ba4d36e4e7f.png', '(min-width: 768px) 50vw, 90vw', 960) !!}
                          alt="Dawat food ordering app displayed on two phones"
                          class="block w-full h-auto translate-x-[10.65%] object-contain"
-                         loading="lazy">
+                         loading="lazy" decoding="async">
                 </div>
 
             </div>
@@ -278,18 +259,16 @@
 
         {{-- Section Header (Centered) --}}
         <div class="text-center max-w-[960px] mx-auto mb-7 md:mb-14">
-            <h2 data-aos="fade-down" class="font-newyork font-normal text-white leading-[123.4%] mb-4"
-                style="font-size: clamp(24px, 3.8vw, 48px);">
+            <h2 data-aos="fade-down" class="home-restaurants-heading font-newyork font-normal text-white leading-[123.4%] mb-4">
                 Restaurants in <br> New York City and Long Island
             </h2>
             <p data-aos="fade-up" data-aos-delay="150" class="font-urbanist font-light text-[10px] md:text-[16px] text-white leading-[143.4%] max-w-[960px] mx-auto">
-                Discover great restaurants and find your next favourite meal with Dawat.
-            </p>
+                See the restaurants already growing with Dawat across New York City and Long Island.
         </div>
     </div>
 
     {{-- Full-bleed horizontal scroller; card appearance and sizing stay unchanged. --}}
-    <div class="relative left-1/2 -mt-1.5 md:-mt-8 w-screen -translate-x-1/2 overflow-x-auto scrollbar-hide pt-4 md:pt-8 pb-5 md:pb-6"
+    <div id="featured-restaurants" class="relative -mt-1.5 md:-mt-8 w-full overflow-x-auto scrollbar-hide pt-4 md:pt-8 pb-5 md:pb-6"
          role="region" aria-label="Featured restaurants" tabindex="0">
         <div class="flex w-max min-w-full gap-3 md:gap-5 px-2 md:px-0 [justify-content:safe_center]">
 
@@ -299,7 +278,7 @@
                     'location' => 'Chinatown | Manhattan',
                     'badgeType' => 'rating',
                     'badgeText' => '4.9',
-                    'image' => asset('website/images/restaurants/spice-palace-comp.jpg'),
+                    'image' => \Modules\Website\Support\WebsiteImages::url('website/images/restaurants/spice-palace-comp.jpg'),
                     'delay' => 0
                 ])
 
@@ -309,7 +288,7 @@
                     'location' => 'Midtown | Manhattan',
                     'badgeType' => 'rating',
                     'badgeText' => '4.9',
-                    'image' => asset('website/images/restaurants/curry-house-comp.jpg'),
+                    'image' => \Modules\Website\Support\WebsiteImages::url('website/images/restaurants/curry-house-comp.jpg'),
                     'delay' => 100
                 ])
 
@@ -319,7 +298,7 @@
                     'location' => 'Chinatown | Manhattan',
                     'badgeType' => 'sale',
                     'badgeText' => 'SALE',
-                    'image' => asset('website/images/restaurants/royal-feast-comp.jpg'),
+                    'image' => \Modules\Website\Support\WebsiteImages::url('website/images/restaurants/royal-feast-comp.jpg'),
                     'delay' => 200
                 ])
 
@@ -329,7 +308,7 @@
                     'location' => 'Commack | Long Island',
                     'badgeType' => 'sale',
                     'badgeText' => 'SALE',
-                    'image' => asset('website/images/restaurants/taj-flavors-comp.jpg'),
+                    'image' => \Modules\Website\Support\WebsiteImages::url('website/images/restaurants/taj-flavors-comp.jpg'),
                     'delay' => 300
                 ])
 
@@ -339,7 +318,7 @@
                     'location' => 'Massapequa | Long Island',
                     'badgeType' => 'sale',
                     'badgeText' => 'SALE',
-                    'image' => asset('website/images/restaurants/masala-kitchen-comp.jpg'),
+                    'image' => \Modules\Website\Support\WebsiteImages::url('website/images/restaurants/masala-kitchen-comp.jpg'),
                     'delay' => 400
                 ])
 
@@ -349,7 +328,7 @@
                     'location' => 'Midtown | Manhattan',
                     'badgeType' => 'rating',
                     'badgeText' => '4.8',
-                    'image' => asset('website/images/restaurants/spice-symphony-comp.jpg'),
+                    'image' => \Modules\Website\Support\WebsiteImages::url('website/images/restaurants/spice-symphony-comp.jpg'),
                     'delay' => 500
                 ])
 
@@ -359,7 +338,7 @@
                     'location' => 'Long Island City | Queens',
                     'badgeType' => 'sale',
                     'badgeText' => 'SALE',
-                    'image' => asset('website/images/restaurants/flavor-garden-comp.jpg'),
+                    'image' => \Modules\Website\Support\WebsiteImages::url('website/images/restaurants/flavor-garden-comp.jpg'),
                     'delay' => 600
                 ])
 
@@ -382,9 +361,9 @@
 
                 {{-- Main Photo: Young man enjoying biryani (Figma: Rectangle 161125245, 529px x 575px, rounded-20px) --}}
                 <div class="w-[88%] mx-auto lg:mx-0 lg:w-full h-[240px] sm:h-[320px] lg:h-[540px] rounded-[16px] lg:rounded-[20px] overflow-hidden shadow-2xl relative">
-                    <img src="{{ asset('website/images/9b78d4783ee0deb27fedc85b8cdedf832ebd87ae.jpg') }}"
+                    <img {!! \Modules\Website\Support\WebsiteImages::attributes('website/images/9b78d4783ee0deb27fedc85b8cdedf832ebd87ae.jpg', '(min-width: 768px) 50vw, 90vw', 960) !!}
                          alt="Happy customer enjoying delicious biryani at Dawat"
-                         class="w-full h-full object-cover">
+                         class="w-full h-full object-cover" loading="lazy" decoding="async">
                     <div class="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent"></div>
                 </div>
 
@@ -423,8 +402,7 @@
             <div class="lg:col-span-7 flex flex-col justify-center">
 
                 {{-- Heading: Why Dawat? (Upright NewYork) --}}
-                <h2 data-aos="fade-right" class="font-newyork font-normal text-white leading-[104.4%] mb-5"
-                    style="font-size: clamp(32px, 5.2vw, 75px);">
+                <h2 data-aos="fade-right" class="home-features-heading font-newyork font-normal text-white leading-[104.4%] mb-5">
                     Why Dawat?
                 </h2>
 
@@ -592,7 +570,7 @@
 
          
                 <div class="flex lg:col-span-5 justify-center items-end relative h-[245px] md:h-[380px]">
-                    <img src="{{ asset('website/9fb055111b8ba926a7cb6eef104950b4819e61ce.png') }}" alt="Dawat app displayed on a phone" class="block md:hidden w-[125vw] max-w-[450px] h-auto absolute left-1/2 -translate-x-1/2 -bottom-4">
+                    <img {!! \Modules\Website\Support\WebsiteImages::attributes('website/9fb055111b8ba926a7cb6eef104950b4819e61ce.png', '(min-width: 768px) 50vw, 90vw', 960) !!} alt="Dawat app displayed on a phone" class="block md:hidden w-[125vw] max-w-[450px] h-auto absolute left-1/2 -translate-x-1/2 -bottom-4" loading="lazy" decoding="async">
                     <div class="hidden md:flex w-[280px] h-[480px] bg-[#111114] rounded-t-[40px] border-t-[5px] border-x-[5px] border-[#2c2c34] shadow-2xl overflow-hidden flex-col justify-start absolute -bottom-12">
                         <div class="px-3 md:px-5 pt-3 md:pt-5 pb-2 md:pb-3 text-center bg-black/40">
                             <span class="font-newyork text-[12px] md:text-[20px] font-bold text-white tracking-widest">DAWAT</span>
@@ -618,4 +596,8 @@
     </div>
 </section> --}}
 
+@endsection
+
+@section('scripts')
+    @include('website::components.restaurant-autoscroll')
 @endsection

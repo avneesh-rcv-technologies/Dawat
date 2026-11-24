@@ -5,11 +5,16 @@ use Modules\FoodManagements\Http\Controllers\Api\MenuApiController;
 use Modules\FoodManagements\Http\Controllers\Api\FoodEventsApiController;
 use Modules\FoodManagements\Http\Controllers\Api\FeaturedItemsApiController;
 use Modules\FoodManagements\Http\Controllers\Api\FoodFeaturesApiController;
+use Modules\FoodManagements\Http\Controllers\Api\ServingOptionsApiController;
+
+Route::get('api/foodmanagements/serving-options', [ServingOptionsApiController::class, 'index'])
+    ->name('api.foodmanagements.serving-options.index');
 
 // Public API routes for menu
 Route::prefix('api/menu')->name('api.menu.')->group(function () {
     Route::get('categories', [MenuApiController::class, 'getCategories'])->name('categories');
     Route::get('categories/{categoryId}/items', [MenuApiController::class, 'getFoodItemsByCategory'])->name('categories.items');
+    Route::get('dietary-labels/items', [MenuApiController::class, 'getFoodItemsByDietaryLabels'])->name('dietary-labels.items');
     Route::get('item/{itemId}', [MenuApiController::class, 'getFoodItemDetails'])->name('items.details');
     Route::get('tags/{tagId}/items', [MenuApiController::class, 'getFoodItemsByTag'])->name('tags.items');
     Route::get('option-groups', [MenuApiController::class, 'getOptionGroups'])->name('option-groups');

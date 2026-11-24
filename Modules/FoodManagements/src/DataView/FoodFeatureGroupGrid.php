@@ -13,7 +13,10 @@ class FoodFeatureGroupGrid extends DataGrid
 
     public function prepareQueryBuilder()
     {
+        $ownerRestaurantId = $this->ownerRestaurantId();
+
         return DB::table('food_features as pf')
+            ->leftJoin('restaurants as fr', 'fr.id', '=', 'pf.restaurant_id')
             ->leftJoin('food_feature_descriptions as pfd', function ($join) {
                 $join->on('pf.feature_id', '=', 'pfd.feature_id')
                     ->where('pfd.lang_code', '=', 'en');
@@ -22,6 +25,7 @@ class FoodFeatureGroupGrid extends DataGrid
                 'pf.feature_id',
                 'pf.status',
                 'pfd.name as group_name',
+                'fr.name as restaurant_name',
                 DB::raw('pf.feature_id as id')
             )
             ->selectSub(function ($query) {
@@ -40,11 +44,19 @@ class FoodFeatureGroupGrid extends DataGrid
                     ->whereColumn('pfc.feature_id', 'pf.feature_id')
                     ->selectRaw("GROUP_CONCAT(DISTINCT c.name ORDER BY c.name SEPARATOR ', ')");
             }, 'categories')
-            ->where('pf.feature_type', '=', 'G');
+            ->where('pf.feature_type', '=', 'G')
+            ->when($ownerRestaurantId, fn ($query) => $query->where('pf.restaurant_id', $ownerRestaurantId));
     }
 
     public function prepareColumns()
     {
+        if (!$this->ownerRestaurantId()) {
+            $this->addColumn([
+                'index' => 'restaurant_name', 'label' => 'Restaurant', 'type' => 'string',
+                'searchable' => false, 'filterable' => false, 'sortable' => true,
+            ]);
+        }
+
         $this->addColumn([
             'index' => 'group_name', 'label' => 'Name', 'type' => 'string',
             'searchable' => true, 'filterable' => true, 'sortable' => true,
@@ -115,5 +127,16 @@ class FoodFeatureGroupGrid extends DataGrid
         if (bouncer(\Illuminate\Support\Facades\Auth::getDefaultDriver())->hasPermission('admin.foodmanagements.features.index')) {
             $this->addMassAction(['icon' => 'list', 'title' => 'All Features', 'method' => 'GET', 'action' => 'text-blue-600 bg-blue-100', 'url' => 'admin.foodmanagements.features.index']);
         }
+    }
+
+    /** Restaurant owners only see their own restaurant's features. */
+    private function ownerRestaurantId(): ?int
+    {
+        $admin = auth('admin')->user();
+        if (!$admin || !app(\Modules\Restaurant\Services\RestaurantOwnerRoleResolver::class)->isOwner($admin)) {
+            return null;
+        }
+
+        return (int) \Modules\Restaurant\Models\Restaurant::where('admin_id', $admin->id)->value('id') ?: -1;
     }
 }

@@ -14,6 +14,9 @@ class OrderItem extends Model
     protected $table = 'order_items';
 
     protected $fillable = [
+        'serving_option_id', 'serve_type', 'serving_name', 'guest_count', 'selected_option_snapshot',
+        'tax_amount', 'discount_amount', 'final_price', 'is_tax_inclusive', 'tax_breakdown',
+        'delivery_fee', 'estimated_delivery_minutes', 'estimated_delivery_at',
         'order_id',
         'item_type',
         'item_id',
@@ -21,7 +24,6 @@ class OrderItem extends Model
         'sku',
         'price',
         'quantity',
-        'stock_reserved_quantity',
         'tax_rate',
         'selected_options',
         'special_instructions',
@@ -29,7 +31,10 @@ class OrderItem extends Model
     ];
 
     protected $casts = [
-        'stock_reserved_quantity' => 'integer',
+        'serving_option_id' => 'integer', 'guest_count' => 'integer', 'selected_option_snapshot' => 'array',
+        'tax_amount' => 'decimal:2', 'discount_amount' => 'decimal:2', 'final_price' => 'decimal:2',
+        'is_tax_inclusive' => 'boolean', 'tax_breakdown' => 'array', 'delivery_fee' => 'decimal:2',
+        'estimated_delivery_minutes' => 'integer', 'estimated_delivery_at' => 'datetime',
         'selected_options' => 'array',
         'price' => 'decimal:2',
         'tax_rate' => 'decimal:2',
@@ -71,7 +76,7 @@ class OrderItem extends Model
 
     public function getSubtotalAttribute()
     {
-        return $this->price * $this->quantity;
+        return $this->selected_option_snapshot !== null ? $this->total_price : $this->price * $this->quantity;
     }
 
     public function getOptionsTotal()
@@ -90,6 +95,7 @@ class OrderItem extends Model
 
     public function getTaxAmount()
     {
+        if ($this->tax_amount !== null) return (float) $this->tax_amount;
         return ($this->total_price * $this->tax_rate) / 100;
     }
 
@@ -97,6 +103,10 @@ class OrderItem extends Model
 
     public function calculateTotalPrice()
     {
+        if ($this->selected_option_snapshot !== null) {
+            $units = ($this->selected_option_snapshot['pricing_basis'] ?? null) === 'per_person' ? $this->guest_count : $this->quantity;
+            return round((float) $this->price * (int) $units, 2);
+        }
         $basePrice = $this->price * $this->quantity;
         $optionsPrice = $this->getOptionsTotal();
         
@@ -124,7 +134,7 @@ class OrderItem extends Model
         parent::boot();
 
         static::saving(function ($orderItem) {
-            if (!$orderItem->total_price) {
+            if ($orderItem->total_price === null) {
                 $orderItem->total_price = $orderItem->calculateTotalPrice();
             }
         });

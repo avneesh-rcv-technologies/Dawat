@@ -1,14 +1,12 @@
 <?php
 
-
-namespace Modules\Template\Models;
+namespace Modules\Activitylog\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class BaseModel extends Model
-
 {
     use HasFactory, SoftDeletes;
 
@@ -44,6 +42,6 @@ class BaseModel extends Model
      */
     protected static function newFactory()
     {
-        return \Modules\SocialManager\Database\Factories\BaseModelFactory::new();
+        
     }
 }

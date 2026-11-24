@@ -2,28 +2,24 @@
 
 namespace Modules\Orders\Services;
 
-use Illuminate\Support\Str;
-use Modules\Orders\Models\Order;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
+use Modules\Orders\Enums\TransactionStatus;
+use Modules\Orders\Enums\TransactionType;
+use Modules\Orders\Events\TransactionStatusUpdated;
+use Modules\Orders\Models\Order;
+use Modules\Orders\Models\Transaction;
 use Modules\Payments\Models\Payment;
 use Modules\Payments\Models\Payments;
-use Modules\Orders\Models\Transaction;
-use Modules\Orders\Enums\TransactionType;
-use Modules\Orders\Enums\TransactionStatus;
-use Modules\Orders\Events\TransactionStatusUpdated;
+use Modules\Payments\Models\Refund;
 
 class TransactionService
 {
     /**
      * Record a new transaction
      *
-     * @param Order $order
-     * @param string $type
-     * @param float $amount
-     * @param string $status
-     * @param Payment|null $payment
-     * @param array $metadata
-     * @param string|null $notes
+     * @param  Payment|null  $payment
      * @return Transaction
      */
     public function record(
@@ -63,6 +59,8 @@ class TransactionService
 
     public function updateTransaction(Transaction $transaction, array $data)
     {
+        $this->assertNotManagedRefund($transaction);
+
         return DB::transaction(function () use ($transaction, $data) {
             $transaction->update([
                 'status' => $data['status'] ?? $transaction->status,
@@ -86,25 +84,21 @@ class TransactionService
 
     /**
      * Update transaction status
-     *
-     * @param Transaction $transaction
-     * @param string $status
-     * @param string|null $notes
-     * @return Transaction
      */
     public function updateStatus(
         Transaction $transaction,
         string $status,
         ?string $notes = null
     ): Transaction {
-        if (!TransactionStatus::tryFrom($status)) {
+        if (! TransactionStatus::tryFrom($status)) {
             throw new \InvalidArgumentException('Invalid transaction status.');
         }
 
         return DB::transaction(function () use ($transaction, $status, $notes) {
             $transaction = $transaction->newQuery()->whereKey($transaction->getKey())->lockForUpdate()->firstOrFail();
+            $this->assertNotManagedRefund($transaction);
             $oldStatus = $transaction->status;
-            if ($oldStatus === $status && !$notes) {
+            if ($oldStatus === $status && ! $notes) {
                 return $transaction;
             }
 
@@ -115,7 +109,7 @@ class TransactionService
 
             if ($notes) {
                 $updates['notes'] = $transaction->notes
-                    ? $transaction->notes . "\n" . $notes
+                    ? $transaction->notes."\n".$notes
                     : $notes;
             }
 
@@ -134,12 +128,6 @@ class TransactionService
 
     /**
      * Refund a transaction
-     *
-     * @param Transaction $originalTransaction
-     * @param float $amount
-     * @param string $reason
-     * @param array $metadata
-     * @return Transaction
      */
     public function refund(
         Transaction $originalTransaction,
@@ -148,7 +136,7 @@ class TransactionService
         array $metadata = []
     ): Transaction {
         if ($amount > $originalTransaction->amount) {
-            throw new \InvalidArgumentException("Refund amount cannot exceed original transaction amount");
+            throw new \InvalidArgumentException('Refund amount cannot exceed original transaction amount');
         }
 
         return $this->record(
@@ -159,7 +147,7 @@ class TransactionService
             payment: $originalTransaction->payment,
             metadata: array_merge($metadata, [
                 'original_transaction_id' => $originalTransaction->id,
-                'refund_reason' => $reason
+                'refund_reason' => $reason,
             ]),
             notes: "Refund of {$amount} for transaction #{$originalTransaction->transaction_number}. Reason: {$reason}"
         );
@@ -168,13 +156,28 @@ class TransactionService
     /**
      * Generate unique transaction number
      */
-    protected function generateTransactionNumber(): string
+    public function generateTransactionNumber(): string
     {
         do {
-            $number = 'TXN-' . date('Ymd') . '-' . strtoupper(Str::random(8));
+            $number = 'TXN-'.date('Ymd').'-'.strtoupper(Str::random(8));
         } while (Transaction::where('transaction_number', $number)->exists());
 
         return $number;
+    }
+
+    private function assertNotManagedRefund(Transaction $transaction): void
+    {
+        if ($transaction->type === 'refund' && isset($transaction->metadata['refund_id'])) {
+            throw ValidationException::withMessages([
+                'status' => 'Update this transaction through its refund request to keep payment totals and history consistent.',
+            ]);
+        }
+        if ($transaction->type === 'payment' && $transaction->payment_id
+            && Refund::where('payment_id', $transaction->payment_id)->exists()) {
+            throw ValidationException::withMessages([
+                'status' => 'This payment has a refund request. Manage its accounting through the refund screen.',
+            ]);
+        }
     }
 
     /**
@@ -215,8 +218,8 @@ class TransactionService
     public function getOrderTransactions(Order $order, array $filters = [])
     {
         return $order->transactions()
-            ->when($filters['type'] ?? null, fn($q, $type) => $q->where('type', $type))
-            ->when($filters['status'] ?? null, fn($q, $status) => $q->where('status', $status))
+            ->when($filters['type'] ?? null, fn ($q, $type) => $q->where('type', $type))
+            ->when($filters['status'] ?? null, fn ($q, $status) => $q->where('status', $status))
             ->orderBy('created_at', 'desc')
             ->get();
     }

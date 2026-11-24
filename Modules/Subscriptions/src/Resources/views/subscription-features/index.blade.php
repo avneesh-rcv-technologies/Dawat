@@ -180,7 +180,7 @@
                                 <form method="POST" 
                                       action="{{ route('subscriptions.features.resetUsage', [$subscription->id, $feature->id]) }}" 
                                       style="display: inline;"
-                                      onsubmit="return confirm('Reset usage to 0?')">
+                                      data-confirm="This will reset the usage counter to 0." data-confirm-title="Reset usage?" data-confirm-button="Reset usage" data-confirm-tone="warning">
                                     @csrf
                                     <button type="submit" 
                                             class="inline-flex items-center px-3 py-2 text-xs font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded hover:bg-gray-200"

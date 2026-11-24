@@ -8,6 +8,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
+use Modules\FoodManagements\Models\FoodFeature;
 use Modules\Restaurant\Models\Restaurant;
 use Modules\Restaurant\Services\RestaurantFoodFeatureGroupService;
 
@@ -19,7 +20,7 @@ class FoodFeatureGroupApiController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $this->getRestaurantForAuthUser($request);
+        $restaurant = $this->getRestaurantForAuthUser($request);
 
         $filters = $request->only([
             'search',
@@ -30,7 +31,7 @@ class FoodFeatureGroupApiController extends Controller
             'sort_dir',
         ]);
 
-        $groups = $this->service->listForRestaurant($filters);
+        $groups = $this->service->listForRestaurant($restaurant->id, $filters);
 
         return response()->json([
             'success' => true,
@@ -48,14 +49,14 @@ class FoodFeatureGroupApiController extends Controller
 
     public function store(Request $request): JsonResponse
     {
-        $this->getRestaurantForAuthUser($request);
+        $restaurant = $this->getRestaurantForAuthUser($request);
 
         $validated = Validator::make($request->all(), [
             'name' => [
                 'required',
                 'string',
                 'max:255',
-                Rule::unique('food_feature_descriptions', 'name')
+                Rule::unique('food_feature_descriptions', 'name')->whereIn('feature_id', FoodFeature::forRestaurant($restaurant->id)->pluck('feature_id'))
                     ->where(fn ($query) => $query->where('lang_code', 'en')),
             ],
             'description' => ['nullable', 'string'],
@@ -63,7 +64,7 @@ class FoodFeatureGroupApiController extends Controller
                 'nullable',
                 'string',
                 'max:32',
-                Rule::unique('food_features', 'feature_code')->where(fn ($query) => $query->where('feature_type', 'G')),
+                Rule::unique('food_features', 'feature_code')->where('restaurant_id', $restaurant->id)->where(fn ($query) => $query->where('feature_type', 'G')),
             ],
             'status' => ['nullable', 'string', 'in:A,H,D'],
             'position' => ['nullable', 'integer', 'min:0'],
@@ -71,14 +72,14 @@ class FoodFeatureGroupApiController extends Controller
             'display_on_catalog' => ['nullable', 'boolean'],
             'display_on_header' => ['nullable', 'boolean'],
             'category_ids' => ['nullable', 'array'],
-            'category_ids.*' => ['integer', 'exists:food_categories,id'],
+            'category_ids.*' => ['integer', Rule::exists('food_categories', 'id')->where('restaurant_id', $restaurant->id)],
         ], [
             'name.required' => 'Please enter a feature group name.',
             'name.unique' => 'This feature group name already exists.',
             'feature_code.unique' => 'This feature code already exists.',
         ])->validate();
 
-        $group = $this->service->createForRestaurant($validated);
+        $group = $this->service->createForRestaurant($restaurant->id, $validated);
 
         return response()->json([
             'success' => true,
@@ -89,10 +90,10 @@ class FoodFeatureGroupApiController extends Controller
 
     public function show(Request $request, int $id): JsonResponse
     {
-        $this->getRestaurantForAuthUser($request);
+        $restaurant = $this->getRestaurantForAuthUser($request);
 
         try {
-            $group = $this->service->showForRestaurant($id);
+            $group = $this->service->showForRestaurant($restaurant->id, $id);
 
             return response()->json([
                 'success' => true,
@@ -106,7 +107,7 @@ class FoodFeatureGroupApiController extends Controller
 
     public function update(Request $request, int $id): JsonResponse
     {
-        $this->getRestaurantForAuthUser($request);
+        $restaurant = $this->getRestaurantForAuthUser($request);
 
         try {
             $validated = Validator::make($request->all(), [
@@ -115,7 +116,7 @@ class FoodFeatureGroupApiController extends Controller
                     'required',
                     'string',
                     'max:255',
-                    Rule::unique('food_feature_descriptions', 'name')
+                    Rule::unique('food_feature_descriptions', 'name')->whereIn('feature_id', FoodFeature::forRestaurant($restaurant->id)->pluck('feature_id'))
                         ->where(fn ($query) => $query->where('lang_code', 'en'))
                         ->ignore($id, 'feature_id'),
                 ],
@@ -125,9 +126,9 @@ class FoodFeatureGroupApiController extends Controller
                     'nullable',
                     'string',
                     'max:32',
-                    Rule::unique('food_features', 'feature_code')
+                    Rule::unique('food_features', 'feature_code')->where('restaurant_id', $restaurant->id)
                         ->where(fn ($query) => $query->where('feature_type', 'G'))
-                        ->ignore($id),
+                        ->ignore($id, 'feature_id'),
                 ],
                 'status' => ['sometimes', 'nullable', 'string', 'in:A,H,D'],
                 'position' => ['sometimes', 'nullable', 'integer', 'min:0'],
@@ -135,14 +136,14 @@ class FoodFeatureGroupApiController extends Controller
                 'display_on_catalog' => ['sometimes', 'nullable', 'boolean'],
                 'display_on_header' => ['sometimes', 'nullable', 'boolean'],
                 'category_ids' => ['sometimes', 'nullable', 'array'],
-                'category_ids.*' => ['integer', 'exists:food_categories,id'],
+                'category_ids.*' => ['integer', Rule::exists('food_categories', 'id')->where('restaurant_id', $restaurant->id)],
             ], [
                 'name.required' => 'Please enter a feature group name.',
                 'name.unique' => 'This feature group name already exists.',
                 'feature_code.unique' => 'This feature code already exists.',
             ])->validate();
 
-            $group = $this->service->updateForRestaurant($id, $validated);
+            $group = $this->service->updateForRestaurant($restaurant->id, $id, $validated);
 
             return response()->json([
                 'success' => true,
@@ -156,10 +157,10 @@ class FoodFeatureGroupApiController extends Controller
 
     public function destroy(Request $request, int $id): JsonResponse
     {
-        $this->getRestaurantForAuthUser($request);
+        $restaurant = $this->getRestaurantForAuthUser($request);
 
         try {
-            $deleted = $this->service->deleteForRestaurant($id);
+            $deleted = $this->service->deleteForRestaurant($restaurant->id, $id);
 
             return response()->json([
                 'success' => $deleted,
@@ -172,17 +173,17 @@ class FoodFeatureGroupApiController extends Controller
 
     public function bulkDelete(Request $request): JsonResponse
     {
-        $this->getRestaurantForAuthUser($request);
+        $restaurant = $this->getRestaurantForAuthUser($request);
 
         $validated = Validator::make($request->all(), [
             'ids' => ['required', 'array', 'min:1'],
-            'ids.*' => ['integer', 'exists:food_features,feature_id'],
+            'ids.*' => ['integer', Rule::exists('food_features', 'feature_id')->where('restaurant_id', $restaurant->id)],
         ], [
             'ids.required' => 'Please select feature groups for delete.',
             'ids.min' => 'Please select feature groups for delete.',
         ])->validate();
 
-        $deletedCount = $this->service->bulkDeleteForRestaurant($validated['ids']);
+        $deletedCount = $this->service->bulkDeleteForRestaurant($restaurant->id, $validated['ids']);
 
         return response()->json([
             'success' => true,

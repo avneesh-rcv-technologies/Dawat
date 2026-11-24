@@ -377,7 +377,7 @@ $(document).ready(function() {
             case 'single':
                 var userId = $('#single-user-select').val();
                 if (!userId) {
-                    alert('Please select a restaurant owner');
+                    appAlert('Please select a restaurant owner.', { tone: 'warning', title: 'Selection required' });
                     isValid = false;
                 } else {
                     // Extract numeric ID from "owner_1" or "user_1" format
@@ -399,7 +399,7 @@ $(document).ready(function() {
             case 'multiple':
                 var userIds = $('#multiple-users-select').val();
                 if (!userIds || userIds.length === 0) {
-                    alert('Please select at least one restaurant owner');
+                    appAlert('Please select at least one restaurant owner.', { tone: 'warning', title: 'Selection required' });
                     isValid = false;
                 } else {
                     $('#multiple-users-select').prop('disabled', true);
@@ -422,7 +422,7 @@ $(document).ready(function() {
             case 'group':
                 var group = $('#group-select').val();
                 if (!group) {
-                    alert('Please select a restaurant group');
+                    appAlert('Please select a restaurant group.', { tone: 'warning', title: 'Selection required' });
                     isValid = false;
                 } else {
                     $('#group-select').prop('disabled', true);

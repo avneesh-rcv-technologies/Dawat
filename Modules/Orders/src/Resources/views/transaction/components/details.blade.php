@@ -1,5 +1,6 @@
 @php
     $order = $transaction->order;
+    $payment = $payment ?? $transaction->payment;
     $statusEnum = \Modules\Orders\Enums\TransactionStatus::tryFrom($transaction->status ?? '');
     $typeEnum = \Modules\Orders\Enums\TransactionType::tryFrom($transaction->type ?? '');
     $statusLabel = $statusEnum?->label() ?? \Illuminate\Support\Str::headline($transaction->status ?? 'Unknown');
@@ -11,24 +12,29 @@
     $metadata = is_array($metadata) ? $metadata : [];
     $isCancellation = ($transaction->type ?? '') === 'order_cancelled';
     $currency = $order?->currency ?? $transaction->currency ?? 'USD';
-    $formatAmount = fn ($amount, $code) => strtoupper($code) . ' ' . number_format((float) $amount, 2);
+    $formatAmount = fn ($amount, $code) => fn_format_currency_amount((float) $amount, $code, true);
+    $formatMoney = fn ($amount) => $formatAmount($amount, $currency);
+    $paymentLink = $transaction->payment_url;
+    $metadata = \Illuminate\Support\Arr::except($metadata, ['transaction_id', 'gateway_response', 'payment_url', 'client_secret', 'configuration', 'collected_by_name', 'collected_by_email']);
     $customer = $order?->customer;
     $vendor = $order?->vendor;
-    $billing = $order?->billing_address ?? [];
-    if (is_string($billing)) $billing = json_decode($billing, true) ?: ['address' => $billing];
-    $billing = is_array($billing) ? $billing : [];
-    $addressLines = array_filter([
-        $billing['address_line_1'] ?? $billing['address_line1'] ?? $billing['address'] ?? null,
-        $billing['address_line_2'] ?? $billing['address_line2'] ?? null,
-        implode(', ', array_filter([$billing['city_name'] ?? $billing['city'] ?? null, $billing['state_name'] ?? $billing['state'] ?? null])),
-        $billing['zip_code'] ?? $billing['zipcode'] ?? $billing['postal_code'] ?? null,
-        $billing['country_name'] ?? $billing['country'] ?? null,
-    ], fn ($line) => is_scalar($line) && trim((string) $line) !== '');
+    $addressName = fn ($value) => is_array($value) ? ($value['name'] ?? null) : (is_scalar($value) ? $value : null);
+    $delivery = $order?->delivery_address ?? [];
+    if (is_string($delivery)) $delivery = json_decode($delivery, true) ?: [];
+    $deliveryLines = is_array($delivery) ? array_filter([
+        $delivery['address_line_1'] ?? $delivery['address_line1'] ?? null,
+        $delivery['address_line_2'] ?? $delivery['address_line2'] ?? null,
+        implode(', ', array_filter([$addressName($delivery['city_name'] ?? $delivery['city'] ?? null), $addressName($delivery['state_name'] ?? $delivery['state'] ?? null)])),
+        $delivery['zip_code'] ?? $delivery['postal_code'] ?? null,
+        $addressName($delivery['country_name'] ?? $delivery['country'] ?? null),
+    ], fn ($line) => is_scalar($line) && trim((string) $line) !== '') : [];
     $orderStatus = $order ? fn_get_order_status($order->status, 'O') : null;
     $paymentStatus = $order ? \Modules\Payments\Enums\PaymentStatus::tryFrom($order->payment_status ?? '') : null;
 @endphp
 
-<div class="space-y-6">
+@include('orders::orders.components.receipt-styles')
+
+<div class="order-receipt space-y-6">
     <div class="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
         <div class="flex flex-col md:flex-row md:items-start justify-between gap-4">
             <div class="min-w-0">
@@ -70,6 +76,9 @@
                         </dd>
                     </div>
                     <div><dt class="text-gray-500">Payment Method</dt><dd class="font-medium text-gray-900 mt-1">{{ $paymentMethodName ?? 'Not recorded' }}</dd></div>
+                    @if($order)
+                    <div><dt class="text-gray-500">Order Type</dt><dd class="font-medium text-gray-900 mt-1">{{ match ($order->order_type) { 'delivery' => 'Delivery', 'takeaway' => 'Pickup', 'dine_in' => 'Dine-in', default => 'Not recorded' } }}</dd></div>
+                    @endif
                     <div><dt class="text-gray-500">Gateway Reference</dt><dd class="font-medium text-gray-900 mt-1 break-all">{{ $transaction->gateway_reference ?: 'Not recorded' }}</dd></div>
                     <div><dt class="text-gray-500">Processed At</dt><dd class="font-medium text-gray-900 mt-1">{{ $transaction->processed_at?->format('M d, Y h:i A') ?? 'Not recorded' }}</dd></div>
                     @if($order)
@@ -85,59 +94,27 @@
             @if($order)
             <section class="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
                 <div class="px-6 py-4 border-b border-gray-200">
-                    <h2 class="text-lg font-semibold text-gray-900">Order Items ({{ $order->items->count() }})</h2>
+                    <h2 class="text-lg font-semibold text-gray-900">Order Items ({{ count($receiptItems ?? []) }})</h2>
                 </div>
-                <div class="overflow-x-auto">
-                    <table class="w-full text-sm">
-                        <thead class="bg-gray-50 text-gray-600">
-                            <tr>
-                                <th class="px-6 py-3 text-left font-medium">Item</th>
-                                <th class="px-4 py-3 text-right font-medium">Quantity</th>
-                                <th class="px-4 py-3 text-right font-medium whitespace-nowrap">Unit Price</th>
-                                <th class="px-6 py-3 text-right font-medium">Line Total</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-gray-200">
-                            @forelse($order->items as $index => $item)
-                            <tr class="align-top">
-                                <td class="px-6 py-4">
-                                    <p class="font-semibold text-gray-900">{{ $item->item_name }}</p>
-                                    @if($item->sku)<p class="text-xs text-gray-500 mt-1">SKU: {{ $item->sku }}</p>@endif
-                                    @foreach($optionsByItem[$index] ?? [] as $option)
-                                    <p class="text-xs text-gray-600 mt-2">{{ $option['group_name'] }}: <span class="font-medium">{{ $option['name'] }}</span>@if($option['quantity'] > 1) × {{ $option['quantity'] }}@endif</p>
-                                    @if($option['price'] !== null)
-                                    <p class="text-xs text-gray-500">{{ $option['price_recorded'] ? 'Extra price' : 'Current extra price' }}: {{ $formatAmount($option['price'], $currency) }}</p>
-                                    @endif
-                                    @endforeach
-                                    @if($item->special_instructions)<p class="text-xs text-gray-600 mt-2">Instructions: {{ $item->special_instructions }}</p>@endif
-                                </td>
-                                <td class="px-4 py-4 text-right text-gray-900">{{ $item->quantity }}</td>
-                                <td class="px-4 py-4 text-right text-gray-900 whitespace-nowrap">{{ $formatAmount($item->price, $currency) }}</td>
-                                <td class="px-6 py-4 text-right font-semibold text-gray-900 whitespace-nowrap">{{ $formatAmount($item->total_price ?? ($item->quantity * $item->price), $currency) }}</td>
-                            </tr>
-                            @empty
-                            <tr><td colspan="4" class="px-6 py-6 text-center text-gray-500">No order items available</td></tr>
-                            @endforelse
-                        </tbody>
-                    </table>
-                </div>
-                <div class="border-t border-gray-200 p-6">
-                    <h3 class="font-semibold text-gray-900 mb-3">Order Summary</h3>
-                    <dl class="space-y-2 text-sm">
-                        <div class="flex justify-between gap-4"><dt class="text-gray-600">Subtotal</dt><dd class="text-gray-900">{{ $formatAmount($order->subtotal, $currency) }}</dd></div>
-                        <div class="flex justify-between gap-4"><dt class="text-gray-600">Tax</dt><dd class="text-gray-900">{{ $formatAmount($order->tax, $currency) }}</dd></div>
-                        @foreach(['delivery_fee' => 'Delivery Fee', 'service_charge' => 'Service Charge'] as $field => $label)
-                        @if($order->{$field} > 0)
-                        <div class="flex justify-between gap-4"><dt class="text-gray-600">{{ $label }}</dt><dd class="text-gray-900">{{ $formatAmount($order->{$field}, $currency) }}</dd></div>
-                        @endif
-                        @endforeach
-                        @if($order->discount > 0)
-                        <div class="flex justify-between gap-4"><dt class="text-gray-600">Discount</dt><dd class="text-green-700">−{{ $formatAmount($order->discount, $currency) }}</dd></div>
-                        @endif
-                        <div class="flex justify-between gap-4 border-t border-gray-200 pt-3 font-semibold text-gray-900"><dt>Order Total</dt><dd>{{ $formatAmount($order->total, $currency) }}</dd></div>
-                    </dl>
+                <div class="p-6 space-y-4">
+                    @forelse($receiptItems ?? [] as $index => $receiptItem)
+                        @include('orders::orders.components.item-receipt', [
+                            'item' => $receiptItem,
+                            'displayOptions' => $optionsByItem[$index] ?? [],
+                        ])
+                    @empty
+                        <p class="text-sm text-gray-500">No order items available.</p>
+                    @endforelse
                 </div>
             </section>
+            @include('orders::orders.components.price-breakdown', [
+                'order_summary' => app(\Modules\Orders\Services\OrderPresentationService::class)->pricing($order),
+                'order_type' => $order->order_type,
+                'coupon_code' => $order->coupon_code,
+                'event_guest_count' => $order->event_guest_count,
+                'delivery_distance_miles' => $order->delivery_distance_miles,
+                'estimated_delivery_minutes' => $order->estimated_delivery_minutes,
+            ])
             @endif
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -146,24 +123,55 @@
                     <p class="font-medium text-gray-900">{{ $customer?->name ?: 'Not recorded' }}</p>
                     <p class="text-sm text-gray-600 mt-2 break-all">{{ $customer?->email ?: 'Email not provided' }}</p>
                     <p class="text-sm text-gray-600 mt-2">{{ $customer?->phone ?: ($order?->phone_number ?: 'Phone not provided') }}</p>
-                    <h3 class="text-sm font-semibold text-gray-900 mt-4 mb-2">Billing Address</h3>
-                    @forelse($addressLines as $line)
-                    <p class="text-sm text-gray-600">{{ $line }}</p>
-                    @empty
-                    <p class="text-sm text-gray-500">Not provided</p>
-                    @endforelse
+                    @if($order?->order_type === 'delivery')
+                        <h3 class="text-sm font-semibold text-gray-900 mt-4 mb-2">Delivery Address</h3>
+                        @forelse($deliveryLines as $line)
+                            <p class="text-sm text-gray-600">{{ $line }}</p>
+                        @empty
+                            <p class="text-sm text-gray-500">Not provided</p>
+                        @endforelse
+                    @endif
                 </section>
                 <section class="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
                     <h2 class="text-lg font-semibold text-gray-900 mb-3">Restaurant</h2>
-                    <p class="font-medium text-gray-900">{{ $vendor?->name ?: 'Not recorded' }}</p>
+                    @if($vendor instanceof \Modules\Restaurant\Models\Restaurant)
+                        <a href="{{ route('admin.restaurant.view', $vendor->id) }}" class="receipt-detail-link font-medium">{{ $vendor->name }}</a>
+                    @else
+                        <p class="font-medium text-gray-900">{{ $vendor?->name ?: 'Not recorded' }}</p>
+                    @endif
                     @if($vendor?->email)<p class="text-sm text-gray-600 mt-2 break-all">{{ $vendor->email }}</p>@endif
                     <p class="text-sm text-gray-600 mt-2">{{ $vendor?->phone ?: 'Phone not provided' }}</p>
                     @if($vendor?->address_line1)<p class="text-sm text-gray-600 mt-2">{{ $vendor->address_line1 }} {{ $vendor->address_line2 }}</p>@endif
+                    @if($order?->order_type === 'takeaway')
+                        <p class="text-sm text-gray-500 mt-4">Customer pickup at the restaurant.</p>
+                    @endif
                 </section>
             </div>
         </div>
 
         <aside class="space-y-6">
+            <section class="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
+                <h2 class="text-lg font-semibold text-gray-900 mb-4">Payment Details</h2>
+                <dl class="receipt-rows">
+                    <div><dt>Transaction amount</dt><dd>{{ $formatAmount($transaction->amount, $transaction->currency) }}</dd></div>
+                    <div><dt>Status</dt><dd>{{ $statusLabel }}</dd></div>
+                    @if($payment?->gateway_fee !== null)
+                        <div><dt>Gateway fee</dt><dd>{{ $formatAmount($payment->gateway_fee, $payment->currency) }}</dd></div>
+                    @endif
+                    @if($payment && data_get($payment->details, 'card.last4'))
+                        <div><dt>Card</dt><dd>{{ ucfirst(data_get($payment->details, 'card.brand', 'Card')) }} •••• {{ data_get($payment->details, 'card.last4') }}</dd></div>
+                    @endif
+                </dl>
+                @if($paymentLink)
+                    <a href="{{ $paymentLink }}" target="_blank" rel="noopener noreferrer" class="flex items-center justify-center mt-4 px-4 py-3 rounded-lg bg-primary-100 text-white text-sm font-medium">Open Customer Payment Page</a>
+                    <p class="text-xs text-gray-500 mt-3">This link continues the payment already created for this order.</p>
+                @elseif($transaction->status === 'completed')
+                    <p class="text-sm text-green-700 mt-4">This transaction is complete.</p>
+                @else
+                    <p class="text-sm text-gray-500 mt-4">No active customer payment link.</p>
+                @endif
+            </section>
+
             @if($metadata)
             <section class="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
                 <h2 class="text-lg font-semibold text-gray-900 mb-4">{{ $isCancellation ? 'Cancellation Details' : 'Transaction Details' }}</h2>
@@ -172,7 +180,9 @@
                     <div>
                         <dt class="text-gray-500">{{ $key === 'refund_amount' ? 'Recorded Refund Amount' : \Illuminate\Support\Str::headline(str_replace('.', ' / ', $key)) }}</dt>
                         <dd class="font-medium text-gray-900 mt-1 break-words">
-                            @if($key === 'refund_amount' && is_numeric($value))
+                            @if($key === 'collected_by')
+                                {{ $transaction->collector_label }}
+                            @elseif($key === 'refund_amount' && is_numeric($value))
                                 {{ $formatAmount($value, $transaction->currency) }}
                             @elseif(is_bool($value))
                                 {{ $value ? 'Yes' : 'No' }}

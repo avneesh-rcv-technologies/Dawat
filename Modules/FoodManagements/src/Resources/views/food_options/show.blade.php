@@ -86,12 +86,12 @@
 }
 
 .btn-primary {
-    background-color: #3b82f6;
+    background-color: #FF6210;
     color: #ffffff;
 }
 
 .btn-primary:hover {
-    background-color: #2563eb;
+    background-color: #E0530B;
 }
 
 .btn-secondary {

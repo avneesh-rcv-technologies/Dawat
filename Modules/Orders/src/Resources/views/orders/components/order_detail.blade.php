@@ -7,23 +7,35 @@ $isFinishedOrder = $isStoppedOrder || ($status ?? 'W') === 'D';
 // Get payment status info
 $paymentStatusInfo = \Modules\Payments\Enums\PaymentStatus::tryFrom($payment_status ?? \Modules\Payments\Enums\PaymentStatus::PENDING->value);
 $paymentStatusLabel = $paymentStatusInfo?->label() ?? \Illuminate\Support\Str::headline($payment_status ?? 'Unknown');
-$paymentStatusStyle = $paymentStatusInfo?->class() ?? 'background-color: #6B7280; color: #ffffff;';
+$paymentStatusStyle = match ($payment_status ?? '') {
+    'paid', 'completed', 'captured' => 'background:#ecfdf5;color:#047857;',
+    'failed' => 'background:#fef2f2;color:#b91c1c;',
+    'refunded' => 'background:#f1f5f9;color:#475569;',
+    'partially_refunded', 'processing' => 'background:#eff6ff;color:#1d4ed8;',
+    default => 'background:#fffbeb;color:#92400e;',
+};
 $optionsByItem = app(\Modules\Orders\Services\OrderItemOptionsService::class)->forItems($order_items ?? []);
+$isCod = $is_cod_order ?? app(\Modules\Orders\Services\CodPaymentService::class)->isCodPaymentMethod($payment_method ?? null);
 @endphp
 
-<div class="mx-auto">
+@include('orders::orders.components.receipt-styles')
+
+<div class="mx-auto order-receipt {{ ($mode ?? '') === 'view' ? 'order-detail-view' : '' }}">
+    @if(($mode ?? '') === 'view')
+        <a href="{{ route('admin.orders.index') }}" class="receipt-back"><i class="fas fa-arrow-left" aria-hidden="true"></i> Back to orders</a>
+    @endif
     <!-- Order Header -->
-    <div class="bg-white rounded-lg shadow-sm mb-6 p-6">
+    <div class="receipt-order-header bg-white rounded-lg shadow-sm mb-6 p-6">
         <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div class="flex-1">
-                <div class="flex items-center gap-3 mb-2">
-                    <h1 class="text-2xl font-bold text-gray-900">Order #{{ $order_number ?? 'New Order' }}</h1>
-                    <span class="px-3 py-1 rounded-full text-xs font-medium"
+                <div class="receipt-order-title-line flex items-center gap-3 mb-2">
+                    <div><p class="receipt-order-eyebrow">{{ $mode === 'create' ? 'New order' : ($mode === 'edit' ? 'Edit order' : 'Order details') }}</p><h1 class="text-2xl font-bold text-gray-900">{{ $order_number ?? 'New Order' }}</h1></div>
+                    <span class="receipt-status-badge px-3 py-1 rounded-full text-xs font-medium"
                         style="background-color: {{ $statusColor }}20; color: {{ $statusColor }}; border: 1px solid {{ $statusColor }};">
                         {{ $statusInfo->name ?? 'Pending' }}
                     </span>
                 </div>
-                <div class="flex flex-wrap gap-4 text-sm text-gray-600">
+                <div class="receipt-order-meta flex flex-wrap gap-4 text-sm text-gray-600">
                     @if(isset($created_at))
                     <span class="flex items-center">
                         <i class="fas fa-calendar mr-1"></i>
@@ -40,7 +52,7 @@ $optionsByItem = app(\Modules\Orders\Services\OrderItemOptionsService::class)->f
                     <span class="flex items-center">
                         <i class="fas fa-credit-card mr-1"></i>
                         Payment:
-                        <span class="ml-1 px-2 py-0.5 rounded-full text-xs font-medium"
+                        <span class="receipt-status-badge ml-1 px-2 py-0.5 rounded-full text-xs font-medium"
                             style="{{ $paymentStatusStyle }}">
                             {{ $paymentStatusLabel }}
                         </span>
@@ -48,6 +60,9 @@ $optionsByItem = app(\Modules\Orders\Services\OrderItemOptionsService::class)->f
                     @endif
                 </div>
             </div>
+            @if($mode === 'view')
+                <div class="receipt-header-total"><span>Order total · {{ fn_get_currency_symbol($currency ?? 'USD') ?? $currency ?? 'USD' }}</span><strong>{{ fn_convert_currency($order_summary['total'] ?? $total ?? 0, $currency ?? 'USD') }}</strong></div>
+            @endif
             @if($mode === 'create' || $mode === 'edit')
             <x-modal buttonText='<i class="fas fa-plus"></i> Add Item' type='link' modalTitle="Add To Cart"
                 id="add_to_cart" ajaxUrl="{{route('api.cart.item.view', $order_id ?? 0)}}"
@@ -65,90 +80,25 @@ $optionsByItem = app(\Modules\Orders\Services\OrderItemOptionsService::class)->f
         @if(!empty($order_id) && $mode != 'create') @method('PUT') @endif
         @endif
 
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="receipt-order-grid grid grid-cols-1 lg:grid-cols-3 gap-6">
             <!-- Main Content Area -->
-            <div class="lg:col-span-2 space-y-6">
+            <div class="receipt-main-column lg:col-span-2 space-y-6">
                 <!-- Order Items Section -->
-                <div class="bg-white rounded-lg shadow-sm">
-                    <div class="border-b border-gray-200 px-6 py-4">
+                <div class="receipt-items-panel bg-white rounded-lg shadow-sm">
+                    <div class="receipt-panel-header border-b border-gray-200 px-6 py-4">
                         <h2 class="text-lg font-semibold text-gray-900 flex items-center">
                             <i class="fas fa-shopping-cart mr-2"></i>
-                            Order Items ({{ count($order_items ?? []) }})
+                            Order items <span class="receipt-count">{{ count($order_items ?? []) }}</span>
                         </h2>
                     </div>
                     <div class="p-6">
                         @if(!empty($order_items) && count($order_items) > 0)
                         <div class="space-y-4">
                             @foreach($order_items as $itemIndex => $item)
-                            <div class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
-                                <div class="flex gap-4">
-                                    <!-- Item Image -->
-                                    <div class="flex-shrink-0">
-                                        @if(!empty($item['item_image']) || !empty($item['food_item_image']))
-                                        <img src="{{ $item['item_image'] ?? $item['food_item_image'] }}"
-                                            alt="{{ $item['item_name'] ?? $item['food_item_name'] }}"
-                                            class="w-20 h-20 object-cover rounded-lg">
-                                        @else
-                                        <div class="w-20 h-20 bg-gray-200 rounded-lg flex items-center justify-center">
-                                            <i class="fas fa-utensils text-gray-400 text-2xl"></i>
-                                        </div>
-                                        @endif
-                                    </div>
-
-                                    <!-- Item Details -->
-                                    <div class="flex-1">
-                                        <div class="flex justify-between items-start mb-2">
-                                            <div>
-                                                <h3 class="font-semibold text-gray-900">
-                                                    {{ $item['item_name'] ?? $item['food_item_name'] }}
-                                                </h3>
-                                                @if(!empty($item['sku']))
-                                                <p class="text-xs text-gray-500">SKU: {{ $item['sku'] }}</p>
-                                                @endif
-                                            </div>
-                                            <div class="text-right">
-                                                <p class="font-semibold text-gray-900">
-                                                    {{ fn_convert_currency($item['total_price'] ?? ($item['price'] *
-                                                    $item['quantity']), $currency ?? 'USD') }}
-                                                </p>
-                                            </div>
-                                        </div>
-
-                                        <!-- Price and Quantity -->
-                                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4 text-sm mb-2">
-                                            <div>
-                                                <span class="text-gray-600">Unit Price:</span>
-                                                <span class="font-medium text-gray-900 ml-1">
-                                                    {{ fn_convert_currency($item['price'], $currency ?? 'USD') }}
-                                                </span>
-                                            </div>
-                                            <div>
-                                                <span class="text-gray-600">Quantity:</span>
-                                                <span class="font-medium text-gray-900 ml-1">{{ $item['quantity']
-                                                    }}</span>
-                                            </div>
-                                            <div>
-                                                <span class="text-gray-600">Tax Rate:</span>
-                                                <span class="font-medium text-gray-900 ml-1">{{ $item['tax_rate'] ?? 0
-                                                    }}%</span>
-                                            </div>
-                                        </div>
-
-                                        @include('orders::orders.components.selected_options', ['displayOptions' => $optionsByItem[$itemIndex] ?? []])
-
-                                        <!-- Special Instructions -->
-                                        @if(!empty($item['special_instructions']))
-                                        <div class="mt-2 p-2 bg-yellow-50 rounded border border-yellow-200">
-                                            <p class="text-xs text-gray-600">
-                                                <i class="fas fa-sticky-note mr-1"></i>
-                                                <span class="font-medium">Instructions:</span> {{
-                                                $item['special_instructions'] }}
-                                            </p>
-                                        </div>
-                                        @endif
-                                    </div>
-                                </div>
-                            </div>
+                            @include('orders::orders.components.item-receipt', [
+                                'item' => $item,
+                                'displayOptions' => $optionsByItem[$itemIndex] ?? [],
+                            ])
                             @endforeach
                         </div>
                         @else
@@ -160,63 +110,21 @@ $optionsByItem = app(\Modules\Orders\Services\OrderItemOptionsService::class)->f
                     </div>
                 </div>
 
-                <!-- Order Summary -->
-                <div class="bg-white rounded-lg shadow-sm p-6">
-                    <h3 class="text-lg font-semibold text-gray-900 mb-4">Order Summary</h3>
-                    <div class="space-y-2">
-                        <div class="flex justify-between text-sm">
-                            <span class="text-gray-600">Subtotal:</span>
-                            <span class="font-medium text-gray-900">{{ fn_convert_currency($order_summary['subtotal'] ??
-                                $subtotal ?? 0, $currency ?? 'USD') }}</span>
-                        </div>
-                        @if((!empty($order_summary['discount']) && $order_summary['discount'] > 0) || (!empty($discount)
-                        && $discount > 0))
-                        <div class="flex justify-between text-sm">
-                            <span class="text-gray-600">Discount:</span>
-                            <span class="font-medium text-green-600">-{{ fn_convert_currency($order_summary['discount']
-                                ?? $discount, $currency ?? 'USD') }}</span>
-                        </div>
-                        @if(!empty($coupon_code))
-                        <div class="text-xs text-gray-500 ml-4">
-                            Coupon: <span class="font-medium">{{ $coupon_code }}</span>
-                        </div>
-                        @endif
-                        @endif
-                        <div class="flex justify-between text-sm">
-                            <span class="text-gray-600">Tax:</span>
-                            <span class="font-medium text-gray-900">{{ fn_convert_currency($order_summary['tax'] ??
-                                $tax ?? 0, $currency ?? 'USD') }}</span>
-                        </div>
-                        @if((!empty($order_summary['delivery_fee']) && $order_summary['delivery_fee'] > 0) ||
-                        (!empty($delivery_fee) && $delivery_fee > 0))
-                        <div class="flex justify-between text-sm">
-                            <span class="text-gray-600">Delivery Fee:</span>
-                            <span class="font-medium text-gray-900">{{
-                                fn_convert_currency($order_summary['delivery_fee'] ?? $delivery_fee, $currency ?? 'USD')
-                                }}</span>
-                        </div>
-                        @endif
-                        @if((!empty($order_summary['service_charge']) && $order_summary['service_charge'] > 0) ||
-                        (!empty($service_charge) && $service_charge > 0))
-                        <div class="flex justify-between text-sm">
-                            <span class="text-gray-600">Service Charge:</span>
-                            <span class="font-medium text-gray-900">{{
-                                fn_convert_currency($order_summary['service_charge'] ?? $service_charge, $currency ??
-                                'USD') }}</span>
-                        </div>
-                        @endif
-                        <div class="border-t border-gray-200 pt-2 mt-2">
-                            <div class="flex justify-between">
-                                <span class="text-base font-semibold text-gray-900">Total:</span>
-                                <span class="text-lg font-bold text-gray-900">{{
-                                    fn_convert_currency($order_summary['total'] ?? $total ?? 0, $currency ?? 'USD')
-                                    }}</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                @include('orders::orders.components.price-breakdown')
 
                 @include('orders::orders.components.timeline')
+
+                @if($mode === 'view' && !empty($refunds) && count($refunds))
+                    <section class="bg-white rounded-lg shadow-sm p-6">
+                        <h3 class="text-lg font-semibold text-gray-900 mb-4">Refund requests</h3>
+                        @foreach($refunds as $refund)
+                            <div class="flex justify-between gap-4 border-b border-gray-100 py-3">
+                                <a class="receipt-detail-link" href="{{ route('admin.refunds.show', $refund->id) }}">Refund {{ $refund->refund_number }}</a>
+                                <span>{{ fn_format_currency_amount((float) $refund->refund_amount, $refund->payment?->currency ?? $currency ?? 'USD') }} · {{ ucfirst($refund->refund_status) }}</span>
+                            </div>
+                        @endforeach
+                    </section>
+                @endif
 
                 <!-- Transactions Section -->
                 @if($mode === 'view' && !empty($transactions) && count($transactions) > 0)
@@ -243,9 +151,11 @@ $optionsByItem = app(\Modules\Orders\Services\OrderItemOptionsService::class)->f
                             <div class="flex justify-between items-start mb-2">
                                 <div class="flex-1">
                                     <div class="flex items-center gap-2 mb-1">
-                                        <span class="font-semibold text-gray-900">
+                                        <a href="{{ route('admin.transactions.show', $transaction['id']) }}"
+                                            class="receipt-detail-link font-semibold">
                                             {{ $transaction['transaction_number'] ?? 'TXN-' . $transaction['id'] }}
-                                        </span>
+                                            <i class="fas fa-arrow-up-right-from-square" aria-hidden="true"></i>
+                                        </a>
                                         <span class="px-2 py-0.5 rounded-full text-xs font-medium"
                                             style="background-color: {{ $typeColor }}20; color: {{ $typeColor }}; border: 1px solid {{ $typeColor }};">
                                             {{ ucfirst($transaction['type']) }}
@@ -297,30 +207,42 @@ $optionsByItem = app(\Modules\Orders\Services\OrderItemOptionsService::class)->f
             </div>
 
             <!-- Right Sidebar -->
-            <div class="lg:col-span-1 space-y-6">
+            <div class="receipt-sidebar-column lg:col-span-1 space-y-6">
                 <!-- Order Status Card -->
-                <div class="bg-white rounded-lg shadow-sm p-6">
+                <div class="receipt-status-panel bg-white rounded-lg shadow-sm p-6">
                     <h3 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
                         <i class="fas fa-info-circle mr-2 text-primary-100"></i>
-                        Order Status
+                        Order status
                     </h3>
+                    <p class="receipt-panel-description">Manage the order’s progress and fulfilment.</p>
                     @if($mode === 'view')
                     @php
                         $currentStatusCode = $status ?? 'W';
                         $allowedStatusCodes = app(\Modules\Orders\Services\OrderService::class)
                             ->getAllowedStatusesForOrder($currentStatusCode, $order_type ?? 'delivery');
+                        $refundActor = auth('admin')->user();
+                        $canRecordRefund = $refundActor instanceof \Modules\Acl\Models\Admin
+                            && app(\Modules\Payments\Services\RefundAccess::class)->canUpdate($refundActor)
+                            && in_array($payment_status ?? '', ['paid', 'completed', 'captured', 'partially_refunded'], true)
+                            && !in_array($currentStatusCode, ['D', 'F', 'R'], true);
+                        // Refunded is a ledger action, not an order lifecycle status.
+                        $allowedStatusCodes = array_values(array_diff($allowedStatusCodes, ['R']));
                         $availableStatuses = fn_get_order_statuses('O')
                             ->whereIn('status_code', $allowedStatusCodes)
                             ->sortBy(fn ($orderStatus) => array_search($orderStatus->status_code, $allowedStatusCodes, true));
-                        $canUpdateStatus = $availableStatuses->contains(fn ($orderStatus) => $orderStatus->status_code !== $currentStatusCode);
+                        $canUpdateStatus = $canRecordRefund || $availableStatuses->contains(fn ($orderStatus) => $orderStatus->status_code !== $currentStatusCode);
                     @endphp
 
                     @if($canUpdateStatus)
                     <form action="{{ route('admin.orders.update-status', $order_id ?? 0) }}" method="POST"
-                        id="status-update-form" class="form-ajax">
+                        id="status-update-form" class="form-ajax" data-current-status="{{ $currentStatusCode }}" data-payment-status="{{ $payment_status ?? 'pending' }}" data-order-number="{{ $order_number ?? '' }}">
 
                         @csrf
+                        <input type="hidden" name="confirmed" value="0">
+                        <input type="hidden" name="cancellation_reason" value="">
+                        <input type="hidden" name="stripe_refund_id" value="">
                         <div class="relative mb-3">
+                            <label for="order_status" class="receipt-field-label">Select status</label>
                             <select name="status" id="order_status"
                                 @disabled(!$canUpdateStatus)
                                 class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-100 focus:border-primary-100 bg-white">
@@ -329,12 +251,13 @@ $optionsByItem = app(\Modules\Orders\Services\OrderItemOptionsService::class)->f
                                     {{ $orderStatus->name }}
                                 </option>
                                 @endforeach
+                                @if($canRecordRefund)<option value="R">Cancel & record completed refund</option>@endif
                             </select>
                         </div>
                         <button type="submit"
                             @disabled(!$canUpdateStatus)
-                            class="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-                            <i class="fas fa-save mr-2"></i>Update Status
+                            class="receipt-action-button w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                            <i class="fas fa-check" aria-hidden="true"></i><span>Update order status</span>
                         </button>
                     </form>
                     <p class="text-xs text-gray-500 mt-2">
@@ -354,75 +277,51 @@ $optionsByItem = app(\Modules\Orders\Services\OrderItemOptionsService::class)->f
                     </div>
                     @endif
 
-                    @if(!empty($updated_at))
-                    <div class="mt-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                        <p class="text-xs font-medium text-gray-700 mb-1">Last Updated</p>
-                        <p class="text-sm font-semibold text-gray-900">
-                            {{ \Carbon\Carbon::parse($updated_at)->format('M d, Y h:i A') }}
-                        </p>
-                    </div>
-                    @endif
-
-                    <!-- Additional Status Info -->
-                    @if(!$isFinishedOrder && !empty($estimated_delivery_time))
-                    <div class="mt-4 p-3 bg-blue-50 rounded-lg">
-                        <p class="text-xs font-medium text-gray-700 mb-1">{{ ($order_type ?? 'delivery') === 'delivery' ? 'Estimated Delivery' : 'Estimated Ready Time' }}</p>
-                        <p class="text-sm font-semibold text-gray-900">
-                            {{ \Carbon\Carbon::parse($estimated_delivery_time)->format('M d, Y h:i A') }}
-                        </p>
-                    </div>
-                    @endif
-
-                    @if(!empty($actual_delivery_time))
-                    <div class="mt-2 p-3 bg-green-50 rounded-lg">
-                        <p class="text-xs font-medium text-gray-700 mb-1">Delivered At</p>
-                        <p class="text-sm font-semibold text-gray-900">
-                            {{ \Carbon\Carbon::parse($actual_delivery_time)->format('M d, Y h:i A') }}
-                        </p>
-                    </div>
-                    @endif
+                    <dl class="receipt-status-facts">
+                        @if(!empty($preferred_delivery_date))
+                            <div><dt>{{ ($order_type ?? 'delivery') === 'delivery' ? 'Requested delivery' : 'Requested pickup' }}</dt><dd>{{ \Carbon\Carbon::parse($preferred_delivery_date)->format('d M Y, h:i A') }}</dd></div>
+                        @endif
+                        @if(!empty($updated_at))
+                            <div><dt>Last updated</dt><dd>{{ \Carbon\Carbon::parse($updated_at)->format('d M Y, h:i A') }}</dd></div>
+                        @endif
+                        @if(!$isFinishedOrder && !empty($estimated_delivery_time))
+                            <div><dt>{{ ($order_type ?? 'delivery') === 'delivery' ? 'Estimated delivery' : 'Estimated ready time' }}</dt><dd>{{ \Carbon\Carbon::parse($estimated_delivery_time)->format('d M Y, h:i A') }}</dd></div>
+                        @endif
+                        @if(!empty($actual_delivery_time))
+                            <div><dt>Delivered at</dt><dd>{{ \Carbon\Carbon::parse($actual_delivery_time)->format('d M Y, h:i A') }}</dd></div>
+                        @endif
+                    </dl>
                     @if($isStoppedOrder && !empty($cancellation_reason))
-                    <div class="mt-3 p-3 bg-gray-50 rounded-lg">
-                        <p class="text-xs font-medium text-gray-700 mb-1">Reason</p>
-                        <p class="text-sm text-gray-900">{{ $cancellation_reason }}</p>
-                    </div>
+                        <div class="receipt-status-reason"><span>Cancellation reason</span><p>{{ $cancellation_reason }}</p></div>
                     @endif
 
-                    @if(!empty($stock_restored_at))
-                    <div class="mt-3 p-3 bg-green-50 rounded-lg">
-                        <p class="text-sm font-medium text-green-800">Reserved stock returned</p>
-                        <p class="text-xs text-gray-600 mt-1">{{ \Carbon\Carbon::parse($stock_restored_at)->format('M d, Y h:i A') }}</p>
-                    </div>
-                    @endif
                 </div>
 
                 <!-- Payment Information Card -->
-                <div class="bg-white rounded-lg shadow-sm p-6">
+                <div class="receipt-payment-panel bg-white rounded-lg shadow-sm p-6">
                     <h3 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
                         <i class="fas fa-credit-card mr-2 text-primary-100"></i>
-                        Payment Information
+                        Payment information
                     </h3>
 
                     @if(!empty($payment_method))
                     <div class="mb-3">
                         <div class="flex items-center justify-between mb-2">
-                            <span class="text-sm font-medium text-gray-600">Payment Method:</span>
+                            <span class="text-sm font-medium text-gray-600">Method</span>
                             @php
-                            $methodNameLower = strtolower(fn_get_payment_method_code($payment_method) ?? ($payment_method_name ?? ''));
-                            $isCod = str_contains($methodNameLower, 'cash') || str_contains($methodNameLower, 'cod') ||
-                            str_contains($methodNameLower, 'delivery');
+                            // Payment configuration identifies COD; IDs and display names are not reliable.
                             @endphp
                             @if($isCod)
                             <span
                                 class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
                                 <i class="fas fa-money-bill-wave mr-1"></i>
-                                {{ fn_get_payment_method_code($payment_method) ?? ($payment_method_name ?? 'N/A') }}
+                                {{ $isCod ? 'Cash on delivery' : ($payment_method_name ?? 'Online payment') }}
                             </span>
                             @else
                             <span
                                 class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                                 <i class="fas fa-credit-card mr-1"></i>
-                                {{ fn_get_payment_method_code($payment_method) ?? ($payment_method_name ?? 'N/A') }}
+                                {{ $isCod ? 'Cash on delivery' : ($payment_method_name ?? 'Online payment') }}
                             </span>
                             @endif
                         </div>
@@ -432,7 +331,7 @@ $optionsByItem = app(\Modules\Orders\Services\OrderItemOptionsService::class)->f
                     @if(!empty($payment_status))
                     <div class="mb-3">
                         <div class="flex items-center justify-between">
-                            <span class="text-sm font-medium text-gray-600">Payment Status:</span>
+                            <span class="text-sm font-medium text-gray-600">Status</span>
                             <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
                                 style="{{ $paymentStatusStyle }}">
                                 {{ $paymentStatusLabel }}
@@ -441,20 +340,20 @@ $optionsByItem = app(\Modules\Orders\Services\OrderItemOptionsService::class)->f
                     </div>
                     @endif
 
-                    @if($isStoppedOrder && $paymentStatusInfo === \Modules\Payments\Enums\PaymentStatus::PAID)
-                    <p class="mb-3 p-3 rounded-lg bg-amber-50 text-sm text-amber-800">
-                        Payment remains marked as paid for this closed order.
-                    </p>
-                    @endif
+                    @include('orders::orders.components.payments.refund-status')
+
+                    @include('orders::orders.components.payments.cod-collection')
 
                     <div id="payment-detail-action">
                         @if(!empty($payment_details))
                         @include('orders::orders.components.payments.detail')
                         @else
-                        <p class="text-gray-500 text-sm">No payment transaction details available</p>
+                        <p class="text-gray-500 text-sm">No payment record is available yet</p>
                         @endif
                     </div>
                 </div>
+
+                @include('orders::orders.components.payments.payout-details')
 
                 <!-- Customer Details Card -->
                 <div class="bg-white rounded-lg shadow-sm p-6">
@@ -463,32 +362,32 @@ $optionsByItem = app(\Modules\Orders\Services\OrderItemOptionsService::class)->f
                         Customer Details
                     </h3>
                     @if(!empty($customer_details))
-                    <div class="space-y-2 text-sm">
+                    <div class="receipt-contact-details space-y-2 text-sm">
                         <div>
-                            <span class="font-medium text-gray-700">Name:</span>
+                            <span class="font-medium text-gray-700">Name</span>
                             <span class="text-gray-900">{{ ($customer_details['name'] ?? '') ?: 'Not provided' }}</span>
                         </div>
                         <div>
-                            <span class="font-medium text-gray-700">Email:</span>
+                            <span class="font-medium text-gray-700">Email</span>
                             <span class="text-gray-900 break-all">{{ ($customer_details['email'] ?? '') ?: 'Not provided' }}</span>
                         </div>
                         <div>
-                            <span class="font-medium text-gray-700">Phone:</span>
+                            <span class="font-medium text-gray-700">Phone</span>
                             <span class="text-gray-900">{{ ($customer_details['phone'] ?? '') ?: ($phone_number ?? '') ?: 'Not provided' }}</span>
                         </div>
                     </div>
                     @elseif(!empty($order) && !empty($order->customer))
-                    <div class="space-y-2 text-sm">
+                    <div class="receipt-contact-details space-y-2 text-sm">
                         <div>
-                            <span class="font-medium text-gray-700">Name:</span>
+                            <span class="font-medium text-gray-700">Name</span>
                             <span class="text-gray-900">{{ $order->customer->name ?? 'N/A' }}</span>
                         </div>
                         <div>
-                            <span class="font-medium text-gray-700">Email:</span>
+                            <span class="font-medium text-gray-700">Email</span>
                             <span class="text-gray-900">{{ $order->customer->email ?? 'N/A' }}</span>
                         </div>
                         <div>
-                            <span class="font-medium text-gray-700">Phone:</span>
+                            <span class="font-medium text-gray-700">Phone</span>
                             <span class="text-gray-900">{{ ($order->customer->phone ?? '') ?: ($phone_number ?? '') ?: 'Not provided' }}</span>
                         </div>
                     </div>
@@ -504,20 +403,24 @@ $optionsByItem = app(\Modules\Orders\Services\OrderItemOptionsService::class)->f
                         <i class="fas fa-store mr-2 text-primary-100"></i>
                         Restaurant Details
                     </h3>
-                    <div class="space-y-2 text-sm">
+                    <div class="receipt-contact-details space-y-2 text-sm">
                         <div>
-                            <span class="font-medium text-gray-700">Name:</span>
-                            <span class="text-gray-900">{{ $restaurant_details['name'] ?? 'N/A' }}</span>
+                            <span class="font-medium text-gray-700">Name</span>
+                            @if(!empty($restaurant_details['id']))
+                                <a href="{{ route('admin.restaurant.view', $restaurant_details['id']) }}" class="receipt-detail-link">{{ $restaurant_details['name'] ?? 'N/A' }} <i class="fas fa-arrow-up-right-from-square" aria-hidden="true"></i></a>
+                            @else
+                                <span class="text-gray-900">{{ $restaurant_details['name'] ?? 'N/A' }}</span>
+                            @endif
                         </div>
                         @if(!empty($restaurant_details['phone']))
                         <div>
-                            <span class="font-medium text-gray-700">Phone:</span>
+                            <span class="font-medium text-gray-700">Phone</span>
                             <span class="text-gray-900">{{ $restaurant_details['phone'] }}</span>
                         </div>
                         @endif
                         @if(!empty($restaurant_details['address']))
                         <div>
-                            <span class="font-medium text-gray-700">Address:</span>
+                            <span class="font-medium text-gray-700">Address</span>
                             <span class="text-gray-900">{{ $restaurant_details['address'] }}</span>
                         </div>
                         @endif
@@ -529,20 +432,20 @@ $optionsByItem = app(\Modules\Orders\Services\OrderItemOptionsService::class)->f
                         <i class="fas fa-store mr-2 text-primary-100"></i>
                         Restaurant Details
                     </h3>
-                    <div class="space-y-2 text-sm">
+                    <div class="receipt-contact-details space-y-2 text-sm">
                         <div>
-                            <span class="font-medium text-gray-700">Name:</span>
-                            <span class="text-gray-900">{{ $order->vendor->name ?? 'N/A' }}</span>
+                            <span class="font-medium text-gray-700">Name</span>
+                            <a href="{{ route('admin.restaurant.view', $order->vendor->id) }}" class="receipt-detail-link">{{ $order->vendor->name ?? 'N/A' }} <i class="fas fa-arrow-up-right-from-square" aria-hidden="true"></i></a>
                         </div>
                         @if(!empty($order->vendor->phone))
                         <div>
-                            <span class="font-medium text-gray-700">Phone:</span>
+                            <span class="font-medium text-gray-700">Phone</span>
                             <span class="text-gray-900">{{ $order->vendor->phone }}</span>
                         </div>
                         @endif
                         @if(!empty($order->vendor->address_line1))
                         <div>
-                            <span class="font-medium text-gray-700">Address:</span>
+                            <span class="font-medium text-gray-700">Address</span>
                             <span class="text-gray-900">{{ $order->vendor->address_line1 }} {{
                                 $order->vendor->address_line2 ?? '' }}</span>
                         </div>
@@ -627,7 +530,7 @@ $optionsByItem = app(\Modules\Orders\Services\OrderItemOptionsService::class)->f
                     <div class="space-y-2 text-xs text-gray-600">
                         @if(!empty($ip_address))
                         <div>
-                            <span class="font-medium">IP Address:</span>
+                            <span class="font-medium">IP Address</span>
                             <span class="ml-1">{{ $ip_address }}</span>
                         </div>
                         @endif

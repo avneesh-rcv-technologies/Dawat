@@ -361,7 +361,7 @@ function saveField() {
     let parsedOptions = null;
     if (optionsRaw) {
         try { parsedOptions = JSON.parse(optionsRaw); }
-        catch (e) { alert('Options JSON is invalid'); return; }
+        catch (e) { appAlert('Check the options field — it must be valid JSON.', { tone: 'warning', title: 'Invalid options JSON' }); return; }
     }
 
     const data = {
@@ -384,13 +384,19 @@ function saveField() {
     .then(r => r.json())
     .then(res => {
         if (res.success) location.reload();
-        else alert(res.message || 'Error saving field');
+        else appAlert(res.message || 'The field could not be saved.', { tone: 'error', title: 'Field not saved' });
     })
-    .catch(err => alert('Error: ' + err.message));
+    .catch(err => appAlert(err.message || 'The field could not be saved.', { tone: 'error', title: 'Field not saved' }));
 }
 
-function deleteField(id, name) {
-    if (confirm(`Delete field "${name}"?`)) {
+async function deleteField(id, name) {
+    const confirmed = await appConfirm({
+        title: `Delete field "${name}"?`,
+        message: 'This field will be removed from the KYC type.',
+        confirmText: 'Delete',
+        tone: 'danger',
+    });
+    if (confirmed) {
         fetch(`/admin/kyc/types/${kycTypeId}/fields/${id}`, {
             method: 'DELETE',
             headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content },
@@ -398,7 +404,7 @@ function deleteField(id, name) {
         .then(r => r.json())
         .then(res => {
             if (res.success) location.reload();
-            else alert(res.message || 'Error deleting field');
+            else appAlert(res.message || 'The field could not be deleted.', { tone: 'error', title: 'Field not deleted' });
         });
     }
 }

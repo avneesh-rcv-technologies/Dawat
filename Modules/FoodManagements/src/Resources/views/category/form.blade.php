@@ -96,20 +96,8 @@
                 Name <span class="text-red-500">*</span>
             </label>
             <input type="text" name="name" id="name" value="{{ old('name', $category->name ?? '') }}"
-                class="input-field @error('name') border-red-500 @enderror" onkeyup="generateSlug()">
+                class="input-field @error('name') border-red-500 @enderror">
             @error('name')
-                <p class="text-red-500 text-sm">{{ $message }}</p>
-            @enderror
-        </div>
-
-        {{-- Slug --}}
-        <div class="mb-4">
-            <label class="custom-label" for="slug">
-                Slug <span class="text-red-500">*</span>
-            </label>
-            <input type="text" name="slug" id="slug" readonly value="{{ old('slug', $category->slug ?? '') }}"
-                class="input-field @error('slug') border-red-500 @enderror">
-            @error('slug')
                 <p class="text-red-500 text-sm">{{ $message }}</p>
             @enderror
         </div>
@@ -126,48 +114,11 @@
             @enderror
         </div>
 
-        {{-- Parent Category --}}
-        <div class="mb-4">
-            <label class="custom-label">
-                Parent Category (Optional)
-            </label>
+        {{-- Preserve the existing hierarchy when editing without displaying a parent selector. --}}
+        <input type="hidden" name="parent_id" value="{{ $category->parent_id ?? '' }}">
 
-            <select name="parent_id" class="input-field">
-                <option value="">— No Parent (Category) —</option>
-
-                @php
-                    $currentCategory = $category ?? null;
-
-                    // Filter out the current category from the parents list to prevent self-parenting
-                    $parents = $parents->filter(function ($parent) use ($currentCategory) {
-                        return !$currentCategory || $parent->id !== $currentCategory->id;
-                    });
-                @endphp
-                @foreach ($parents as $parent)
-                    <option value="{{ $parent->id }}" @selected(old('parent_id', $category->parent_id ?? '') == $parent->id)>
-                        {{ $parent->name }}
-                    </option>
-                @endforeach
-            </select>
-        </div>
-
-
-        {{-- Food Type --}}
-        <div class="mb-4">
-            <label class="custom-label" for="food_type">
-                Food Type <span class="text-red-500">*</span>
-            </label>
-            <select name="food_type" id="food_type" class="input-field @error('food_type') border-red-500 @enderror">
-                <option value="">Select Food Type</option>
-                <option value="all" @selected(old('food_type', $category->food_type ?? 'all') === 'all')>All</option>
-                <option value="veg" @selected(old('food_type', $category->food_type ?? '') === 'veg')>Veg</option>
-                <option value="non_veg" @selected(old('food_type', $category->food_type ?? '') === 'non_veg')>Non-Veg</option>
-                <option value="vegan" @selected(old('food_type', $category->food_type ?? '') === 'vegan')>Vegan</option>
-            </select>
-            @error('food_type')
-                <p class="text-red-500 text-sm">{{ $message }}</p>
-            @enderror
-        </div>
+        {{-- Preserve the existing food type; new categories apply to all food types. --}}
+        <input type="hidden" name="food_type" value="{{ isset($category) ? $category->food_type : 'all' }}">
 
 
         {{-- Status --}}
@@ -208,27 +159,4 @@
 
     </form>
 
-    <script>
-        // Slug generation function
-        function generateSlug() {
-            // If editing existing category, do not overwrite slug
-            console.log("Hello");
-            @if (isset($category))
-                return;
-            @endif
-
-            const nameInput = document.getElementById('name');
-            const slugInput = document.getElementById('slug');
-
-            if (!nameInput || !slugInput) return;
-
-            const slug = nameInput.value
-                .toLowerCase()
-                .trim()
-                .replace(/[^a-z0-9]+/g, '-')
-                .replace(/^-+|-+$/g, '');
-
-            slugInput.value = slug;
-        }
-    </script>
 @endsection

@@ -76,20 +76,20 @@
 
 @section('styles')
 <style>
-    .push-template-page { --push-ink: #103647; --push-muted: #667987; --push-border: #dce5ea; }
+    .push-template-page { --push-ink: #141414; --push-muted: #667987; --push-border: #dce5ea; }
     .push-template-heading { display: flex; align-items: center; justify-content: space-between; gap: 22px; margin-bottom: 20px; }
     .push-template-heading h1 { margin: 2px 0 6px; color: var(--push-ink); font-size: 25px; font-weight: 700; }
     .push-template-heading p { margin: 0; color: var(--push-muted); font-size: 13px; }
-    .push-template-heading .push-template-eyebrow { color: #087b57; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+    .push-template-heading .push-template-eyebrow { color: #C2470A; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
     .push-template-back { flex-shrink: 0; padding: 10px 14px; border: 1px solid var(--push-border); border-radius: 9px; color: var(--push-ink); font-size: 13px; font-weight: 600; text-decoration: none; }
     .push-template-back:hover { background: #f5f9fa; border-color: #b7cbd3; }
     .push-template-form { padding: 24px; border: 1px solid var(--push-border); border-radius: 14px; background: #fff; box-shadow: 0 4px 16px rgba(16, 54, 71, .06); }
     .push-template-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
     .push-template-field { min-width: 0; }
     .push-template-field-wide { grid-column: 1 / -1; }
-    .push-template-field .custom-label { display: block; margin: 0 0 7px; color: #294653; font-size: 13px; font-weight: 700; }
-    .push-template-field .input-field { width: 100%; min-height: 42px; border: 1px solid #cbd7de; border-radius: 8px; background: #fff; color: var(--push-ink); box-shadow: 0 1px 2px rgba(16, 54, 71, .03); }
-    .push-template-field .input-field:focus { border-color: #00a86b; outline: 3px solid rgba(0, 168, 107, .12); }
+    .push-template-field .custom-label { display: block; margin: 0 0 7px; color: #1F1F1F; font-size: 13px; font-weight: 700; }
+    .push-template-field .input-field { width: 100%; min-height: 42px; border: 1px solid #cbd7de; border-radius: 8px; background-color: #fff; color: var(--push-ink); box-shadow: 0 1px 2px rgba(16, 54, 71, .03); }
+    .push-template-field .input-field:focus { border-color: #FF6210; outline: 3px solid rgba(255, 98, 16, .12); }
     .push-template-field textarea.input-field { min-height: 132px; padding: 12px; line-height: 1.55; resize: vertical; }
     .push-template-field .push-template-json { min-height: 174px; background: #f8fafb; font: 13px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
     .push-template-help { margin: 6px 0 0; color: var(--push-muted); font-size: 11px; line-height: 1.5; }

@@ -41,6 +41,7 @@ class Column
      * Column's filterable options.
      */
     protected array $filterableOptions = [];
+    protected ?string $filterableHelp = null;
 
     /**
      * Column's allow multiple values.
@@ -98,6 +99,7 @@ class Column
         $this->setFilterableType($column['filterable_type'] ?? $this->filterableType);
 
         $this->setFilterableOptions($column['filterable_options'] ?? $this->filterableOptions);
+        $this->filterableHelp = $column['filterable_help'] ?? null;
 
         $this->setAllowMultipleValues($column['allow_multiple_values'] ?? $this->allowMultipleValues);
 
@@ -338,6 +340,7 @@ class Column
             'filterable'            => $this->filterable,
             'filterable_type'       => $this->filterableType,
             'filterable_options'    => $this->filterableOptions,
+            'filterable_help'       => $this->filterableHelp,
             'allow_multiple_values' => $this->allowMultipleValues,
             'sortable'              => $this->sortable,
             'exportable'            => $this->exportable,

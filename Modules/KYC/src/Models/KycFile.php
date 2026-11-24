@@ -15,6 +15,7 @@ class KycFile extends Model
         'field_id',
         'file_path',
         'file_type',
+        'original_name',
         'uploaded_at'
     ];
 

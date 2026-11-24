@@ -9,6 +9,7 @@
     }
 
     $currentStatusCode = $status ?? 'W';
+    $cancellationTransaction = collect($transactions ?? [])->firstWhere('type', 'order_cancelled');
     $workflowCodes = array_map(
         fn ($step) => $step->code(),
         \Modules\Orders\Enums\OrderStatus::workflow($order_type ?? 'delivery')
@@ -24,6 +25,7 @@
     ];
 
     foreach ($visibleStatusCodes as $timelineStatus) {
+        if ($timelineStatus === 'C' && $cancellationTransaction) continue;
         $timelineStatusInfo = fn_get_order_status($timelineStatus, 'O');
         $timelineEnum = \Modules\Orders\Enums\OrderStatus::fromCode($timelineStatus);
         $isCurrentStep = $timelineStatus === $currentStatusCode;
@@ -45,7 +47,28 @@
         ]);
     }
 
+    foreach ($refunds ?? [] as $refund) {
+        foreach ($refund->histories as $history) {
+            $timelineEntries->push([
+                'title' => 'Refund ' . $refund->refund_number . ' — ' . ucfirst($history->new_status),
+                'time' => $history->created_at, 'icon' => 'fa-undo', 'color' => '#D97706',
+                'description' => fn_format_currency_amount((float) ($history->after['refund_amount'] ?? 0), $refund->payment?->currency ?? $currency ?? 'USD')
+                    . ' · ' . ($history->actor?->name ?? 'System / customer cancellation'),
+            ]);
+        }
+    }
+
     foreach ($transactions ?? [] as $transaction) {
+        if (($transaction['type'] ?? '') === 'order_cancelled') {
+            $timelineEntries->push([
+                'title' => 'Order Cancelled',
+                'time' => $cancelled_at ?? $transaction['created_at'] ?? null,
+                'icon' => 'fa-times', 'color' => '#DC2626',
+                'description' => $cancellation_reason ?? $transaction['notes'] ?? null,
+            ]);
+            continue;
+        }
+        if (!empty($transaction['metadata']['refund_id'])) continue;
         if (($transaction['status'] ?? '') !== 'completed' || !in_array($transaction['type'] ?? '', ['payment', 'refund'], true)) {
             continue;
         }
@@ -59,12 +82,10 @@
         ]);
     }
 
-    if (!empty($stock_restored_at)) {
-        $timelineEntries->push([
-            'title' => 'Reserved Stock Returned', 'time' => $stock_restored_at,
-            'icon' => 'fa-box', 'color' => '#16A34A', 'description' => null,
-        ]);
-    }
+    $timelineEntries = $timelineEntries->sortBy(fn ($entry) => \Carbon\Carbon::parse(
+        $entry['time'] ?? $created_at ?? '1970-01-01'
+    )->getTimestamp())->values();
+
 
 @endphp
 <div class="bg-white rounded-lg shadow-sm p-6">

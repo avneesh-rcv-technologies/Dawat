@@ -16,6 +16,7 @@ use Modules\Orders\DataView\OrderGrid;
 use Illuminate\Support\Facades\Session;
 use Modules\Filemanager\Models\FileLink;
 use Modules\Orders\Services\OrderService;
+use Modules\Orders\Services\OrderCommissionAccess;
 use Modules\Alacarte\Models\GroupBenefitMap;
 use Modules\Orders\Models\AttachFileMapping;
 use Modules\Orders\Http\Requests\OrderRequest;
@@ -86,6 +87,10 @@ class OrderController extends Controller
         Session::forget('cart');
         $order = Order::with(['customer', 'vendor', 'items', 'transactions'])->findOrFail($id);
         $orderData = $this->orderService->getOrder($id);
+        $canViewPayoutDetails = OrderCommissionAccess::visibleInSidebar();
+        $orderPayout = $canViewPayoutDetails
+            ? app(OrderCommissionAccess::class)->query(auth('admin')->user())->where('order_id', $order->id)->first()
+            : null;
         $payments = PaymentConfiguration::where('is_active', true)->get();
         
 
@@ -96,6 +101,8 @@ class OrderController extends Controller
                 [
                     'mode' => 'view',
                     'payments' => $payments,
+                    'can_view_payout_details' => $canViewPayoutDetails,
+                    'order_payout' => $orderPayout,
                     'order' => $order,
                     'order_id' => $order->id
                 ]
@@ -127,6 +134,8 @@ class OrderController extends Controller
             [
                 'mode' => 'view',
                 'payments' => $payments,
+                'can_view_payout_details' => $canViewPayoutDetails,
+                'order_payout' => $orderPayout,
                 'order' => $order,
                 'order_id' => $order->id,
 
@@ -303,6 +312,9 @@ class OrderController extends Controller
         ]);
 
         $orderItem = $order->items()->findOrFail($request->item_id);
+        if ($orderItem->selected_option_snapshot !== null) {
+            throw \Illuminate\Validation\ValidationException::withMessages(['quantity' => 'Serving selections on placed orders are read only.']);
+        }
         $orderItem->quantity = $request->quantity;
         
         // Recalculate total price
@@ -502,14 +514,15 @@ class OrderController extends Controller
     {
         
         $request->validate([
-            'status' => 'required|string'
+            'status' => 'required|string',
+            ...\Modules\Orders\Services\OrderStatusActionService::rules((string) $request->input('status'))
         ]);
 
         try {
             // Validate that the status exists
             $validStatuses = fn_get_order_statuses('O')->pluck('status_code')->toArray();
            
-            if (!in_array($request->status, $validStatuses)) {
+            if ($request->status !== 'R' && !in_array($request->status, $validStatuses)) {
                 if ($request->ajax() || $request->input('is_ajax')) {
                     return response()->json([
                         'success' => false,
@@ -520,9 +533,12 @@ class OrderController extends Controller
                 return redirect()->back()->with('error', 'Invalid status selected.');
             }
 
-            $this->orderService->updateOrderStatus($order, $request->status);
+            $actor = $request->user('admin');
+            abort_unless($actor instanceof \Modules\Acl\Models\Admin, 403);
+            $source = app(\Modules\Restaurant\Services\RestaurantOwnerRoleResolver::class)->isOwner($actor) ? 'restaurant_cancellation' : 'admin';
+            app(\Modules\Orders\Services\OrderStatusActionService::class)->update($order, $request->status, $request->all(), $actor, $source);
 
-            $statusName = fn_get_order_status($request->status, 'O')->name;
+            $statusName = $request->status === 'R' ? 'Cancelled / payment refunded' : fn_get_order_status($request->status, 'O')->name;
 
             if ($request->ajax() || $request->input('is_ajax')) {
                 return response()->json([
@@ -548,6 +564,29 @@ class OrderController extends Controller
         }
     }
 
+    public function updatePaymentStatus(Request $request, Order $order, \Modules\Orders\Services\CodPaymentService $cashPayments)
+    {
+        $actor = auth('admin')->user();
+        abort_unless($actor && $actor->hasPermission('admin.orders.update-payment-status'), 403);
+        $ownedRestaurants = Restaurant::where('admin_id', $actor->id);
+        $isRestaurantOwner = app(\Modules\Restaurant\Services\RestaurantOwnerRoleResolver::class)->isOwner($actor);
+        if ($isRestaurantOwner || (clone $ownedRestaurants)->exists()) {
+            abort_unless($order->vendor_type === (new Restaurant())->getMorphClass()
+                && $ownedRestaurants->whereKey($order->vendor_id)->exists(), 403);
+        }
+        $validated = $request->validate([
+            'payment_status' => 'required|in:paid',
+            'payment_notes' => 'nullable|string|max:1000',
+        ]);
+        $cashPayments->collect($order, $actor, $validated['payment_notes'] ?? null);
+        $message = 'Cash payment recorded. The order is now marked as paid.';
+        if ($request->expectsJson() || $request->ajax() || $request->boolean('is_ajax')) {
+            return response()->json(['success' => true, 'message' => $message,
+                'redirect_url' => route('admin.orders.show', $order->id)]);
+        }
+        return redirect()->route('admin.orders.show', $order->id)->with('success', $message);
+    }
+
     /**
      * Get overall orders analytics
      */
@@ -562,15 +601,11 @@ class OrderController extends Controller
 
             $ordersQuery = Order::whereBetween('created_at', [$dateFrom, $dateTo]);
 
-            $currentAdmin = auth('admin')->user();
-            if ($currentAdmin) {
-                $restaurant = Restaurant::where('admin_id', $currentAdmin->id)->first();
-
-                if ($restaurant) {
-                    $ordersQuery->where('vendor_type', Restaurant::class)
-                        ->where('vendor_id', $restaurant->id);
-                }
-            }
+            $scope = app(\Modules\Restaurant\Services\RestaurantDataScope::class);
+            $restaurantId = $scope->restaurantId();
+            $scope->scopeOrders($ordersQuery, $restaurantId);
+            $commissionAnalytics = app(\Modules\Orders\Services\CommissionRevenueAnalytics::class)
+                ->forOrders($ordersQuery, $restaurantId !== null);
 
             $totalOrders = $ordersQuery->count();
             $completedOrders = (clone $ordersQuery)->where('status', Order::STATUS_COMPLETED)->count();
@@ -578,7 +613,7 @@ class OrderController extends Controller
             $pendingOrders = (clone $ordersQuery)->whereIn('status', [Order::STATUS_PENDING, Order::STATUS_NEW, Order::STATUS_PROCESSING])->count();
             $siteCurrency = fn_get_setting('general.currency', 'USD');
             $paymentOrders = (clone $ordersQuery)
-                ->select('total', 'currency', 'payment_status', 'payment_method')
+                ->select('total', 'currency', 'payment_status', 'payment_method', 'status')
                 ->get();
 
             $paymentStatusTotals = [
@@ -588,9 +623,6 @@ class OrderController extends Controller
                 Order::PAYMENT_REFUNDED => 0.0,
             ];
 
-            $paymentMethodTotals = [];
-            $paidOrderValues = [];
-
             foreach ($paymentOrders as $paymentOrder) {
                 $convertedTotal = $this->convertOrderAmountToCurrency(
                     (float) $paymentOrder->total,
@@ -599,35 +631,20 @@ class OrderController extends Controller
                 );
 
                 $paymentStatus = $paymentOrder->payment_status ?? Order::PAYMENT_PENDING;
+                if (in_array($paymentStatus, ['completed', 'captured'], true)) {
+                    $paymentStatus = Order::PAYMENT_PAID;
+                }
+                if ($paymentStatus === Order::PAYMENT_PENDING
+                    && in_array($paymentOrder->status, [Order::STATUS_CANCELLED, Order::STATUS_FAILED], true)) {
+                    continue;
+                }
 
                 if (!array_key_exists($paymentStatus, $paymentStatusTotals)) {
                     $paymentStatusTotals[$paymentStatus] = 0.0;
                 }
 
                 $paymentStatusTotals[$paymentStatus] += $convertedTotal;
-
-                if ($paymentStatus === Order::PAYMENT_PAID) {
-                    $paidOrderValues[] = $convertedTotal;
-
-                    $paymentMethodKey = $paymentOrder->payment_method ?: 'unknown';
-                    if (!isset($paymentMethodTotals[$paymentMethodKey])) {
-                        $paymentMethodTotals[$paymentMethodKey] = [
-                            'count' => 0,
-                            'revenue' => 0.0,
-                            'name' => ucfirst(str_replace('_', ' ', $paymentMethodKey)),
-                        ];
-                    }
-
-                    $paymentMethodTotals[$paymentMethodKey]['count']++;
-                    $paymentMethodTotals[$paymentMethodKey]['revenue'] += $convertedTotal;
-                }
             }
-
-            // Revenue analytics
-            $totalRevenue = $paymentStatusTotals[Order::PAYMENT_PAID] ?? 0.0;
-            $averageOrderValue = count($paidOrderValues) > 0 ? $totalRevenue / count($paidOrderValues) : 0;
-            $highestOrder = !empty($paidOrderValues) ? max($paidOrderValues) : 0;
-            $lowestOrder = !empty($paidOrderValues) ? min($paidOrderValues) : 0;
 
             // Order status breakdown with proper names
             $orderStatusBreakdown = (clone $ordersQuery)
@@ -649,26 +666,16 @@ class OrderController extends Controller
                     ];
                 });
 
-            // Payment method breakdown
-            $paymentMethodBreakdown = collect($paymentMethodTotals)
-                ->mapWithKeys(function($item, $key) {
-                    return [
-                        $key => [
-                            'count' => $item['count'],
-                            'revenue' => round($item['revenue'], 2),
-                            'revenue_formatted' => fn_convert_currency($item['revenue'], fn_get_setting('general.currency', 'USD')),
-                            'name' => $item['name'],
-                        ]
-                    ];
-                });
+            $paymentMethodBreakdown = $commissionAnalytics['by_method']->map(function ($item, $key) {
+                return $item + ['name' => ucfirst(str_replace('_', ' ', $key))];
+            });
 
             // Daily trend (last 7 days)
             $dailyTrend = (clone $ordersQuery)
                 ->select(
                     DB::raw('DATE(created_at) as date'),
                     DB::raw('COUNT(*) as total_orders'),
-                    DB::raw('SUM(CASE WHEN status = "' . Order::STATUS_COMPLETED . '" THEN 1 ELSE 0 END) as completed_orders'),
-                    DB::raw('SUM(CASE WHEN payment_status = "' . Order::PAYMENT_PAID . '" THEN total ELSE 0 END) as revenue')
+                    DB::raw('SUM(CASE WHEN status = "' . Order::STATUS_COMPLETED . '" THEN 1 ELSE 0 END) as completed_orders')
                 )
                 ->groupBy('date')
                 ->orderBy('date', 'desc')
@@ -676,6 +683,11 @@ class OrderController extends Controller
                 ->get()
                 ->reverse()
                 ->values();
+
+            $dailyTrend->each(function ($day) use ($commissionAnalytics) {
+                $day->revenue = $commissionAnalytics['by_date']->get($day->date)['revenue'] ?? 0;
+                $day->revenue_formatted = fn_format_currency_amount($day->revenue, $commissionAnalytics['revenue']['currency']);
+            });
 
             // Customer analytics
             $uniqueCustomers = (clone $ordersQuery)->distinct('customer_id')->count('customer_id');
@@ -700,16 +712,7 @@ class OrderController extends Controller
                         'pending' => $pendingOrders,
                         'by_status' => $orderStatusBreakdown,
                     ],
-                    'revenue' => [
-                        'total' => round($totalRevenue, 2),
-                        'total_formatted' => fn_convert_currency($totalRevenue, $siteCurrency),
-                        'average_order_value' => round($averageOrderValue, 2),
-                        'average_order_value_formatted' => fn_convert_currency($averageOrderValue, $siteCurrency),
-                        'highest_order' => round($highestOrder, 2),
-                        'highest_order_formatted' => fn_convert_currency($highestOrder, $siteCurrency),
-                        'lowest_order' => round($lowestOrder, 2),
-                        'lowest_order_formatted' => fn_convert_currency($lowestOrder, $siteCurrency),
-                    ],
+                    'revenue' => $commissionAnalytics['revenue'],
                     'payments' => [
                         'paid' => round($paymentStatusTotals[Order::PAYMENT_PAID] ?? 0, 2),
                         'paid_formatted' => fn_convert_currency($paymentStatusTotals[Order::PAYMENT_PAID] ?? 0, $siteCurrency),

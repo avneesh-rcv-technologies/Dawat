@@ -3,6 +3,7 @@
 namespace Modules\WebPushNotification\Services;
 
 use Exception;
+use Modules\WebPushNotification\Support\FirebaseServiceAccount;
 use Kreait\Firebase\Factory;
 use Illuminate\Support\Facades\Log;
 use Kreait\Firebase\Messaging\ApnsConfig;
@@ -11,7 +12,6 @@ use Kreait\Firebase\Messaging\Notification;
 use Kreait\Firebase\Messaging\AndroidConfig;
 use Kreait\Firebase\Messaging\WebPushConfig;
 use Kreait\Firebase\Exception\MessagingException;
-use Modules\Activitylog\Exceptions\ApiExceptionHandler;
 
 class FirebaseNotificationService
 {
@@ -23,7 +23,7 @@ class FirebaseNotificationService
             $serviceAccount = $this->getServiceAccountFromEnv();
             $this->messaging = (new Factory)->withServiceAccount($serviceAccount)->createMessaging();
         } catch (Exception $e) {
-            ApiExceptionHandler::handle($e);
+            Log::warning('Firebase notification service could not be initialized.', ['exception_type' => get_class($e)]);
             throw $e;
         }
     }
@@ -109,7 +109,7 @@ class FirebaseNotificationService
                 case 'web':
                     $webPushConfig = WebPushConfig::fromArray([
                         'fcm_options' => [
-                            'link' => $options['click_action'] ?? '/',
+                            'link' => $options['click_action'] ?? $data['url'] ?? '/',
                         ],
                         'notification' => [
                             'title' => $title,
@@ -207,27 +207,21 @@ class FirebaseNotificationService
         // Try to get service account JSON from settings
         $jsonEnv = fn_get_setting('firebase_service_account_json', '') ?: env('FIREBASE_SERVICE_ACCOUNT_JSON');
         if (!empty($jsonEnv)) {
-            // Try base64 decode first
-            $decoded = @base64_decode($jsonEnv, true);
-            $maybeJson = $decoded !== false && json_decode($decoded, true) ? $decoded : $jsonEnv;
-            $data = json_decode($maybeJson, true);
-            if (is_array($data)) {
-                return $data;
-            }
+            return FirebaseServiceAccount::fromJson($jsonEnv);
         }
 
         // Fall back to individual env vars
-        return [
+        return FirebaseServiceAccount::validate([
             'type' => 'service_account',
             'project_id' => $projectId,
             'private_key_id' => env('FIREBASE_PRIVATE_KEY_ID'),
-            'private_key' => preg_replace("/\\\n/", "\n", env('FIREBASE_PRIVATE_KEY')),
+            'private_key' => env('FIREBASE_PRIVATE_KEY'),
             'client_email' => env('FIREBASE_CLIENT_EMAIL'),
             'client_id' => env('FIREBASE_CLIENT_ID'),
             'auth_uri' => 'https://accounts.google.com/o/oauth2/auth',
             'token_uri' => 'https://oauth2.googleapis.com/token',
             'auth_provider_x509_cert_url' => 'https://www.googleapis.com/oauth2/v1/certs',
             'client_x509_cert_url' => env('FIREBASE_CLIENT_CERT_URL')
-        ];
+        ]);
     }
 }

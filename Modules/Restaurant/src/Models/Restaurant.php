@@ -3,17 +3,58 @@
 namespace Modules\Restaurant\Models;
 
 use Illuminate\Database\Eloquent\Casts\Attribute;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
-use Modules\Restaurant\Enums\OnboardingStatus;
-use Modules\Restaurant\Models\OnboardingStatusHistory;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
+use Modules\Acl\Models\Admin;
+use Modules\Countries\Models\Address;
+use Modules\DietaryManagment\Models\RestaurantCertification;
+use Modules\Orders\Models\OrderCommission;
+use Modules\Restaurant\Enums\OnboardingStatus;
+use Modules\Restaurant\Services\OnboardingHistoryService;
+use Modules\Restaurant\Services\RestaurantCacheService;
 
 class Restaurant extends Model
 {
     use HasFactory;
+
+    public function certifications(): HasMany
+    {
+        return $this->hasMany(RestaurantCertification::class);
+    }
+
+    public function orderCommissions(): HasMany
+    {
+        return $this->hasMany(OrderCommission::class);
+    }
+
+    public function dietaryCertificateStatus(): ?string
+    {
+        $statuses = $this->certifications()->whereNotNull('file_path')->where('file_path', '!=', '')->pluck('status');
+        if ($statuses->isEmpty()) {
+            return null;
+        }
+
+        return match (true) {
+            $statuses->contains('changes_requested') => 'action_required',
+            $statuses->contains('rejected') => 'rejected',
+            $statuses->contains('under_review') => 'under_review',
+            $statuses->every(fn ($status) => $status === 'approved') => 'approved',
+            default => 'submitted',
+        };
+    }
+
+    public function hasPendingDietaryCertificates(): bool
+    {
+        $status = $this->dietaryCertificateStatus();
+
+        return $status !== null && $status !== 'approved';
+    }
 
     protected $table = 'restaurants';
 
@@ -26,6 +67,9 @@ class Restaurant extends Model
         'description',
         'address_line1',
         'address_line2',
+        'country_id',
+        'state_id',
+        'city_id',
         'city',
         'state',
         'country',
@@ -38,6 +82,10 @@ class Restaurant extends Model
         'closing_time',
         'is_takeaway',
         'is_delivery',
+        'delivery_radius_miles',
+        'delivery_cost_per_mile',
+        'free_delivery_enabled',
+        'free_delivery_threshold',
         'is_accepting_orders',
         'order_time_limit',
         'allow_order_cancellation',
@@ -52,11 +100,21 @@ class Restaurant extends Model
         'onboarding_step',
         'submitted_at',
         'tax_type',
+        'platform_commission_accepted',
+        'platform_commission_percentage',
+        'platform_commission_accepted_at',
     ];
 
     protected $casts = [
+        'country_id' => 'integer',
+        'state_id' => 'integer',
+        'city_id' => 'integer',
         'is_takeaway' => 'boolean',
         'is_delivery' => 'boolean',
+        'delivery_radius_miles' => 'decimal:2',
+        'delivery_cost_per_mile' => 'decimal:2',
+        'free_delivery_enabled' => 'boolean',
+        'free_delivery_threshold' => 'decimal:2',
         'is_accepting_orders' => 'boolean',
         'allow_order_cancellation' => 'boolean',
         'cancellable_statuses' => 'array',
@@ -66,6 +124,9 @@ class Restaurant extends Model
         'approved_at' => 'datetime',
         'onboarding_step' => 'integer',
         'submitted_at' => 'datetime',
+        'platform_commission_accepted' => 'boolean',
+        'platform_commission_percentage' => 'decimal:2',
+        'platform_commission_accepted_at' => 'datetime',
     ];
 
     /* ============================
@@ -90,7 +151,7 @@ class Restaurant extends Model
 
     public function admin()
     {
-        return $this->belongsTo(\Modules\Acl\Models\Admin::class, 'admin_id');
+        return $this->belongsTo(Admin::class, 'admin_id');
     }
 
     public function onboardingStatusHistories()
@@ -103,7 +164,7 @@ class Restaurant extends Model
         return $this->hasMany(RestaurantOnboardingStep::class, 'restaurant_id');
     }
 
-    public function bankingDetail(): \Illuminate\Database\Eloquent\Relations\HasOne
+    public function bankingDetail(): HasOne
     {
         return $this->hasOne(RestaurantBankingDetail::class);
     }
@@ -115,19 +176,27 @@ class Restaurant extends Model
 
     protected static function booted()
     {
+        static::updating(function (Restaurant $restaurant) {
+            if ($restaurant->getRawOriginal('onboarding_status') === OnboardingStatus::APPROVED->value
+                && $restaurant->isDirty('onboarding_status')) {
+                throw ValidationException::withMessages([
+                    'onboarding_status' => 'Onboarding is fully approved. Its status can no longer be changed.',
+                ]);
+            }
+        });
         static::updated(function (Restaurant $restaurant) {
             if ($restaurant->wasChanged(['status', 'onboarding_status', 'approval_status'])) {
-                \Illuminate\Support\Facades\DB::afterCommit(function () use ($restaurant) {
-                    $cache = app(\Modules\Restaurant\Services\RestaurantCacheService::class);
+                DB::afterCommit(function () use ($restaurant) {
+                    $cache = app(RestaurantCacheService::class);
                     $cache->forgetList();
                     $cache->forgetDetail($restaurant->id);
                 });
             }
             if ($restaurant->wasChanged([
                 'name', 'phone', 'address_line1', 'address_line2', 'city', 'state',
-                'country', 'postal_code', 'description', 'business_license',
+                'country', 'country_id', 'state_id', 'city_id', 'postal_code', 'description', 'business_license',
             ])) {
-                app(\Modules\Restaurant\Services\OnboardingHistoryService::class)
+                app(OnboardingHistoryService::class)
                     ->detailsUpdated($restaurant, 'registration');
             }
             if ($restaurant->wasChanged('onboarding_status')) {
@@ -144,7 +213,7 @@ class Restaurant extends Model
                     $oldStatus = $old instanceof \BackedEnum ? $old->value : (string) $old;
                     $newStatus = $new instanceof \BackedEnum ? $new->value : (string) $new;
 
-                    app(\Modules\Restaurant\Services\OnboardingHistoryService::class)->record(
+                    app(OnboardingHistoryService::class)->record(
                         $restaurant->id, null, 'status_changed', $oldStatus, $newStatus, $changedBy
                     );
                 } catch (\Throwable $e) {
@@ -159,7 +228,7 @@ class Restaurant extends Model
      */
     public function addresses()
     {
-        return $this->morphMany(\Modules\Countries\Models\Address::class, 'addressable');
+        return $this->morphMany(Address::class, 'addressable');
     }
 
     /* ============================
@@ -205,7 +274,7 @@ class Restaurant extends Model
         }
 
         // Return if valid array
-        if (!empty($statuses) && is_array($statuses)) {
+        if (! empty($statuses) && is_array($statuses)) {
             return $statuses;
         }
 
@@ -248,7 +317,6 @@ class Restaurant extends Model
     //         ];
     //     }
 
-
     //     // $timeLimit = $this->getCancellationTimeLimit();
     //     // $orderCreatedAt = \Carbon\Carbon::parse($order->created_at);
     //     // $cancellationDeadline = $orderCreatedAt->copy()->addMinutes($timeLimit);
@@ -276,11 +344,10 @@ class Restaurant extends Model
     //     ];
     // }
 
-
     public function canCancelOrder($order): array
     {
         // Check if cancellation is allowed at all
-        if (!$this->allowsOrderCancellation()) {
+        if (! $this->allowsOrderCancellation()) {
             return [
                 'can_cancel' => false,
                 'reason' => sprintf(
@@ -289,14 +356,14 @@ class Restaurant extends Model
                 ),
                 'reason_code' => 'POLICY_DISABLED',
                 'restaurant_name' => $this->name,
-                'restaurant_phone' => $this->phone ?? 'N/A'
+                'restaurant_phone' => $this->phone ?? 'N/A',
             ];
         }
 
         // Check if order status is in allowed cancellable statuses
         $cancellableStatuses = $this->getCancellableStatuses();
 
-        if (!in_array($order->status, $cancellableStatuses)) {
+        if (! in_array($order->status, $cancellableStatuses)) {
             // Get status names from database
             $currentStatus = fn_get_order_status($order->status, 'O');
             $currentStatusName = $currentStatus ? $currentStatus->name : ucfirst($order->status);
@@ -324,7 +391,7 @@ class Restaurant extends Model
                     'For assistance, please contact %s at %s',
                     $this->name,
                     $this->phone ?? 'the restaurant'
-                )
+                ),
             ];
         }
 
@@ -336,11 +403,9 @@ class Restaurant extends Model
             'refund_amount' => $order->total,
             'refund_message' => $order->isPaid()
                 ? sprintf('A refund of %s %.2f will be processed within 5-7 business days.', $order->currency ?? 'USD', $order->total)
-                : 'No payment has been processed for this order.'
+                : 'No payment has been processed for this order.',
         ];
     }
-
-
 
     /**
      * Get cancellation policy summary
@@ -351,7 +416,7 @@ class Restaurant extends Model
             'enabled' => $this->allowsOrderCancellation(),
             'time_limit_minutes' => $this->getCancellationTimeLimit(),
             'cancellable_statuses' => $this->getCancellableStatuses(),
-            'policy_text' => $this->getCancellationPolicyText()
+            'policy_text' => $this->getCancellationPolicyText(),
         ];
     }
 
@@ -360,30 +425,27 @@ class Restaurant extends Model
      */
     public function getCancellationPolicyText(): string
     {
-        if (!$this->allowsOrderCancellation()) {
+        if (! $this->allowsOrderCancellation()) {
             return 'This restaurant does not allow order cancellation.';
         }
 
         // Status based cancellation (time limit removed)
-        $text = "You can cancel your order based on order status.";
+        $text = 'You can cancel your order based on order status.';
 
         return $text;
     }
 
-
     protected function name(): Attribute
     {
         return Attribute::make(
-            get: fn($value) => decode_html_entities($value)
+            get: fn ($value) => decode_html_entities($value)
         );
     }
 
     protected function description(): Attribute
     {
         return Attribute::make(
-            get: fn($value) => decode_html_entities($value)
+            get: fn ($value) => decode_html_entities($value)
         );
     }
-
-
 }

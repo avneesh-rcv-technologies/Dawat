@@ -2,10 +2,15 @@
 
 namespace Modules\Payments\Observers;
 
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Modules\Orders\Models\Order;
-use Modules\Payments\Models\Payments;
-use Modules\Payments\Events\PaymentStatusUpdated;
+use Modules\Orders\Services\OrderCommissionService;
+use Modules\Orders\Services\OrderService;
 use Modules\Payments\Enums\PaymentStatus;
+use Modules\Payments\Events\PaymentStatusUpdated;
+use Modules\Payments\Models\Payments;
+use Modules\Payments\Services\PaymentSuccessNotificationService;
 
 class PaymentObserver
 {
@@ -22,7 +27,7 @@ class PaymentObserver
      */
     public function updated(Payments $payment): void
     {
-        // This method can be used for additional logic after payment updates
+        $this->scheduleSuccessNotification($payment);
     }
 
     /**
@@ -38,7 +43,7 @@ class PaymentObserver
      */
     public function created(Payments $payment): void
     {
-        // This method can be used for additional logic after payment creation
+        $this->scheduleSuccessNotification($payment);
     }
 
     /**
@@ -57,6 +62,29 @@ class PaymentObserver
         // This method can be used for additional logic after payment deletion
     }
 
+    private function scheduleSuccessNotification(Payments $payment): void
+    {
+        if (in_array($payment->status, ['completed', 'paid', 'captured'], true)
+            && in_array($payment->payment_type, [null, 'order_payment'], true)) {
+            DB::afterCommit(function () use ($payment) {
+                try {
+                    app(OrderCommissionService::class)->recordPaidOrder((int) $payment->order_id);
+                } catch (\Throwable $exception) {
+                    Log::error('Payment commission could not be recorded.', [
+                        'order_id' => $payment->order_id, 'exception_class' => get_class($exception),
+                    ]);
+                }
+            });
+        }
+        try {
+            app(PaymentSuccessNotificationService::class)->schedule($payment);
+        } catch (\Throwable $exception) {
+            Log::warning('Payment receipt could not be scheduled.', [
+                'payment_id' => $payment->id, 'exception_class' => get_class($exception),
+            ]);
+        }
+    }
+
     /**
      * Handle PaymentStatusUpdated events
      */
@@ -65,13 +93,14 @@ class PaymentObserver
         $event->payment->update(['status' => $event->newStatus]);
 
         $order = $event->payment->order;
-        if (!$order) {
+        if (! $order) {
             return;
         }
 
         if (in_array($event->newStatus, ['failed', 'cancelled', 'refunded'], true)) {
-            app(\Modules\Orders\Services\OrderService::class)
-                ->markOrderPaymentFailed($order, 'Payment status updated to ' . $event->newStatus);
+            app(OrderService::class)
+                ->markOrderPaymentFailed($order, 'Payment status updated to '.$event->newStatus);
+
             return;
         }
 

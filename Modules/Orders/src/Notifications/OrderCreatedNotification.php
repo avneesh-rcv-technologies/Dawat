@@ -69,7 +69,7 @@ class OrderCreatedNotification implements Notification
 
         $customer = $this->order->customer;
         $vendor = $this->order->vendor;
-        $currencyCode = fn_get_setting('general.currency') ?? 'USD';
+        $currencyCode = $this->order->currency ?: 'USD';
 
         // Get order items as array for template
         $items = $this->order->items()->get();
@@ -111,10 +111,9 @@ class OrderCreatedNotification implements Notification
             'vendor_name' => (string)($vendor->name ?? 'Restaurant'),
             'vendor_email' => (string)(($vendor && $vendor->admin) ? $vendor->admin->email : ''),
             'items_count' => (int)$items->count(),
-            'order_items' => (string)$this->formatOrderItems(),
+            ...app(\Modules\Orders\Services\OrderNotificationDetails::class)->variables($this->order),
             'vendor_email' => (string)(($vendor && $vendor->admin) ? $vendor->admin->email : ''),
             'items_count' => (int)$items->count(),
-            'order_items' => (string)$this->formatOrderItems(),
             'phone_number' => (string)($this->order->phone_number ?? ''),
             'notes' => (string)($this->order->notes ?? ''),
 
@@ -145,6 +144,7 @@ class OrderCreatedNotification implements Notification
     public function getAvailableVariables(): array
     {
         return [
+            ...\Modules\Orders\Services\OrderNotificationDetails::availableVariables(),
             'customer_name' => 'Full name of the customer',
             'customer_email' => 'Customer email address',
             'order_id' => 'Unique ID of the order',

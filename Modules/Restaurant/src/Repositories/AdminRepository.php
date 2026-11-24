@@ -13,7 +13,7 @@ class AdminRepository
             'name' => $data['name'],
             'email' => $data['email'],
             'password' => Hash::make($data['password']),
-            'role_id' => 2, // Restaurant owner role
+            'role_id' => app(\Modules\Restaurant\Services\RestaurantOwnerRoleResolver::class)->resolve()->getKey(), // Restaurant owner role (general.default_role)
             'status' => true,
         ]);
     }

@@ -66,7 +66,7 @@ class EnsureRestaurantFeaturesApproved
 
             // Restaurant owners must meet approval requirements even without a restaurant_id parameter.
             $admin = auth('admin')->user();
-            if ($admin && (int) $admin->role_id === 2) {
+            if ($admin && app(\Modules\Restaurant\Services\RestaurantOwnerRoleResolver::class)->isOwner($admin)) {
                 $restaurantIds = array_merge($restaurantIds, Restaurant::where('admin_id', $admin->id)->pluck('id')->all());
             }
         }

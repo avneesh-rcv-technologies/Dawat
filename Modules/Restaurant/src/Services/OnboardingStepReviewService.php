@@ -14,24 +14,40 @@ class OnboardingStepReviewService
     {
     }
 
-    public function requestChanges(int $restaurantId, int $reviewerId, OnboardingStep $stepKey, string $reason): Restaurant
+    public function requestChanges(int $restaurantId, int $reviewerId, OnboardingStep $stepKey, string $reason, ?int $submissionId = null): Restaurant
     {
+        if ($stepKey === OnboardingStep::DIETARY_CERTIFICATES) {
+            throw ValidationException::withMessages(['step_key' => 'Review each dietary certificate separately in the Dietary Certificates tab.']);
+        }
+        if ($submissionId !== null && $stepKey !== OnboardingStep::KYC) {
+            throw ValidationException::withMessages(['submission_id' => 'Document selection is only available for KYC.']);
+        }
         $reason = trim($reason);
         if ($reason === '' || mb_strlen($reason) > 500) {
             throw ValidationException::withMessages(['reason' => 'Enter a reason between 1 and 500 characters.']);
         }
 
-        return DB::transaction(function () use ($restaurantId, $reviewerId, $stepKey, $reason) {
+        return DB::transaction(function () use ($restaurantId, $reviewerId, $stepKey, $reason, $submissionId) {
             $restaurant = $this->restaurants->newQuery()->lockForUpdate()->findOrFail($restaurantId);
             $step = $restaurant->onboardingSteps()->where('step_key', $stepKey->value)->lockForUpdate()->first();
             if (!$step || in_array($step->status, ['draft', 'not_started'], true)) {
                 throw ValidationException::withMessages(['step_key' => 'This step has not been submitted yet.']);
             }
+            if (in_array($step->status, ['action_required', 'rejected'], true)) {
+                throw ValidationException::withMessages(['step_key' => 'A change request is already open. Wait for the owner to resubmit this step.']);
+            }
 
             if ($stepKey === OnboardingStep::KYC) {
                 $documents = \Modules\KYC\Models\KycSubmission::where('user_id', $restaurant->admin_id)
                     ->whereHas('kycType', fn ($query) => $query->where('type', 'kyc')->where('is_active', true))
-                    ->lockForUpdate()->get();
+                    ->where('status', '!=', 'draft')->orderByDesc('id')
+                    ->lockForUpdate()->get()->unique('kyc_type_id');
+                if ($submissionId !== null) {
+                    $documents = $documents->where('id', $submissionId);
+                    if ($documents->isEmpty()) {
+                        throw ValidationException::withMessages(['submission_id' => 'Select a current submitted document belonging to this restaurant.']);
+                    }
+                }
                 if ($documents->isEmpty()) {
                     throw ValidationException::withMessages(['step_key' => 'No KYC documents have been submitted.']);
                 }
@@ -54,15 +70,15 @@ class OnboardingStepReviewService
 
     public function startReview(int $restaurantId, int $reviewerId, OnboardingStep $stepKey): Restaurant
     {
-        if (!in_array($stepKey, [OnboardingStep::REGISTRATION, OnboardingStep::MENU, OnboardingStep::BANKING, OnboardingStep::TAX], true)) {
+        if (!in_array($stepKey, [OnboardingStep::REGISTRATION, OnboardingStep::BANKING, OnboardingStep::TAX], true)) {
             throw ValidationException::withMessages(['step_key' => 'This step cannot be reviewed here.']);
         }
 
         return DB::transaction(function () use ($restaurantId, $reviewerId, $stepKey) {
             $restaurant = $this->restaurants->newQuery()->lockForUpdate()->findOrFail($restaurantId);
             $step = $restaurant->onboardingSteps()->where('step_key', $stepKey->value)->lockForUpdate()->first();
-            if (!$step || !in_array($step->status, ['submitted', 'pending', 'action_required'], true)) {
-                throw ValidationException::withMessages(['step_key' => 'Only a submitted step or a step with a refill request can be started for review.']);
+            if (!$step || !in_array($step->status, ['submitted', 'pending'], true)) {
+                throw ValidationException::withMessages(['step_key' => 'Only a submitted step can be started for review. Wait for the owner to resubmit any requested corrections.']);
             }
             if ($stepKey === OnboardingStep::BANKING && !$restaurant->bankingDetail()->exists()) {
                 throw ValidationException::withMessages(['step_key' => 'No banking details have been submitted.']);
@@ -95,9 +111,9 @@ class OnboardingStepReviewService
         return DB::transaction(function () use ($restaurantId, $reviewerId, $approved, $reason) {
             $restaurant = $this->restaurants->newQuery()->lockForUpdate()->findOrFail($restaurantId);
             $step = $restaurant->onboardingSteps()->where('step_key', OnboardingStep::BANKING->value)->lockForUpdate()->first();
-            if (!$step || $step->status !== OnboardingStatus::UNDER_REVIEW->value
+            if (!$step || !in_array($step->status, ['submitted', 'pending', 'under_review'], true)
                 || !$restaurant->bankingDetail()->exists()) {
-                throw ValidationException::withMessages(['step_key' => 'Start review before approving or rejecting banking details.']);
+                throw ValidationException::withMessages(['step_key' => 'Only submitted banking details can be approved or rejected.']);
             }
 
             $reviewedAt = now();
@@ -126,24 +142,6 @@ class OnboardingStepReviewService
         });
     }
 
-    public function reviewMenu(int $restaurantId, int $reviewerId, bool $approved, ?string $reason = null): Restaurant
-    {
-        $reason = trim($reason ?? '');
-        if (!$approved && ($reason === '' || mb_strlen($reason) > 500)) {
-            throw ValidationException::withMessages(['reason' => 'Enter a reason between 1 and 500 characters.']);
-        }
-        return DB::transaction(function () use ($restaurantId, $reviewerId, $approved, $reason) {
-            $restaurant = $this->restaurants->newQuery()->lockForUpdate()->findOrFail($restaurantId);
-            $step = $restaurant->onboardingSteps()->where('step_key', OnboardingStep::MENU->value)->lockForUpdate()->first();
-            if (!$step || $step->status !== 'under_review') {
-                throw ValidationException::withMessages(['step_key' => 'Start review before approving or rejecting menu details.']);
-            }
-            $step->update(['status' => $approved ? 'approved' : 'rejected', 'reviewed_by' => $reviewerId,
-                'reviewed_at' => now(), 'rejection_reason' => $approved ? null : $reason]);
-            return $restaurant;
-        });
-    }
-
     public function reviewTax(int $restaurantId, int $reviewerId, bool $approved, ?string $reason = null): Restaurant
     {
         $reason = trim($reason ?? '');
@@ -157,9 +155,9 @@ class OnboardingStepReviewService
         return DB::transaction(function () use ($restaurantId, $reviewerId, $approved, $reason) {
             $restaurant = $this->restaurants->newQuery()->lockForUpdate()->findOrFail($restaurantId);
             $step = $restaurant->onboardingSteps()->where('step_key', OnboardingStep::TAX->value)->lockForUpdate()->first();
-            if (!$step || $step->status !== OnboardingStatus::UNDER_REVIEW->value
+            if (!$step || !in_array($step->status, ['submitted', 'pending', 'under_review'], true)
                 || !$restaurant->taxInformation()->where('tax_type', $restaurant->tax_type)->exists()) {
-                throw ValidationException::withMessages(['step_key' => 'Start review before approving or rejecting tax information.']);
+                throw ValidationException::withMessages(['step_key' => 'Only submitted tax information can be approved or rejected.']);
             }
             $reviewedAt = now();
             $type = $restaurant->tax_type;
@@ -193,8 +191,8 @@ class OnboardingStepReviewService
                 ->where('step_key', OnboardingStep::REGISTRATION->value)
                 ->lockForUpdate()->first();
 
-            if (!$step || $step->status !== OnboardingStatus::UNDER_REVIEW->value) {
-                throw ValidationException::withMessages(['step_key' => 'Start review before approving or rejecting registration details.']);
+            if (!$step || !in_array($step->status, ['submitted', 'pending', 'under_review'], true)) {
+                throw ValidationException::withMessages(['step_key' => 'Only submitted registration details can be approved or rejected.']);
             }
 
             $reviewedAt = now();
@@ -209,7 +207,7 @@ class OnboardingStepReviewService
                 'approved_by' => $reviewerId,
                 'approved_at' => $approved ? $reviewedAt : null,
                 'rejection_reason' => $approved ? null : $reason,
-                'onboarding_step' => $approved ? OnboardingStep::MENU->order() : OnboardingStep::REGISTRATION->order(),
+                'onboarding_step' => $approved ? OnboardingStep::BANKING->order() : OnboardingStep::REGISTRATION->order(),
             ]);
 
             return $restaurant;

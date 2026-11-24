@@ -99,7 +99,7 @@ class RestaurantFoodCategoryService
         $category = FoodCategory::query()->create($payload);
 
         if (isset($data['image']) && $data['image'] instanceof UploadedFile) {
-            fn_upload_image($data['image'], 'category_image', $category->id, true);
+            fn_upload_image($data['image'], 'category_image', $category->id, true, 'image');
         }
 
         $category = $category->fresh(['parent', 'children']);
@@ -110,7 +110,6 @@ class RestaurantFoodCategoryService
             'updated_at',
             'deleted_at',
             'slug',
-            'image',
         ]);
 
         return $category;
@@ -136,7 +135,8 @@ class RestaurantFoodCategoryService
                 $data['image'],
                 'category_image',
                 $category->id,
-                true
+                true,
+                'image'
             );
         }
 
@@ -148,7 +148,6 @@ class RestaurantFoodCategoryService
             'updated_at',
             'deleted_at',
             'slug',
-            'image',
         ]);
 
         return $category;
@@ -227,7 +226,7 @@ class RestaurantFoodCategoryService
     {
         $category = $this->showForRestaurant($restaurantId, $categoryId);
 
-        fn_upload_image($file, 'category_image', $category->id, true);
+        fn_upload_image($file, 'category_image', $category->id, true, 'image');
 
         return $category->fresh();
     }
@@ -245,7 +244,7 @@ class RestaurantFoodCategoryService
             ];
         }
 
-        $deleted = (new \Modules\Filemanager\Services\FileService())->deleteFile('category_image', $category->id);
+        $deleted = app(\Modules\Filemanager\Services\FileService::class)->deleteFile('category_image', $category->id);
         $category->update(['image' => null]);
 
         return [
@@ -273,10 +272,6 @@ class RestaurantFoodCategoryService
             $payload['description'] = $data['description'] !== null ? trim((string) $data['description']) : null;
         }
 
-        if (array_key_exists('food_type', $data)) {
-            $payload['food_type'] = $data['food_type'];
-        }
-
         if (array_key_exists('status', $data)) {
             $payload['status'] = filter_var($data['status'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
             if ($payload['status'] === null) {
@@ -284,19 +279,7 @@ class RestaurantFoodCategoryService
             }
         }
 
-        if (array_key_exists('parent_id', $data)) {
-            $payload['parent_id'] = $data['parent_id'] ?: null;
-        }
-
-        if (array_key_exists('slug', $data)) {
-            $payload['slug'] = trim((string) $data['slug']) ?: null;
-        }
-
-        if (empty($payload['slug']) && (!empty($payload['name']) || $category === null)) {
-            $payload['slug'] = $this->generateUniqueSlug((string) ($payload['name'] ?? ''), $restaurantId, $category?->id);
-        }
-
-        if ($category !== null && !array_key_exists('name', $data) && !array_key_exists('slug', $data) && !array_key_exists('image', $data) && !array_key_exists('description', $data) && !array_key_exists('food_type', $data) && !array_key_exists('parent_id', $data) && !array_key_exists('status', $data)) {
+        if ($category !== null && !array_key_exists('name', $data) && !array_key_exists('image', $data) && !array_key_exists('description', $data) && !array_key_exists('status', $data)) {
             $payload = [];
         }
 

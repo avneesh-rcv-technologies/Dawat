@@ -14,11 +14,16 @@ class OrderTrackingService
         return [
             'order_id' => $order->id,
             'order_number' => $order->order_number,
-            'items' => $order->items()->get()->toArray(),
+            'items' => $order->items()->get()->map(fn ($item) => app(OrderPresentationService::class)->item($item))->all(),
+            ...app(OrderPresentationService::class)->metadata($order),
+            'pricing' => app(OrderPresentationService::class)->pricing($order),
+            'delivery_address' => $order->delivery_address,
+            'order_type' => $order->order_type,
+            'payment_status' => $order->payment_status,
             'current_status' => [
-                'code' => $currentStatus->status_code,
-                'name' => $currentStatus->name,
-                'color' => $currentStatus->color,
+                'code' => $currentStatus?->status_code ?? $order->status,
+                'name' => $currentStatus?->name ?? $order->formatted_status,
+                'color' => $currentStatus?->color ?? 'gray',
             ],
             'statuses' => $allStatuses->map(fn($status) => [
                 'code' => $status->status_code,

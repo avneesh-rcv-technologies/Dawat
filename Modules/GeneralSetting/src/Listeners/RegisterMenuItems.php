@@ -16,9 +16,9 @@ class RegisterMenuItems
     public function handle(RegisterMenu $event)
     {
         $admin = Auth::guard('admin')->user();
-        if (strcasecmp(trim((string) ($admin?->role?->name ?? '')), 'Restaurant Owner') === 0) {
-            return;
-        }
+        // if (strcasecmp(trim((string) ($admin?->role?->name ?? '')), 'Restaurant Owner') === 0) {
+        //     return;
+        // }
 
         $event->addItem([
             'label' => 'Settings',

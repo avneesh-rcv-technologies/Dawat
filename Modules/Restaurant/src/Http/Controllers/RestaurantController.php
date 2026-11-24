@@ -10,7 +10,8 @@ use Illuminate\Support\Facades\Validator;
 use Modules\Activitylog\Exceptions\ApiExceptionHandler;
 use Modules\Restaurant\DataView\RestaurantGrid;
 use Modules\Restaurant\Services\RestaurantService;
-use Modules\FoodManagements\DataView\FoodItemsGrid;
+use Modules\Restaurant\Services\RestaurantDeliveryPolicy;
+use Modules\Restaurant\Services\RestaurantPayoutReport;
 
 class RestaurantController extends Controller
 {
@@ -37,18 +38,11 @@ class RestaurantController extends Controller
         $hours = $this->restaurantService->getFormattedHours($restaurant);
         $holidays = $this->restaurantService->getFormattedHolidays($restaurant);
 
-        // Fetch food items for the restaurant
-        $foodItems = null;
-        if ($restaurant) {
-            $foodItems = fn_datagrid(FoodItemsGrid::class)->process();
-        }
-
         return view('restaurant::admin.create', compact(
             'restaurantId',
             'restaurant',
             'hours',
-            'holidays',
-            'foodItems'
+            'holidays'
         ));
     }
 
@@ -58,18 +52,34 @@ class RestaurantController extends Controller
             $currentAdmin = auth('admin')->user();
             $restaurant = $this->restaurantService->getRestaurantForEdit($id, $currentAdmin);
 
+            if (request('tab') === 'gallery'
+                && app(\Modules\Restaurant\Services\RestaurantApprovalAccess::class)->isOwner($currentAdmin)) {
+                return redirect()->route('settings.restaurant.gallery.index');
+            }
+
+            if (request('tab') === 'settings'
+                && app(\Modules\Restaurant\Services\RestaurantApprovalAccess::class)->isOwner($currentAdmin)) {
+                return redirect()->route('settings.restaurant.preferences.index');
+            }
+
             $hours = $this->restaurantService->getFormattedHours($restaurant);
             $holidays = $this->restaurantService->getFormattedHolidays($restaurant);
 
-            // Fetch food items for the restaurant
-            $foodItems = fn_datagrid(FoodItemsGrid::class)->process();
+            // The old Food Management tab moved to the owner's Menu Management page.
+            if (request('tab') === 'food' && $restaurant->canManageFeatures()
+                && app(\Modules\Restaurant\Services\RestaurantOwnerRoleResolver::class)->isOwner($currentAdmin)) {
+                return redirect()->route('admin.restaurant.menu.index', ['restaurant' => $restaurant->id]);
+            }
+
+            if (app(\Modules\Restaurant\Services\RestaurantApprovalAccess::class)->isOwner($currentAdmin)) {
+                return redirect()->route('settings.restaurant.general-information.index');
+            }
 
             return view('restaurant::admin.create', [
                 'restaurantId' => $restaurant->id,
                 'restaurant'   => $restaurant,
                 'hours'        => $hours,
                 'holidays'     => $holidays,
-                'foodItems'    => $foodItems,
             ]);
         } catch (\Exception $e) {
             return redirect()->route('admin.restaurant.index')
@@ -115,6 +125,7 @@ class RestaurantController extends Controller
     /* TAB 1 */
     public function storeGeneral(Request $request)
     {
+        abort_if(app(\Modules\Restaurant\Services\RestaurantApprovalAccess::class)->isOwner($request->user('admin')), 403);
         // Check if this is an edit 
         $restaurantId = $request->input('restaurant_id');
         $isEdit = !empty($restaurantId);
@@ -174,6 +185,7 @@ class RestaurantController extends Controller
     /* TAB 2 */
     public function updateAddress(Request $request, $restaurant)
     {
+        abort_if(app(\Modules\Restaurant\Services\RestaurantApprovalAccess::class)->isOwner($request->user('admin')), 403);
         try {
             $validated = $request->validate([
                 'address_line1' => 'required|string|max:255',
@@ -213,6 +225,13 @@ class RestaurantController extends Controller
     /* TAB 3 */
     public function updateHours(Request $request, $restaurant)
     {
+        $admin = $request->user('admin');
+        if (app(\Modules\Restaurant\Services\RestaurantApprovalAccess::class)->isOwner($admin)) {
+            abort_unless($admin->hasPermission('settings.restaurant.working-hours.index')
+                && $admin->hasPermission('settings.restaurant.working-hours.update'), 403);
+            \Modules\Restaurant\Models\Restaurant::where('admin_id', $admin->id)->whereKey($restaurant)->firstOrFail();
+        }
+
         try {
             $hours = $request->input('hours', []);
             $isOpenWholeDay = $request->boolean('is_open_whole_day');
@@ -236,6 +255,13 @@ class RestaurantController extends Controller
     /* TAB 4 */
     public function updateHolidays(Request $request, $restaurant)
     {
+        $admin = $request->user('admin');
+        if (app(\Modules\Restaurant\Services\RestaurantApprovalAccess::class)->isOwner($admin)) {
+            abort_unless($admin->hasPermission('settings.restaurant.holidays.index')
+                && $admin->hasPermission('settings.restaurant.holidays.update'), 403);
+            \Modules\Restaurant\Models\Restaurant::where('admin_id', $admin->id)->whereKey($restaurant)->firstOrFail();
+        }
+
         try {
             $validated = Validator::make($request->all(), [
                 'holidays' => 'nullable|array',
@@ -269,32 +295,42 @@ class RestaurantController extends Controller
     /* TAB 5 */
     public function updateSettings(Request $request, $restaurant)
     {
-        $data = $request->validate([
-            'food_type' => 'nullable|in:all,veg,non_veg,vegan',
-            'status' => 'nullable|in:draft,active,inactive',
-            'order_time_limit' => 'nullable|integer|min:0|max:1440',
-            'cancellation_time_limit' => 'nullable|integer|min:0|max:120',
-            'cancellable_statuses' => 'nullable|array',
-            'cancellable_statuses.*' => 'string',
-        ]);
-
+        abort_if(app(\Modules\Restaurant\Services\RestaurantApprovalAccess::class)->isOwner($request->user('admin')), 403);
+        $redirect = route('admin.restaurant.edit', ['id' => $restaurant, 'tab' => 'settings']);
         try {
-            $data['is_takeaway'] = $request->boolean('is_takeaway');
-            $data['is_delivery'] = $request->boolean('is_delivery');
-            $data['is_accepting_orders'] = $request->boolean('is_accepting_orders');
-            $data['allow_order_cancellation'] = $request->boolean('allow_order_cancellation');
-
+            $data = $request->validate(array_merge([
+                'food_type' => 'nullable|in:all,veg,non_veg,vegan',
+                'status' => 'nullable|in:draft,active,inactive',
+                'order_time_limit' => 'nullable|integer|min:0|max:1440',
+                'cancellation_time_limit' => 'nullable|integer|min:0|max:120',
+                'cancellable_statuses' => 'nullable|array',
+                'cancellable_statuses.*' => 'string',
+            ], RestaurantDeliveryPolicy::rules()), RestaurantDeliveryPolicy::messages());
+            foreach (['is_takeaway', 'is_delivery', 'is_accepting_orders', 'allow_order_cancellation', 'free_delivery_enabled'] as $field) {
+                $data[$field] = $request->boolean($field);
+            }
+            $data['cancellable_statuses'] = $data['cancellable_statuses'] ?? [];
             $this->restaurantService->updateSettings($restaurant, $data);
 
-            return redirect()->route('admin.restaurant.index')
-                ->with('success', 'Restaurant Created Successfully');
-        } catch (\Exception $e) {
-            return back()->withErrors(['error' => $e->getMessage()]);
+            return redirect($redirect)->with('success', 'Restaurant settings updated successfully.')->with('tab', 'settings');
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return redirect($redirect)->withErrors($e->errors())->withInput()->with('tab', 'settings');
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('Restaurant settings update failed.', ['restaurant_id' => $restaurant, 'exception' => $e]);
+
+            return redirect($redirect)->with('error', 'Unable to update restaurant settings. Please try again.')->withInput()->with('tab', 'settings');
         }
     }
 
     public function view($id)
     {
+        $payoutReport = app(RestaurantPayoutReport::class);
+        $payoutFilters = $payoutReport->filters(request());
+        $canViewPayouts = $payoutReport->canView((int) $id, auth('admin')->user());
+        if (request('tab') === 'payouts') {
+            abort_unless($canViewPayouts, 403);
+        }
+        $payoutData = $canViewPayouts ? $payoutReport->page((int) $id, auth('admin')->user(), $payoutFilters) : null;
         $historySteps = \Modules\Restaurant\Enums\OnboardingStep::required();
         $historyFilter = request()->query('history_step', 'all');
         abort_unless(is_string($historyFilter) && in_array($historyFilter, array_merge(
@@ -313,6 +349,8 @@ class RestaurantController extends Controller
                 'historySteps' => $historySteps,
                 'historyFilter' => $historyFilter,
                 'restaurant' => $data['restaurant'],
+                'canViewPayouts' => $canViewPayouts,
+                'payoutData' => $payoutData,
             ]));
         } catch (\Exception $e) {
             return response()->json(['error' => $e->getMessage()], 404);
@@ -323,6 +361,13 @@ class RestaurantController extends Controller
     public function destroy(int $id)
     {
         try {
+            if (!$this->restaurantService->canDeleteRestaurants(auth('admin')->user(), [$id])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'You do not have permission to delete this restaurant',
+                ], 403);
+            }
+
             $this->restaurantService->delete($id);
 
             return response()->json([

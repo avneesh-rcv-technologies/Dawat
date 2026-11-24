@@ -16,7 +16,8 @@
                     <td class="px-6 py-4">
                         <div class="flex items-start">
                             <div class="flex-1 min-w-0">
-                                <div class="font-medium text-gray-900">{{ $item['part_name'] }}</div>
+                                <div class="font-medium text-gray-900">{{ $item['item_name'] ?? $item['part_name'] ?? 'Item' }}</div>
+                                @include('orders::orders.components.serving-summary', ['item' => $item->toArray(), 'currency' => $transaction->order->currency])
                                 <div class="text-sm text-gray-500 mt-1">SKU: #{{ $item['sku'] ?? 'N/A' }}</div>
 
                             </div>
@@ -29,7 +30,7 @@
                         {{ $item['quantity'] }}
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 align-top">
-                        {{ fn_get_currency_data($transaction->order->currency)->symbol }}{{ number_format(fn_convert_currency_rate(($item['price'] ?? 0) * ($item['quantity'] ?? 1), $transaction->order->currency), 2) }}
+                        {{ fn_get_currency_data($transaction->order->currency)->symbol }}{{ number_format(fn_convert_currency_rate($item['total_price'] ?? (($item['price'] ?? 0) * ($item['quantity'] ?? 1)), $transaction->order->currency), 2) }}
                     </td>
                 </tr>
                 @endforeach

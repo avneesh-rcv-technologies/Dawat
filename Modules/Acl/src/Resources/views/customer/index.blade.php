@@ -157,7 +157,7 @@
 
 @push('styles')
 <style>
-    .customer-page { --customer-ink: #102f40; --customer-muted: #647789; --customer-line: #e2e9ee; color: var(--customer-ink); }
+    .customer-page { --customer-ink: #111111; --customer-muted: #647789; --customer-line: #e2e9ee; color: var(--customer-ink); }
     .customer-page .customer-analytics-section { margin-bottom: 32px; }
     .customer-page .customer-analytics-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; margin-bottom: 18px; }
     .customer-page .customer-analytics-heading h2,
@@ -165,7 +165,7 @@
     .customer-page .customer-analytics-caption { margin: 5px 0 0; color: var(--customer-muted); font-size: 13px; }
     .customer-page .customer-date-filter { display: flex; align-items: center; gap: 9px; }
     .customer-page .customer-date-filter input { min-height: 40px; border-color: #d5e0e6; border-radius: 9px; color: var(--customer-ink); }
-    .customer-page .customer-date-filter input:focus { border-color: #2563eb; outline: 3px solid rgba(37, 99, 235, .12); }
+    .customer-page .customer-date-filter input:focus { border-color: #FF6210; outline: 3px solid rgba(255, 98, 16, .12); }
     .customer-page .customer-date-separator { color: var(--customer-muted); font-size: 13px; }
     .customer-page .customer-date-filter button { min-height: 40px; padding-inline: 16px; border-radius: 9px; font-weight: 600; }
     .customer-page #analytics-summary { gap: 14px; margin-bottom: 0; }
@@ -207,8 +207,8 @@
 
     .tab-btn.tab-active {
         background-color: #EFF6FF;
-        color: #2563EB;
-        border-bottom-color: #2563EB;
+        color: #C2470A;
+        border-bottom-color: #FF6210;
     }
 </style> --}}
 <script>

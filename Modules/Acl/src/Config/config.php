@@ -62,4 +62,23 @@ return [
         'edit' => 'Edit Acl',
         'delete' => 'Delete Acl',
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Web Password Transport (admin + restaurant partner)
+    |--------------------------------------------------------------------------
+    |
+    | Web login / reset-password forms SHA-256 hash the password in the browser
+    | and send it with a single-use, session-bound nonce inside an RSA-OAEP
+    | envelope (see PasswordTransportService). Set ADMIN_PASSWORD_TRANSPORT_KEY
+    | (PEM) when running multiple servers so they share one key.
+    |
+    */
+
+    'password_transport' => [
+        'nonce_ttl' => (int) env('ADMIN_PASSWORD_TRANSPORT_NONCE_TTL', 300),
+        'private_key' => env('ADMIN_PASSWORD_TRANSPORT_KEY', ''),
+        'private_key_path' => env('ADMIN_PASSWORD_TRANSPORT_KEY_PATH'),
+        'fields' => ['password', 'password_confirmation', 'current_password'],
+    ],
 ]; 

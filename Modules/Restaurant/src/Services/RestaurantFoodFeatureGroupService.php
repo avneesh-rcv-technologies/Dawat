@@ -13,9 +13,9 @@ class RestaurantFoodFeatureGroupService
     {
     }
 
-    public function listForRestaurant(array $filters = [])
+    public function listForRestaurant(int $restaurantId, array $filters = [])
     {
-        $query = FoodFeature::query()
+        $query = FoodFeature::query()->forRestaurant($restaurantId)
             ->where('feature_type', 'G')
             ->with(['description', 'categories'])
             ->select('food_features.*');
@@ -63,17 +63,18 @@ class RestaurantFoodFeatureGroupService
         return $query->paginate($perPage)->appends($filters);
     }
 
-    public function showForRestaurant(int $groupId): FoodFeature
+    public function showForRestaurant(int $restaurantId, int $groupId): FoodFeature
     {
-        return FoodFeature::query()
+        return FoodFeature::query()->forRestaurant($restaurantId)
             ->where('feature_type', 'G')
             ->with(['description', 'categories'])
             ->findOrFail($groupId);
     }
 
-    public function createForRestaurant(array $data): FoodFeature
+    public function createForRestaurant(int $restaurantId, array $data): FoodFeature
     {
         $payload = [
+            'restaurant_id' => $restaurantId,
             'name' => trim((string) ($data['name'] ?? '')),
             'description' => isset($data['description']) ? (string) $data['description'] : null,
             'feature_code' => trim((string) ($data['feature_code'] ?? '')),
@@ -92,9 +93,9 @@ class RestaurantFoodFeatureGroupService
         return $feature->fresh(['description', 'categories']);
     }
 
-    public function updateForRestaurant(int $groupId, array $data): FoodFeature
+    public function updateForRestaurant(int $restaurantId, int $groupId, array $data): FoodFeature
     {
-        $group = $this->showForRestaurant($groupId);
+        $group = $this->showForRestaurant($restaurantId, $groupId);
 
         $payload = [
             'name' => array_key_exists('name', $data) ? trim((string) $data['name']) : $group->description?->name,
@@ -115,15 +116,15 @@ class RestaurantFoodFeatureGroupService
         return $feature->fresh(['description', 'categories']);
     }
 
-    public function deleteForRestaurant(int $groupId): bool
+    public function deleteForRestaurant(int $restaurantId, int $groupId): bool
     {
-        $group = $this->showForRestaurant($groupId);
+        $group = $this->showForRestaurant($restaurantId, $groupId);
         $this->featureService->delete($group);
 
         return true;
     }
 
-    public function bulkDeleteForRestaurant(array $ids): int
+    public function bulkDeleteForRestaurant(int $restaurantId, array $ids): int
     {
         $ids = $this->normalizeIds($ids);
 
@@ -131,7 +132,7 @@ class RestaurantFoodFeatureGroupService
             return 0;
         }
 
-        $groups = FoodFeature::query()
+        $groups = FoodFeature::query()->forRestaurant($restaurantId)
             ->where('feature_type', 'G')
             ->whereIn('feature_id', $ids)
             ->get();

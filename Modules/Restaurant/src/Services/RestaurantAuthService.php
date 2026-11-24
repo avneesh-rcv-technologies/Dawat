@@ -9,8 +9,13 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Validation\Rule;
 use Illuminate\Support\Str;
 use Modules\Acl\Models\Admin;
+use Modules\Countries\Models\Country;
+use Modules\Countries\Models\CountryState;
+use Modules\Countries\Models\City;
+use Modules\Activitylog\Exceptions\ApiExceptionHandler;
 use Modules\Notifications\Services\NotificationService;
 use Modules\Restaurant\Enums\OnboardingStatus;
 use Modules\Restaurant\Enums\OnboardingStep;
@@ -165,7 +170,19 @@ class RestaurantAuthService
 
     public function register(array $data): array
     {
+        if (is_string($data['email'] ?? null)) $data['email'] = strtolower(trim($data['email']));
+        $data['contact_person'] ??= $data['owner_name'] ?? null;
         $validated = validator($data, [
+            'email_verification_token' => ['nullable', 'string', 'size:64'],
+            'country_id' => ['required', 'integer', Rule::exists('countries', 'id')],
+            'phone_country_id' => ['nullable', 'integer', Rule::exists('countries', 'id')->whereNotNull('phonecode')],
+            'state_id' => ['required', 'integer', Rule::exists('country_states', 'id')
+                ->where('country_id', is_scalar($data['country_id'] ?? null) ? $data['country_id'] : null)],
+            'city_id' => ['required', 'integer', Rule::exists('cities', 'id')
+                ->where('country_id', is_scalar($data['country_id'] ?? null) ? $data['country_id'] : null)
+                ->where('state_id', is_scalar($data['state_id'] ?? null) ? $data['state_id'] : null)],
+            'address_line1' => ['required', 'string', 'max:100'],
+            'postal_code' => ['required', 'string', 'max:20'],
             'restaurant_name' => [
                 'required',
                 'string',
@@ -198,8 +215,9 @@ class RestaurantAuthService
 
             'phone' => [
                 'required',
-                'integer',
-                'digits_between:8,16',
+                'string',
+                'max:20',
+                'regex:/^[0-9]+$/D',
             ],
 
             'terms_accepted' => [
@@ -224,7 +242,7 @@ class RestaurantAuthService
             'password.confirmed' => 'Password confirmation does not match.',
 
             'phone.required' => 'Phone number is required.',
-            'phone.regex' => 'Please enter a valid phone number.',
+            'phone.regex' => 'Enter a phone number using digits only.',
 
             'terms_accepted.required' => 'You must accept the terms and conditions.',
             'terms_accepted.accepted' => 'You must accept the terms and conditions.',
@@ -232,14 +250,40 @@ class RestaurantAuthService
 
         $validated['email'] = strtolower(trim($validated['email']));
 
-        return DB::transaction(function () use ($validated) {
+        $verificationToken = $validated['email_verification_token'] ?? '';
+        $emailVerified = $verificationToken !== ''
+            && app(RestaurantOnboardingOtpService::class)->isVerified($validated['email'], $verificationToken);
+        if ($verificationToken !== '' && !$emailVerified) {
+            throw ValidationException::withMessages(['email_verification_token' => 'The email verification token is invalid or expired. Please verify this email again.']);
+        }
+
+        if (!empty($validated['phone_country_id'])) {
+            $dialCode = preg_replace('/[^0-9]/', '', (string) Country::findOrFail($validated['phone_country_id'])->phonecode);
+            if ($dialCode === '' || strlen('+'.$dialCode.$validated['phone']) > 20) {
+                throw ValidationException::withMessages(['phone' => 'Select a valid country code and keep the full phone number to 20 characters or fewer.']);
+            }
+            $validated['phone'] = '+'.$dialCode.$validated['phone'];
+        }
+
+        return DB::transaction(function () use ($validated, $emailVerified, $verificationToken) {
+            // Keep the selected location IDs alongside their display names.
+            $country = Country::findOrFail($validated['country_id']);
+            $state = CountryState::findOrFail($validated['state_id']);
+            $city = City::findOrFail($validated['city_id']);
+            $coordinates = app(GeocodingService::class)->geocodeAddress([
+                'address_line1' => $validated['address_line1'],
+                'city_name' => $city->name,
+                'state_name' => $state->name,
+                'country_name' => $country->name,
+                'postal_code' => trim($validated['postal_code']),
+            ]);
             $admin = Admin::create([
                 'name' => trim($validated['contact_person']),
                 'email' => $validated['email'],
                 'password' => Hash::make($validated['password']),
-                'status' => 0,
-                'role_id' => null,
-                'email_verified_at' => null,
+                'status' => 1,
+                'role_id' => app(RestaurantOwnerRoleResolver::class)->resolve()->getKey(),
+                'email_verified_at' => $emailVerified ? now() : null,
             ]);
 
             $submittedAt = now();
@@ -251,10 +295,22 @@ class RestaurantAuthService
                     . '-'
                     . Str::random(6),
                 'phone' => trim($validated['phone']),
-                'status' => 'draft',
-                'approval_status' => 'pending',
+                'country_id' => $validated['country_id'],
+                'state_id' => $validated['state_id'],
+                'city_id' => $validated['city_id'],
+                'country' => $country->name,
+                'state' => $state->name,
+                'city' => $city->name,
+                'address_line1' => $validated['address_line1'],
+                'postal_code' => trim($validated['postal_code']),
+                'latitude' => $coordinates['latitude'] ?? null,
+                'longitude' => $coordinates['longitude'] ?? null,
+                'is_accepting_orders' => false,
+                'status' => 'active',
+                'approval_status' => 'approved',
+                'approved_at' => $submittedAt,
                 'onboarding_status' => OnboardingStatus::DRAFT->value,
-                'onboarding_step' => OnboardingStep::REGISTRATION->order(),
+                'onboarding_step' => OnboardingStep::BANKING->order(),
                 'submitted_at' => $submittedAt,
             ]);
 
@@ -262,57 +318,58 @@ class RestaurantAuthService
                 fn (OnboardingStep $step) => [
                     'step_key' => $step->value,
                     'status' => $step === OnboardingStep::REGISTRATION
-                        ? OnboardingStatus::SUBMITTED->value
+                        ? OnboardingStatus::APPROVED->value
                         : OnboardingStatus::DRAFT->value,
                     'submitted_at' => $step === OnboardingStep::REGISTRATION
+                        ? $submittedAt
+                        : null,
+                    'reviewed_at' => $step === OnboardingStep::REGISTRATION
                         ? $submittedAt
                         : null,
                 ],
                 OnboardingStep::ordered()
             ));
 
-            try {
-                $this->notificationService->trigger(
-                    'Restaurant',
-                    'RestaurantOnboardingConfirmation',
-                    $admin,
-                    [
-                        'restaurant_name' => $restaurant->name,
-                        'restaurant_owner_name' => $admin->name,
-                        'restaurant_id' => $restaurant->id,
-                        'submitted_date' => $restaurant->created_at
-                                ?->format('Y-m-d H:i:s')
-                            ?? now()->format('Y-m-d H:i:s'),
-                    ]
-                );
-            } catch (\Throwable $e) {
-                \Log::warning(
-                    'Restaurant onboarding confirmation notification failed during registration.',
-                    [
-                        'admin_id' => $admin->id,
-                        'restaurant_id' => $restaurant->id,
-                        'error' => $e->getMessage(),
-                    ]
-                );
+            if (!$emailVerified) {
+                $this->sendOtp($admin->email, $admin->id, false, 'registration_email_verification');
             }
 
-            $this->sendOtp(
-                $admin->email,
-                $admin->id,
-                false,
-                'registration_email_verification'
-            );
+            DB::afterCommit(function () use ($admin, $restaurant, $verificationToken) {
+                if ($verificationToken !== '') {
+                    app(RestaurantOnboardingOtpService::class)->forgetVerification($verificationToken);
+                }
+                $createdRequests = [];
+                try {
+                    $createdRequests = app(\Modules\KYC\Services\KycRequestService::class)
+                        ->createPendingRequestsForAdmin($admin, $admin->id);
+                } catch (\Throwable $e) {
+                    \Log::warning('Failed to create KYC requests after automatic API registration approval.', [
+                        'restaurant_id' => $restaurant->id, 'exception_class' => get_class($e),
+                    ]);
+                }
+                try {
+                    $this->notificationService->trigger('Restaurant', 'RestaurantApproved', $admin, [
+                        'restaurant' => $restaurant->fresh(), 'pending_kyc_requests' => $createdRequests,
+                    ]);
+                } catch (\Throwable $e) {
+                    \Log::warning('Unable to send automatic API registration approval notification.', [
+                        'restaurant_id' => $restaurant->id, 'exception_class' => get_class($e),
+                    ]);
+                }
+            });
 
             return [
                 'success' => true,
-                'message' => 'Restaurant account created successfully. Please verify your email to continue.',
+                'message' => $emailVerified
+                    ? 'Restaurant account created and registration approved. Please log in to continue with Banking Information.'
+                    : 'Restaurant registration approved. Please verify your email to log in and continue with Banking Information.',
                 'status' => $restaurant->status,
                 'approval_status' => $restaurant->approval_status,
                 'onboarding_status' => $restaurant->onboarding_status,
                 'onboarding_step' => $restaurant->onboarding_step,
                 'submitted_at' => $restaurant->submitted_at?->toDateTimeString(),
                 'email_verified' => !empty($admin->email_verified_at),
-                'otp_sent' => true,
+                'otp_sent' => !$emailVerified,
             ];
         });
     }
@@ -750,7 +807,7 @@ class RestaurantAuthService
         $restaurant = Restaurant::where('admin_id', $admin->id)->first();
 
         try {
-            $this->notificationService->trigger(
+            $sent = $this->notificationService->trigger(
                 'Restaurant',
                 'RestaurantEmailVerification',
                 $admin,
@@ -762,7 +819,12 @@ class RestaurantAuthService
                     'purpose' => $type,
                 ]
             );
+
+            if (!$sent) {
+                ApiExceptionHandler::handle(new \RuntimeException('Restaurant OTP email notification failed.'));
+            }
         } catch (\Throwable $e) {
+            ApiExceptionHandler::handle($e);
             \Log::warning('Restaurant OTP email notification failed.', [
                 'email' => $email,
                 'error' => $e->getMessage(),
@@ -888,7 +950,10 @@ class RestaurantAuthService
             'password' => ['required', 'string', new StrongPassword()],
         ])->validate();
         $admin->password = Hash::make($newPassword);
+        $admin->setRememberToken(Str::random(60));
         $admin->save();
+
+        app(\Modules\Acl\Services\AdminSessionRevoker::class)->revoke($admin);
 
         app(RestaurantPasswordResetNotificationService::class)->sendForOwner($admin);
 

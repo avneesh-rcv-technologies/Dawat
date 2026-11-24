@@ -3,10 +3,13 @@
 namespace Modules\Acl\Providers;
 
 use Illuminate\Routing\Router;
+use Illuminate\Routing\UrlGenerator;
 use Illuminate\Support\ServiceProvider;
 use Modules\Acl\Http\Middleware\AdminAuthenticate;
 use Modules\Acl\Http\Middleware\AdminPermissionMiddleware;
 use Modules\Acl\Http\Middleware\RedirectIfAdminAuthenticated;
+use Modules\Acl\Routing\EncryptedIdUrlGenerator;
+use Modules\Acl\Services\RouteIdCipher;
 
 class MiddlewareServiceProvider extends ServiceProvider
 {
@@ -15,7 +18,12 @@ class MiddlewareServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->singleton(RouteIdCipher::class, fn ($app) => new RouteIdCipher((string) $app['config']->get('app.key')));
+
+        // route() encrypts the parameters a route lists in its route.ids middleware.
+        $this->app->extend('url', fn (UrlGenerator $url, $app) => $url instanceof EncryptedIdUrlGenerator
+            ? $url
+            : EncryptedIdUrlGenerator::fromBase($url, $app->make(RouteIdCipher::class)));
     }
 
     /**
@@ -30,6 +38,12 @@ class MiddlewareServiceProvider extends ServiceProvider
 
         // Register the request sanitization middleware
         $router->aliasMiddleware('sanitize.request', \Modules\Acl\Http\Middleware\SanitizeRequest::class);
+
+        // Decrypts one-time password envelopes sent by web login / reset forms
+        $router->aliasMiddleware('password.transport', \Modules\Acl\Http\Middleware\DecryptClientPasswords::class);
+
+        // Decrypts encrypted record IDs in the URL (e.g. restaurant id) - IDOR hardening
+        $router->aliasMiddleware('route.ids', \Modules\Acl\Http\Middleware\DecryptRouteIds::class);
 
         // Apply sanitization to all routes (now JSON-safe)
         try {

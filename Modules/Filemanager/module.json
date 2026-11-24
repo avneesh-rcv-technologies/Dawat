@@ -2,11 +2,14 @@
     "name": "Filemanager",
     "version": "1.0.0",
     "enabled": true,
-    "last_enabled_at": "2025-08-21T06:11:29+00:00",
+    "last_enabled_at": "2026-09-01T07:57:15+00:00",
     "last_disabled_at": null,
     "applied_migrations": [],
     "failed_migrations": [],
-    "dependencies": [],
+    "dependencies": [
+        "aws/aws-sdk-php: ^3.379",
+        "league/flysystem-aws-s3-v3: ^3.32"
+    ],
     "dependents": [],
     "config": []
 }

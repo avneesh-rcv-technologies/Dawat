@@ -124,6 +124,11 @@
     // Set up MutationObserver to handle dynamically added forms
     const observer = new MutationObserver(function (mutations) {
       mutations.forEach(function (mutation) {
+        if (mutation.removedNodes.length && window.tinymce) {
+          tinymce.get().forEach(editor => {
+            if (!editor.getElement()?.isConnected) editor.remove();
+          });
+        }
         if (mutation.addedNodes.length) {
           initializeAjaxForms();
           initRichTextEditors();
@@ -212,11 +217,9 @@
 
     /**
      * Initialize rich text editors for all textareas with editor="true" attribute.
-     * Supports the globally selected editor so modules can keep using the same markup.
+     * Uses the locally hosted TinyMCE editor across all modules.
      */
     function initRichTextEditors() {
-      const editorType = window.appEditorType || 'ckeditor';
-
       document.querySelectorAll('textarea[editor="true"]').forEach(textarea => {
         if (textarea.dataset.editorInitialized === 'true' || textarea.dataset.editorInitializing === 'true') return;
 
@@ -224,15 +227,57 @@
           textarea.id = `editor-${Math.random().toString(36).slice(2, 11)}`;
         }
 
-        if (editorType === 'tinymce') {
-          initTinyMceEditor(textarea);
-          return;
-        }
-
-        if (editorType === 'ckeditor') {
-          initCkEditor(textarea);
-        }
+        initTinyMceEditor(textarea);
       });
+    }
+
+    /**
+     * Split a full HTML email document into the part TinyMCE can edit (the <body> contents)
+     * and the wrapper it would otherwise strip (doctype, <head>, <body ...> tag).
+     */
+    function splitEmailDocument(html) {
+      const value = html || '';
+      const open = value.match(/<body\b[^>]*>/i);
+      const closeIndex = value.search(/<\/body\s*>/i);
+      if (!open || closeIndex === -1 || closeIndex < open.index) {
+        return { prefix: '', body: value, suffix: '', bodyStyle: '' };
+      }
+      const start = open.index + open[0].length;
+      const styleMatch = open[0].match(/\bstyle\s*=\s*(["'])([\s\S]*?)\1/i);
+
+      return {
+        prefix: value.slice(0, start),
+        body: value.slice(start, closeIndex),
+        suffix: value.slice(closeIndex),
+        bodyStyle: styleMatch ? styleMatch[2] : '',
+      };
+    }
+
+    /**
+     * Extra TinyMCE settings for textareas with data-editor-mode="email": edit stored HTML
+     * email templates without rewriting markup, inline styles or {{placeholder}} URLs.
+     */
+    function emailEditorOptions(textarea) {
+      const doc = splitEmailDocument(textarea.value);
+
+      return {
+        plugins: 'autolink code table lists link image wordcount fullscreen preview visualblocks',
+        toolbar: 'undo redo | blocks | bold italic underline forecolor | link image table | alignleft aligncenter alignright | visualblocks code preview fullscreen',
+        convert_urls: false,
+        relative_urls: false,
+        remove_script_host: false,
+        verify_html: false,
+        valid_elements: '*[*]',
+        extended_valid_elements: '*[*]',
+        valid_children: '+body[style|meta|title],+div[table],+td[table|div]',
+        entity_encoding: 'raw',
+        forced_root_block: 'div',
+        table_sizing_mode: 'fixed',
+        object_resizing: false,
+        visual: false,
+        content_style: 'html, body { margin: 0; padding: 0; } body { ' + doc.bodyStyle.replace(/[<>]/g, '') + ' }',
+        emailDocument: doc,
+      };
     }
 
     function initTinyMceEditor(textarea) {
@@ -240,6 +285,8 @@
 
       const editorId = textarea.id;
       const heightEditor = parseInt(textarea.dataset.height || '280', 10);
+      const isEmail = textarea.dataset.editorMode === 'email';
+      const emailOptions = isEmail ? emailEditorOptions(textarea) : {};
 
       if (tinymce.get(editorId)) {
         textarea.dataset.editorInitialized = 'true';
@@ -249,66 +296,68 @@
       textarea.dataset.editorInitializing = 'true';
 
       tinymce.init({
-        selector: `#${editorId}`,
-        plugins: 'autolink code table lists link wordcount',
-        toolbar: 'undo redo | bold italic | bullist numlist | link | alignleft aligncenter alignright alignjustify',
+        target: textarea,
+        plugins: 'autolink code table lists link image wordcount fullscreen',
+        toolbar: 'undo redo | blocks | bold italic underline | bullist numlist blockquote | link image table | alignleft aligncenter alignright alignjustify | code fullscreen',
+        automatic_uploads: Boolean(textarea.dataset.imageUploadUrl),
+        images_upload_handler: textarea.dataset.imageUploadUrl ? async function (blobInfo) {
+          const data = new FormData();
+          data.append('file', blobInfo.blob(), blobInfo.filename());
+          const response = await fetch(textarea.dataset.imageUploadUrl, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+              'Accept': 'application/json',
+              'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || ''
+            },
+            body: data
+          });
+          const result = await response.json();
+          if (!response.ok || typeof result.location !== 'string') {
+            throw new Error(result.message || 'Image upload failed.');
+          }
+          return result.location;
+        } : undefined,
+        content_style: textarea.dataset.imageUploadUrl ? '.blog-introduction { border: 1px dashed #aaa; padding: 12px; margin-bottom: 24px; } .blog-columns { display: grid; grid-template-columns: .78fr 1fr; gap: 24px; padding: 12px; border: 1px dashed #aaa; } .blog-columns > div { min-width: 0; } img { max-width: 100%; height: auto; } .blog-accent { color: #ff6210; }' : undefined,
         menubar: false,
         statusbar: false,
         height: heightEditor,
         setup: function (editor) {
+          editor.on('remove', function () {
+            delete textarea.dataset.editorInitialized;
+            delete textarea.dataset.editorInitializing;
+          });
           editor.on('init', function () {
             delete textarea.dataset.editorInitializing;
             textarea.dataset.editorInitialized = 'true';
-            editor.setContent(textarea.value || '');
+            editor.setContent(isEmail ? emailOptions.emailDocument.body : (textarea.value || ''));
           });
 
+          if (isEmail) {
+            // Put the doctype/<head>/<body> wrapper back whenever content is written to the textarea.
+            // PostProcess (not SaveContent) because TinyMCE 6 only keeps changes made here.
+            editor.on('PostProcess', function (e) {
+              if (!e.save) return;
+              const doc = emailOptions.emailDocument;
+              e.content = doc.prefix + e.content + doc.suffix;
+            });
+          }
+
           editor.on('change input undo redo', function () {
-            textarea.value = editor.getContent();
+            editor.save();
           });
-        }
+        },
+        ...(isEmail ? (({ emailDocument, ...options }) => options)(emailOptions) : {})
+      }).catch(error => {
+        delete textarea.dataset.editorInitializing;
+        console.error('TinyMCE initialization failed:', error);
       });
     }
 
-    function initCkEditor(textarea) {
-      if (typeof ClassicEditor === 'undefined') return;
-
-      const minHeight = parseInt(textarea.dataset.height || '280', 10);
-
-      textarea.dataset.editorInitializing = 'true';
-
-      ClassicEditor
-        .create(textarea, {
-          toolbar: [
-            'undo', 'redo',
-            '|',
-            'heading',
-            '|',
-            'bold', 'italic', 'link',
-            '|',
-            'bulletedList', 'numberedList',
-            '|',
-            'blockQuote', 'insertTable'
-          ]
-        })
-        .then(editor => {
-          delete textarea.dataset.editorInitializing;
-          textarea.dataset.editorInitialized = 'true';
-          textarea.ckeditorInstance = editor;
-
-          const editable = editor.ui.view.editable.element;
-          if (editable) {
-            editable.style.minHeight = `${minHeight}px`;
-          }
-
-          editor.model.document.on('change:data', function () {
-            textarea.value = editor.getData();
-          });
-        })
-        .catch(error => {
-          delete textarea.dataset.editorInitializing;
-          console.error('CKEditor initialization failed:', error);
-        });
-    }
+    // Flush editor contents before native or AJAX submit handlers read the form.
+    document.addEventListener('submit', function () {
+      window.tinymce?.triggerSave();
+    }, true);
 
     function initializeAjaxForms() {
       document.querySelectorAll('.form-ajax').forEach(form => {
@@ -372,6 +421,7 @@
         submitButton.textContent = 'Processing...';
       }
 
+      window.tinymce?.triggerSave();
       const formData = new FormData(form);
       formData.append('is_ajax', '1');
 
@@ -517,14 +567,21 @@
     function errorCreate(errors, formData) {
       console.log(errors);
       if (errors.length === undefined) {
+        let firstErrorMessage = '';
         $.each(errors, function (i, v) {
-          var errorText = `<div class="text-red-500 text-sm mt-1" id="errors"><small>${v}</small></div>`;
+          const val = Array.isArray(v) ? v[0] : v;
+          if (!firstErrorMessage && val) firstErrorMessage = val;
+          var errorText = `<div class="text-red-500 text-sm mt-1" id="errors"><small>${val}</small></div>`;
           var id = `#${i}`;
-          showToast(v, 'error', 'Error');
           if ($(formData).find(id).length) {
             let $field = $(formData).find(id);
             $(formData).find(id).addClass('!border !border-red-500');
-            $(formData).find(id).parent().append(errorText);
+            const $inputGroup = $field.closest('.glass-input');
+            if ($inputGroup.length) {
+              $inputGroup.after(errorText);
+            } else {
+              $field.parent().append(errorText);
+            }
             let $label =
               $field.closest('div').find('label').first();
 
@@ -533,8 +590,12 @@
             }
           }
         });
+        if (firstErrorMessage) {
+          showToast(firstErrorMessage, 'error', 'Validation Error');
+        }
       } else {
-        showToast(errors, 'error', 'Error');
+        const message = Array.isArray(errors) ? errors[0] : errors;
+        showToast(message, 'error', 'Error');
       }
     }
 

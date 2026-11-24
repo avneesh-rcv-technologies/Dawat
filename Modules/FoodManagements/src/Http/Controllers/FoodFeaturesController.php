@@ -11,9 +11,12 @@ use Modules\FoodManagements\Models\FoodCategory;
 use Modules\FoodManagements\Models\FoodFeature;
 use Modules\FoodManagements\Services\FoodFeatureService;
 use Modules\Activitylog\Exceptions\ApiExceptionHandler;
+use Modules\FoodManagements\Http\Controllers\Concerns\ScopesFeaturesToOwner;
 
 class FoodFeaturesController extends Controller
 {
+    use ScopesFeaturesToOwner;
+
     public function __construct(
         protected FoodFeatureService $service
     ) {}
@@ -39,7 +42,7 @@ class FoodFeaturesController extends Controller
                 return response()->json(['errors' => $validator->errors()], 422);
             }
 
-            $this->service->create($request->all());
+            $this->service->create($this->withOwnerRestaurant($request->all()));
 
             return response()->json([
                 'success' => true,
@@ -53,7 +56,8 @@ class FoodFeaturesController extends Controller
 
     public function edit(FoodFeature $feature)
     {
-        $feature->load(['description', 'categories', 'variants.description', 'parent.description']);
+        $this->authorizeOwner($feature);
+        $feature->load(['description', 'categories', 'variants.description', 'parent.description', 'restaurant']);
 
         return view('foodmanagements::food_features.form', array_merge(
             $this->formLookups(),
@@ -64,13 +68,14 @@ class FoodFeaturesController extends Controller
     public function update(Request $request, FoodFeature $feature)
     {
         try {
+            $this->authorizeOwner($feature);
             $validator = Validator::make($request->all(), $this->rules($feature->feature_id));
 
             if ($validator->fails()) {
                 return response()->json(['errors' => $validator->errors()], 422);
             }
 
-            $this->service->update($feature, $request->all());
+            $this->service->update($feature, $this->withOwnerRestaurant($request->all()));
 
             return response()->json([
                 'success' => true,
@@ -85,6 +90,7 @@ class FoodFeaturesController extends Controller
     public function destroy(FoodFeature $feature)
     {
         try {
+            $this->authorizeOwner($feature);
             $this->service->delete($feature);
 
             return response()->json([
@@ -105,7 +111,7 @@ class FoodFeaturesController extends Controller
                 'ids.*' => 'exists:food_features,feature_id',
             ]);
 
-            $this->service->bulkDelete($request->ids);
+            $this->service->bulkDelete($this->ownedIds($request->ids));
 
             if ($request->input('is_ajax')) {
                 return response()->json([
@@ -121,6 +127,16 @@ class FoodFeaturesController extends Controller
         }
     }
 
+    /** Owners always create under their own restaurant; a chosen group decides it otherwise. */
+    private function withOwnerRestaurant(array $data): array
+    {
+        if ($ownerRestaurantId = $this->ownerRestaurantId()) {
+            $data['restaurant_id'] = $ownerRestaurantId;
+        }
+
+        return $data;
+    }
+
     private function rules(?int $featureId = null): array
     {
         return [
@@ -131,7 +147,12 @@ class FoodFeaturesController extends Controller
             'purpose'            => 'nullable|string|max:32',
             'feature_style'      => 'nullable|string|max:32',
             'filter_style'       => 'nullable|string|max:32',
-            'parent_id'          => 'nullable|integer|min:0',
+            // Group is optional; without one the feature belongs directly to a restaurant.
+            'parent_id'          => ['nullable', 'integer', \Illuminate\Validation\Rule::when((int) request('parent_id') > 0, [
+                \Illuminate\Validation\Rule::exists('food_features', 'feature_id')->where('feature_type', 'G')
+                    ->when($this->ownerRestaurantId(), fn ($rule, $restaurantId) => $rule->where('restaurant_id', $restaurantId)),
+            ])],
+            'restaurant_id'      => [$featureId || $this->ownerRestaurantId() ? 'nullable' : 'required_without:parent_id', 'nullable', 'integer', 'exists:restaurants,id'],
             'display_on_product' => 'nullable',
             'display_on_catalog' => 'nullable',
             'display_on_header'  => 'nullable',
@@ -224,10 +245,14 @@ class FoodFeaturesController extends Controller
                 'G' => 'Group',
             ],
             'featurePurposes' => $this->featurePurposes(),
+            'ownerRestaurantId' => $this->ownerRestaurantId(),
+            'restaurants' => $this->ownerRestaurantId() ? collect() : \Modules\Restaurant\Models\Restaurant::orderBy('name')->get(['id', 'name']),
             'defaultPurpose' => 'find_products',
             'statusOptions' => ['A' => 'Active', 'H' => 'Hidden', 'D' => 'Disabled'],
-            'groups' => FoodFeature::with('description')->where('feature_type', 'G')->orderBy('position')->get(),
-            'categories' => FoodCategory::orderBy('name')->get(),
+            'groups' => FoodFeature::with(['description', 'restaurant:id,name'])->where('feature_type', 'G')
+                ->when($this->ownerRestaurantId(), fn ($q, $restaurantId) => $q->forRestaurant($restaurantId))
+                ->orderBy('restaurant_id')->orderBy('position')->get(),
+            'categories' => FoodCategory::when($this->ownerRestaurantId(), fn ($q, $restaurantId) => $q->where('restaurant_id', $restaurantId))->orderBy('name')->get(),
         ];
     }
 }

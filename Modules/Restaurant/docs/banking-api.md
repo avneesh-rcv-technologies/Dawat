@@ -28,20 +28,59 @@ POST and PUT body (`Content-Type: application/json`):
   "country_id": 233,
   "state_id": 1433,
   "city_id": 111041,
-  "postal_code": "02108"
+  "postal_code": "02108",
+  "accept_platform_commission": true
 }
 ```
 
 The form follows the supplied routing-number format: exactly 9 digits for routing numbers, and 4–17 digits for account numbers. Send both as strings to preserve leading zeros. Account confirmation is required whenever an account number is supplied. DBA is optional; PATCH with `"doing_business_as": null` clears it. PUT replaces the required fields; omitted DBA is preserved.
 
+### Platform commission checkbox
+
+Admins set a platform commission percentage in **Settings → Configuration → General → Platform Commission**
+(setting key `general.platform_commission_percentage`, default **10%** when unset).
+Before Company Information, the owner must tick a checkbox agreeing that the
+displayed percentage is applied to every order amount.
+
+- Send `accept_platform_commission: true` with every **POST/PUT/PATCH** owner submission,
+  including updates after a previous acceptance (422 otherwise).
+- If the admin changed the rate (`needs_reacceptance: true`), the owner must
+  agree to the new rate; this acceptance alone counts as a change.
+- `false` is rejected; an owner cannot withdraw an agreement through these endpoints.
+- When accepted, the restaurant stores `platform_commission_accepted`, the `platform_commission_percentage`
+  in effect at that moment, and `platform_commission_accepted_at`.
+- After each successful owner banking submission or update commits, the owner
+  receives the `restaurant_commission_accepted` confirmation email with the
+  saved percentage, acceptance date/time, and agreement text. GET requests,
+  failed/rolled-back saves, and admin edits do not send this email.
+
+GET, POST, PUT and PATCH responses (and `GET /api/restaurant/me/onboarding-details`) include a
+`platform_commission` object so the app can render the checkbox:
+
+```json
+"platform_commission": {
+  "input_name": "accept_platform_commission",
+  "percentage": 10,
+  "is_required": true,
+  "label": "I agree that a 10% platform commission will be applied to every order amount.",
+  "accepted": true,
+  "accepted_percentage": 10,
+  "accepted_at": "2026-11-13T15:02:11+00:00",
+  "needs_reacceptance": false
+}
+```
+
+Show the checkbox when `is_required` is `true`; pre-tick it when `accepted` is `true` and
+`needs_reacceptance` is `false`.
+
 Example company-only PATCH:
 
 ```json
-{"business_legal_name": "Updated Restaurant LLC", "city_id": 111041}
+{"business_legal_name": "Updated Restaurant LLC", "city_id": 111041, "accept_platform_commission": true}
 ```
 
-GET returns `success`, `data`, and `onboarding_step`. POST/PUT/PATCH return
-`success`, `message`, and `data`; write responses do not include `onboarding_step`.
+GET returns `success`, `data`, `onboarding_step`, and `platform_commission`. POST/PUT/PATCH return
+`success`, `message`, `data`, `onboarding_step`, and `platform_commission`.
 Data contains company fields, routing number, `account_number_masked`, and
 `account_number_last_four`. Full account numbers and their confirmations are
 never returned. GET returns 200 with `data: null` when the owner has not submitted
@@ -70,6 +109,15 @@ overall onboarding and activates the restaurant.
 The web actions are POST `/restaurant/approvals/{id}/banking/approve` and POST `/restaurant/approvals/{id}/banking/reject` with admin authentication, CSRF protection, and `step_key=banking`. Rejection also needs `rejection_reason`. Successful actions return to the banking tab and use the existing toast messages. The owner receives email and web push notifications after commit, including the rejection reason when applicable. Owner edits to rejected banking details reset the step to `submitted`, allowing a new review. Owner updates to approved banking details preserve approval.
 
 ## Setup
+
+Install or refresh the commission acceptance email event/template with:
+
+```sh
+php artisan db:seed --class='Modules\Restaurant\Database\Seeders\RestaurantCommissionAcceptedNotificationSeeder' --force
+```
+
+The approved/read-only banking screen displays the saved acceptance status,
+commission percentage, and acceptance time.
 
 Admin **Edit information** saves preserve the banking step status, submission
 time, reviewer, review time, and rejection reason. They record detail changes

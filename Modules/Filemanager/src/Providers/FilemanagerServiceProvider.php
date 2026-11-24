@@ -3,8 +3,7 @@
 namespace Modules\Filemanager\Providers;
 
 use Illuminate\Support\ServiceProvider;
-use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\Config;
+
 
 class FilemanagerServiceProvider extends ServiceProvider
 {
@@ -17,7 +16,8 @@ class FilemanagerServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->mergeConfigFrom(
-            __DIR__.'/../Config/config.php', 'filemanager'
+            __DIR__ . '/../Config/config.php',
+            'filemanager'
         );
 
         $this->app->register(FilemanagerEventServiceProvider::class);
@@ -29,13 +29,25 @@ class FilemanagerServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->registerConfig();
+        
         $this->registerCommands();
         $this->registerRoutes();
         $this->registerViews();
         $this->registerTranslations();
         $this->registerMigrations();
         $this->registerComponents();
+        $this->registerPolicies();
     }
+
+    protected function registerPolicies(): void
+    {
+        \Illuminate\Support\Facades\Gate::policy(
+            \Modules\Filemanager\Models\FileLink::class,
+            \Modules\Filemanager\Policies\FileLinkPolicy::class
+        );
+    }
+
+   
 
     /**
      * Register config.
@@ -43,11 +55,12 @@ class FilemanagerServiceProvider extends ServiceProvider
     protected function registerConfig(): void
     {
         $this->publishes([
-            __DIR__.'/../Config/config.php' => config_path('filemanager.php'),
+            __DIR__ . '/../Config/config.php' => config_path('filemanager.php'),
         ], 'config');
 
         $this->mergeConfigFrom(
-            __DIR__.'/../Config/config.php', 'filemanager'
+            __DIR__ . '/../Config/config.php',
+            'filemanager'
         );
     }
 
@@ -69,8 +82,8 @@ class FilemanagerServiceProvider extends ServiceProvider
     protected function registerRoutes(): void
     {
         try {
-            $webRoutePath = __DIR__.'/../Routes/web.php';
-            $apiRoutePath = __DIR__.'/../Routes/api.php';
+            $webRoutePath = __DIR__ . '/../Routes/web.php';
+            $apiRoutePath = __DIR__ . '/../Routes/api.php';
 
             if (file_exists($webRoutePath)) {
                 $this->loadRoutesFrom($webRoutePath);
@@ -91,7 +104,7 @@ class FilemanagerServiceProvider extends ServiceProvider
     protected function registerViews(): void
     {
         $viewPath = resource_path('views/modules/filemanager');
-        $sourcePath = __DIR__.'/../Resources/views';
+        $sourcePath = __DIR__ . '/../Resources/views';
 
         $this->publishes([
             $sourcePath => $viewPath
@@ -105,7 +118,7 @@ class FilemanagerServiceProvider extends ServiceProvider
      */
     protected function registerTranslations(): void
     {
-        $this->loadTranslationsFrom(__DIR__.'/../Resources/lang', 'filemanager');
+        $this->loadTranslationsFrom(__DIR__ . '/../Resources/lang', 'filemanager');
     }
 
     /**
@@ -113,15 +126,15 @@ class FilemanagerServiceProvider extends ServiceProvider
      */
     protected function registerMigrations(): void
     {
-        $this->loadMigrationsFrom(__DIR__.'/../Database/Migrations');
+        $this->loadMigrationsFrom(__DIR__ . '/../Database/Migrations');
     }
 
     /**
-    * Register compoenents
-    */
+     * Register compoenents
+     */
 
     protected function registerComponents(): void
     {
-       
+
     }
-} 
+}

@@ -15,6 +15,11 @@ $breadcrumbs = [
 @endsection
 
 @section('content')
+@php
+    $restaurantTabs = ['details', 'orders', 'customers', 'transactions'];
+    if ($canViewPayouts ?? false) $restaurantTabs[] = 'payouts';
+    $activeRestaurantTab = in_array(request('tab'), $restaurantTabs, true) ? request('tab') : 'details';
+@endphp
 <div class="mx-auto">
     <!-- Header -->
     <div class="bg-white rounded-t-lg border-b border-gray-200 py-4 mb-6">
@@ -91,12 +96,12 @@ $breadcrumbs = [
             </form>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="restaurant-analytics-kpis grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div class="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
                 <div class="flex items-center justify-between">
                     <div>
                         <p class="text-sm font-medium text-gray-600">Total Orders</p>
-                        <p class="text-2xl font-bold text-gray-900 mt-1">{{ $analytics['orders']['total'] }}</p>
+                        <p class="text-2xl font-bold text-gray-900 mt-1 overflow-x-auto whitespace-nowrap">{{ $analytics['orders']['total'] }}</p>
                         <p class="text-xs text-green-600 mt-1">{{ $analytics['orders']['completion_rate'] }}% completed
                         </p>
                     </div>
@@ -112,9 +117,9 @@ $breadcrumbs = [
             <div class="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
                 <div class="flex items-center justify-between">
                     <div>
-                        <p class="text-sm font-medium text-gray-600">Total Revenue</p>
-                        <p class="text-2xl font-bold text-gray-900 mt-1">{{ $analytics['revenue']['total_formatted'] ?? fn_convert_currency($analytics['revenue']['total'] ?? 0, $analytics['revenue']['currency'] ?? fn_get_setting('general.currency', 'USD')) }}</p>
-                        <p class="text-xs text-gray-600 mt-1">Avg: {{ $analytics['revenue']['average_order_value_formatted'] ?? fn_convert_currency($analytics['revenue']['average_order_value'] ?? 0, $analytics['revenue']['currency'] ?? fn_get_setting('general.currency', 'USD')) }}</p>
+                        <p class="text-sm font-medium text-gray-600">{{ $analytics['revenue']['label'] ?? 'Commission revenue' }}</p>
+                        <p class="text-2xl font-bold text-gray-900 mt-1 overflow-x-auto whitespace-nowrap">{{ $analytics['revenue']['total_formatted'] ?? fn_convert_currency($analytics['revenue']['total'] ?? 0, $analytics['revenue']['currency'] ?? fn_get_setting('general.currency', 'USD')) }}</p>
+                        <p class="text-xs text-gray-600 mt-1">Avg earnings/order: {{ $analytics['revenue']['average_order_value_formatted'] ?? fn_convert_currency($analytics['revenue']['average_order_value'] ?? 0, $analytics['revenue']['currency'] ?? fn_get_setting('general.currency', 'USD')) }}</p>
                     </div>
                     <div class="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
                         <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -130,7 +135,7 @@ $breadcrumbs = [
                 <div class="flex items-center justify-between">
                     <div>
                         <p class="text-sm font-medium text-gray-600">Customers</p>
-                        <p class="text-2xl font-bold text-gray-900 mt-1">{{ $analytics['customers']['unique'] }}</p>
+                        <p class="text-2xl font-bold text-gray-900 mt-1 overflow-x-auto whitespace-nowrap">{{ $analytics['customers']['unique'] }}</p>
                         <p class="text-xs text-purple-600 mt-1">{{ $analytics['customers']['repeat_rate'] }}% repeat</p>
                     </div>
                     <div class="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
@@ -147,7 +152,7 @@ $breadcrumbs = [
                 <div class="flex items-center justify-between">
                     <div>
                         <p class="text-sm font-medium text-gray-600">Transactions</p>
-                        <p class="text-2xl font-bold text-gray-900 mt-1">{{ $analytics['transactions']['total'] }}</p>
+                        <p class="text-2xl font-bold text-gray-900 mt-1 overflow-x-auto whitespace-nowrap">{{ $analytics['transactions']['total'] }}</p>
                         <p class="text-xs text-orange-600 mt-1">{{ $analytics['transactions']['completed'] }} completed
                         </p>
                     </div>
@@ -172,8 +177,8 @@ $breadcrumbs = [
 
     <!-- Tabs -->
     <div class="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
-        <div class="flex border-b border-gray-200">
-            <button class="tab-btn tab-active" data-tab="details">
+        <div class="restaurant-detail-tabs flex border-b border-gray-200">
+            <button type="button" class="tab-btn {{ $activeRestaurantTab === 'details' ? 'tab-active' : '' }}" data-tab="details">
                 <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                         d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
@@ -181,14 +186,14 @@ $breadcrumbs = [
                 Details
             </button>
             @if(isset($analytics))
-            <button class="tab-btn" data-tab="orders">
+            <button type="button" class="tab-btn {{ $activeRestaurantTab === 'orders' ? 'tab-active' : '' }}" data-tab="orders">
                 <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                         d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path>
                 </svg>
                 Orders
             </button>
-            <button class="tab-btn" data-tab="customers">
+            <button type="button" class="tab-btn {{ $activeRestaurantTab === 'customers' ? 'tab-active' : '' }}" data-tab="customers">
                 <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                         d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z">
@@ -196,7 +201,7 @@ $breadcrumbs = [
                 </svg>
                 Customers
             </button>
-            <button class="tab-btn" data-tab="transactions">
+            <button type="button" class="tab-btn {{ $activeRestaurantTab === 'transactions' ? 'tab-active' : '' }}" data-tab="transactions">
                 <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                         d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z">
@@ -205,74 +210,84 @@ $breadcrumbs = [
                 Transactions
             </button>
             @endif
+            @if($canViewPayouts ?? false)
+                <button type="button" class="tab-btn {{ $activeRestaurantTab === 'payouts' ? 'tab-active' : '' }}" data-tab="payouts"><i class="fas fa-file-invoice-dollar mr-2" aria-hidden="true"></i>Payouts</button>
+            @endif
         </div>
     </div>
 
     <!-- Tab Contents -->
-    <div class="tab-content" id="tab-details">
+    <div class="tab-content {{ $activeRestaurantTab !== 'details' ? 'hidden' : '' }}" id="tab-details">
         <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             @include('restaurant::admin.partials.details', ['restaurant' => $restaurant])
         </div>
     </div>
 
     @if(isset($analytics))
-    <div class="tab-content hidden" id="tab-orders">
+    <div class="tab-content {{ $activeRestaurantTab !== 'orders' ? 'hidden' : '' }}" id="tab-orders">
         <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             @include('restaurant::admin.partials.orders', ['analytics' => $analytics])
         </div>
     </div>
 
-    <div class="tab-content hidden" id="tab-customers">
+    <div class="tab-content {{ $activeRestaurantTab !== 'customers' ? 'hidden' : '' }}" id="tab-customers">
         <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             @include('restaurant::admin.partials.customers', ['analytics' => $analytics])
         </div>
     </div>
 
-    <div class="tab-content hidden" id="tab-transactions">
+    <div class="tab-content {{ $activeRestaurantTab !== 'transactions' ? 'hidden' : '' }}" id="tab-transactions">
         <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             @include('restaurant::admin.partials.transactions', ['analytics' => $analytics])
         </div>
     </div>
     @endif
 
+    @if($canViewPayouts ?? false)
+        <div class="tab-content {{ $activeRestaurantTab !== 'payouts' ? 'hidden' : '' }}" id="tab-payouts">
+            @include('restaurant::admin.partials.payouts')
+        </div>
+    @endif
 </div>
 
 <script>
 document.addEventListener('DOMContentLoaded', () => {
-    /* ================= TAB INIT ================= */
-    document.querySelectorAll('.tab-content')
-        .forEach(c => c.classList.add('hidden'));
-
-    document.getElementById('tab-details')
-        ?.classList.remove('hidden');
-
-    document.querySelectorAll('.tab-btn')
-        .forEach(b => b.classList.remove('tab-active'));
-
-    document.querySelector('.tab-btn[data-tab="details"]')
-        ?.classList.add('tab-active');
-
-    /* ================= TAB SWITCH ================= */
-    document.querySelectorAll('.tab-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const tab = btn.dataset.tab;
-
-            document.querySelectorAll('.tab-content')
-                .forEach(c => c.classList.add('hidden'));
-
-            document.getElementById('tab-' + tab)
-                ?.classList.remove('hidden');
-
-            document.querySelectorAll('.tab-btn')
-                .forEach(b => b.classList.remove('tab-active'));
-
-            btn.classList.add('tab-active');
+    const activateTab = (tab, updateUrl = false) => {
+        const panel = document.getElementById('tab-' + tab);
+        const button = Array.from(document.querySelectorAll('.tab-btn')).find(btn => btn.dataset.tab === tab);
+        if (!panel || !button) return;
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('tab-active'));
+        panel.classList.remove('hidden');
+        button.classList.add('tab-active');
+        if (updateUrl) {
+            const url = new URL(window.location.href);
+            if (tab === 'details') url.searchParams.delete('tab');
+            else url.searchParams.set('tab', tab);
+            url.hash = '';
+            window.history.replaceState(null, '', url);
+        }
+    };
+    activateTab(@json($activeRestaurantTab));
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.addEventListener('click', () => activateTab(btn.dataset.tab, true)));
+    if (window.location.hash === '#restaurant-payouts') {
+        requestAnimationFrame(() => {
+            const target = document.getElementById('restaurant-payouts');
+            const scroller = target?.closest('main');
+            if (target && scroller) {
+                const top = scroller.scrollTop + target.getBoundingClientRect().top - scroller.getBoundingClientRect().top - 24;
+                scroller.scrollTo({top: Math.max(0, top), behavior: 'auto'});
+            }
         });
-    });
+    }
 });
 </script>
 
 <style>
+    .restaurant-analytics-kpis > div,.restaurant-analytics-kpis .flex > div:first-child { min-width:0; }
+    .restaurant-analytics-kpis .w-12 { flex-shrink:0; }
+    .restaurant-detail-tabs { overflow-x:auto; }
+    .restaurant-detail-tabs .tab-btn { white-space:nowrap;flex:none; }
     /* Tab Styles */
     .tab-btn {
         display: flex;
@@ -294,9 +309,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     .tab-btn.tab-active {
-        color: #2563EB;
-        border-bottom-color: #2563EB;
+        color: #C2470A;
+        border-bottom-color: #FF6210;
         background-color: #eff6ff;
+    }
+
+    .restaurant-detail-tabs .tab-btn[data-tab="payouts"]:is(:hover,.tab-active) {
+        background-color: #fff0e2;
+        color: #171717;
     }
 
     .tab-content {

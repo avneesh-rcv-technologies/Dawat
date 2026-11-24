@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Modules\Orders\Models\Order;
 use Modules\Orders\Services\OrderService;
+use Modules\Orders\Services\OrderPresentationService;
 
 class OrderController extends Controller
 {
@@ -34,7 +35,7 @@ class OrderController extends Controller
             }
 
             // Start query - filter by authenticated customer only
-            $query = Order::with(['vendor'])
+            $query = Order::with(['vendor', 'items', 'paymentConfiguration.method'])
                 ->where('customer_type', \Modules\Acl\Models\Customer::class)
                 ->where('customer_id', $customer->id);
 
@@ -79,6 +80,11 @@ class OrderController extends Controller
             // Sort
             $sortBy = $request->get('sort_by', 'created_at');
             $sortOrder = $request->get('sort_order', 'desc');
+            $request->validate([
+                'sort_by' => ['sometimes', \Illuminate\Validation\Rule::in(['created_at', 'id', 'total', 'order_number', 'status'])],
+                'sort_order' => ['sometimes', \Illuminate\Validation\Rule::in(['asc', 'desc'])],
+                'per_page' => ['sometimes', 'integer', 'min:1', 'max:100'],
+            ]);
             $query->orderBy($sortBy, $sortOrder);
 
             // Paginate
@@ -100,6 +106,9 @@ class OrderController extends Controller
                     'payment_method' => $order->payment_method_name,
                     'payment_status' => $order->payment_status,
                     'created_at' => $order->created_at,
+                    ...app(OrderPresentationService::class)->metadata($order),
+                    'pricing' => app(OrderPresentationService::class)->pricing($order),
+                    'items' => $order->items->map(fn ($item) => app(OrderPresentationService::class)->item($item))->all(),
 
                 ];
             });
@@ -109,6 +118,8 @@ class OrderController extends Controller
                 'data' => $orders,
                 'message' => 'Orders retrieved successfully'
             ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage(), 'errors' => $e->errors()], 422);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -152,7 +163,7 @@ class OrderController extends Controller
                 ], 403);
             }
 
-            $order->load(['items.item', 'vendor']);
+            $order->load(['items.item', 'vendor', 'refunds']);
 
             return response()->json([
                 'success' => true,
@@ -172,21 +183,10 @@ class OrderController extends Controller
                         'name' => $order->vendor?->name,
                         'phone' => $order->vendor?->phone,
                     ],
-                    'items' => $order->items->map(fn($item) => [
-                        'id' => $item->id,
-                        'name' => $item->item?->name,
-                        'quantity' => $item->quantity,
-                        'unit_price' => $item->unit_price,
-                        'total_price' => $item->total_price,
-                    ]),
-                    'pricing' => [
-                        'subtotal' => (float) $order->subtotal,
-                        'tax' => (float) $order->tax,
-                        'delivery_fee' => (float) $order->delivery_fee,
-                        'service_charge' => (float) $order->service_charge,
-                        'discount' => (float) $order->discount,
-                        'total' => (float) $order->total,
-                    ],
+                    'items' => $order->items->map(fn ($item) => app(OrderPresentationService::class)->item($item)),
+                    'refunds' => $order->refunds->map->customerData()->all(),
+                    'pricing' => app(OrderPresentationService::class)->pricing($order),
+                    ...app(OrderPresentationService::class)->metadata($order),
                     'delivery_address' => $order->delivery_address,
                     'estimated_delivery_time' => $order->estimated_delivery_time,
                     'actual_delivery_time' => $order->actual_delivery_time,
@@ -212,11 +212,19 @@ class OrderController extends Controller
         try {
             $validStatuses = fn_get_order_statuses('O')->pluck('status_code')->toArray();
             $request->validate([
-                'status' => 'required|string|in:' . implode(',', $validStatuses)
+                'status' => 'required|string|in:' . implode(',', array_unique([...$validStatuses, 'R'])),
+                ...\Modules\Orders\Services\OrderStatusActionService::rules((string) $request->input('status'))
             ]);
 
             // Use OrderService to update status (handles notifications and events)
-            $updatedOrder = $this->orderService->updateOrderStatus($order, $request->status);
+            if (in_array($request->status, ['C', 'R'], true)) {
+                $actor = $request->user('admin') ?? $request->user();
+                abort_unless($actor instanceof \Modules\Acl\Models\Admin, 403);
+                $updatedOrder = app(\Modules\Orders\Services\OrderStatusActionService::class)
+                    ->update($order, $request->status, $request->all(), $actor, 'admin');
+            } else {
+                $updatedOrder = $this->orderService->updateOrderStatus($order, $request->status);
+            }
 
             return response()->json([
                 'success' => true,
@@ -391,7 +399,9 @@ class OrderController extends Controller
                     'formatted_status' => $cancelledOrder->formatted_status,
                     'cancellation_reason' => $cancelledOrder->cancellation_reason,
                     'cancelled_at' => $cancelledOrder->cancelled_at,
-                    'refund_status' => $cancelledOrder->payment_status,
+                    'payment_status' => $cancelledOrder->payment_status,
+                    'refund_status' => $cancelledOrder->refunds()->latest('id')->value('refund_status'),
+                    'refunds' => $cancelledOrder->refunds->map->customerData()->all(),
                     'total' => $cancelledOrder->total
                 ]
             ]);

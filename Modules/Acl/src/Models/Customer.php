@@ -7,10 +7,12 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Modules\Cart\Traits\HasCart;
+use Modules\Countries\Models\Address;
+use Modules\Orders\Models\Order;
 
 class Customer extends Authenticatable
 {
-    use HasApiTokens, HasFactory, Notifiable, HasCart;
+    use HasApiTokens, HasCart, HasFactory, Notifiable;
 
     protected $table = 'customers';
 
@@ -72,7 +74,7 @@ class Customer extends Authenticatable
      */
     public function addresses()
     {
-        return $this->morphMany(\Modules\Countries\Models\Address::class, 'addressable');
+        return $this->morphMany(Address::class, 'addressable');
     }
 
     /**
@@ -97,7 +99,7 @@ class Customer extends Authenticatable
      */
     public function orders()
     {
-        return $this->hasMany(\Modules\Orders\Models\Order::class, 'customer_id')
+        return $this->hasMany(Order::class, 'customer_id')
             ->where('customer_type', self::class);
     }
 
@@ -123,6 +125,7 @@ class Customer extends Authenticatable
     public function hasAuthMethod(string $method): bool
     {
         $methods = $this->auth_methods ?? [];
+
         return in_array($method, $methods);
     }
 
@@ -132,7 +135,7 @@ class Customer extends Authenticatable
     public function addAuthMethod(string $method): void
     {
         $methods = $this->auth_methods ?? [];
-        if (!in_array($method, $methods)) {
+        if (! in_array($method, $methods)) {
             $methods[] = $method;
             $this->update(['auth_methods' => $methods]);
         }
@@ -147,15 +150,18 @@ class Customer extends Authenticatable
     }
 
     /**
-     * Route notifications for SMS channel
+     * Route notifications to the customer's email address or phone number.
      */
     public function routeNotificationFor($channel, $notification = null)
     {
+        if ($channel === 'mail') {
+            return $this->email;
+        }
+
         if ($channel === 'sms') {
             return $this->phone;
         }
-        
+
         return null;
     }
 }
-

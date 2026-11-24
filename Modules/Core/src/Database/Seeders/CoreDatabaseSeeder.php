@@ -11,10 +11,10 @@ class CoreDatabaseSeeder extends Seeder
     
     public function run(): void
     {
-       $this->call([
-            Roles::class,
-            Files::class,
-            Settings::class,
-       ]);
+       // $this->call([
+            // Roles::class,
+            // Files::class,
+            // Settings::class,
+       // ]);
     }
 }

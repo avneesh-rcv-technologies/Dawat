@@ -133,7 +133,6 @@
                                 },
                                 body: JSON.stringify({
                                     fcm_token: refreshedToken,
-                                    device_id: navigator.userAgent,
                                     device: "web"
                                 })
                             }).then(res => res.json()).then(data => {

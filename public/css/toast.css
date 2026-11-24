@@ -75,12 +75,12 @@
 
 /* SUCCESS */
 .toast-success .toast-left {
-    border: 7px solid rgba(22, 132, 91, 0.22);
+    border: 7px solid rgba(255, 98, 16, 0.22);
     /* visible ring */
 }
 
 .toast-success .toast-inner {
-    background: #16845b;
+    background: #FF6210;
     /* solid center */
 }
 
@@ -93,7 +93,7 @@
     background: #c44949;
 }
 
-.toast-success { --toast-accent: #16845b; }
+.toast-success { --toast-accent: #FF6210; }
 .toast-error { --toast-accent: #c44949; }
 .toast-warning { --toast-accent: #c98520; }
 .toast-info { --toast-accent: #103647; }
@@ -139,6 +139,11 @@
 
 /* Close Button (colored like right icon in screenshot) */
 .toast-close {
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    color: var(--toast-accent, #103647);
     position: absolute;
     top: 10px;
     right: 10px;
@@ -151,14 +156,22 @@
    
 }
 
-.toast-close span {
-    font-size: 18px;
+.toast-close svg {
+    display: block;
+    width: 18px;
+    height: 18px;
+    pointer-events: none;
+}
+
+.toast-close:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: 2px;
 }
 
 
 /* Close icon colors */
 .toast-success .toast-close span {
-    color: #16845b;
+    color: #FF6210;
 }
 
 .toast-error .toast-close span {

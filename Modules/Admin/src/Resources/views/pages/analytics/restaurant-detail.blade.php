@@ -37,9 +37,9 @@
         <div class="col-md-3">
             <div class="card bg-success text-white">
                 <div class="card-body">
-                    <h6 class="card-subtitle mb-2 opacity-75">Total Revenue</h6>
-                    <h2 class="card-title mb-0">${{ number_format($analytics['revenue']['total'], 2) }}</h2>
-                    <small class="opacity-75">Avg: ${{ number_format($analytics['revenue']['average_order_value'], 2) }}</small>
+                    <h6 class="card-subtitle mb-2 opacity-75">{{ $analytics['revenue']['label'] ?? 'Commission revenue' }}</h6>
+                    <h2 class="card-title mb-0">{{ $analytics['revenue']['total_formatted'] }}</h2>
+                    <small class="opacity-75">Avg earnings/order: {{ $analytics['revenue']['average_order_value_formatted'] }}</small>
                 </div>
             </div>
         </div>

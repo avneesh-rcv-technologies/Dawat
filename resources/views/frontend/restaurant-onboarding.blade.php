@@ -2,12 +2,13 @@
 <html lang="en">
 
 <head>
+    @include('partials.favicon')
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>Restaurant Onboarding - Dawat</title>
-    @vite(['Modules/Backend/src/Resources/assets/css/app.css', 'Modules/Backend/src/Resources/assets/js/app.js'])
+    @vite(['resources/css/public-forms.css', 'resources/js/public-forms.js'], 'build-website')
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
         rel="stylesheet">
 
@@ -16,6 +17,7 @@
 
     {{-- Toast CSS --}}
     <link rel="stylesheet" href="{{ asset('css/toast.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/partner-searchable-selects.css') }}">
 
     <style>
         html,
@@ -35,6 +37,10 @@
         .email-dns-status svg[hidden] { display: none; }
         .email-dns-status[data-state="valid"] { color: #86efac; }
         .email-dns-status[data-state="invalid"], .email-dns-status[data-state="error"] { color: #fca5a5; }
+        .partner-account-prompt { margin-top: 16px; color: #a3a3a3; font-size: 14px; }
+        .partner-account-prompt a { display: inline-flex; align-items: center; gap: 6px; margin-left: 5px; padding: 5px 2px; color: #fff; font-weight: 600; text-decoration: underline; text-underline-offset: 4px; }
+        .partner-account-prompt a:hover { color: #bbf7d0; }
+        .partner-account-prompt a:focus-visible { outline: 2px solid #fff; outline-offset: 4px; border-radius: 3px; }
         .partner-location-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
         .partner-location-select { width: 100%; min-height: 52px; padding: 12px 36px 12px 14px; border: 1px solid rgb(255 255 255 / 20%); border-radius: 12px; background-color: #242424; color: #fff; color-scheme: dark; font: inherit; transition: border-color .2s, box-shadow .2s; }
         .partner-location-select:focus-visible { outline: none; border-color: #fff; box-shadow: 0 0 0 3px rgb(255 255 255 / 20%); }
@@ -62,7 +68,7 @@
             {{-- Logo --}}
             <a href="#"
                 class="text-2xl font-bold tracking-widest uppercase text-white hover:text-white/70 transition-colors duration-300">
-                <img src="{{asset('dawat.png')}}" alt="Dawat Logo" class="w-32 ">
+                <img {!! \Modules\Website\Support\WebsiteImages::attributes('dawat.png', '128px', 160) !!} alt="Dawat Logo" class="w-32 " decoding="async">
             </a>
 
             {{-- Download Links --}}
@@ -125,6 +131,7 @@
                 <p class="text-base text-white/60 max-w-2xl mx-auto">
                     Join thousands of restaurants serving customers through our platform
                 </p>
+                <p class="partner-account-prompt">Already have an account? <a href="{{ route('restaurant.login.form') }}">Log in <span aria-hidden="true">→</span></a></p>
             </div>
 
             {{-- Form --}}
@@ -191,7 +198,7 @@
                             <p id="email-dns-status" class="email-dns-status" role="status" aria-live="polite">
                                 <svg data-email-icon="valid" hidden width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m5 12 4 4L19 6" /></svg>
                                 <svg data-email-icon="invalid" hidden width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6" /></svg>
-                                <span>We'll check the email format, domain and availability before sending an OTP.</span>
+                                <span>We'll check the email format and domain before sending an OTP.</span>
                             </p>
                         </div>
                     </div>
@@ -345,14 +352,30 @@
                                         d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
                                 </svg>
                             </div>
-                            <textarea name="address_line1" rows="3" required
+                            <textarea name="address_line1" rows="3" maxlength="100" required
                                 class="w-full pl-12 pr-4 py-3.5 bg-white/5 border border-white/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-white/30 focus:border-transparent text-white placeholder-white/40 transition-all duration-200 hover:bg-white/10 resize-none"
                                 placeholder="123 Main Street, Suite 100">{{ old('address_line1') }}</textarea>
                         </div>
                     </div>
+                    <div class="group">
+                        <label for="partner-postal-code" class="block text-sm font-medium mb-2 text-white/80">
+                            ZIP / Postal Code <span class="text-red-400">*</span>
+                        </label>
+                        <input id="partner-postal-code" name="postal_code" type="text" required maxlength="20"
+                            autocomplete="postal-code" value="{{ old('postal_code') }}"
+                            aria-invalid="{{ $errors->has('postal_code') ? 'true' : 'false' }}" aria-describedby="postal-code-error"
+                            class="w-full px-4 py-3.5 bg-white/5 border border-white/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-white/30 text-white placeholder-white/40"
+                            placeholder="Enter ZIP / postal code">
+                        <p id="postal-code-error" class="location-error">@error('postal_code'){{ $message }}@enderror</p>
+                    </div>
                 </div>
 
                 {{-- Submit Button --}}
+                @if (app(\Modules\GeneralSetting\Services\CaptchaSettings::class)->enabled())
+                    <div class="mt-5 overflow-x-auto">
+                        <div class="g-recaptcha" data-sitekey="{{ app(\Modules\GeneralSetting\Services\CaptchaSettings::class)->siteKey() }}"></div>
+                    </div>
+                @endif
                 <div class="pt-6">
                     <button id="onboarding-submit" type="submit"
                         class="w-full py-4 bg-gradient-to-r from-white via-white to-white/90 text-black font-bold text-lg rounded-xl hover:shadow-2xl hover:shadow-white/20 transition-all duration-300 hover:scale-[1.02] active:scale-95 relative overflow-hidden group">
@@ -409,7 +432,11 @@
     <script src="{{ asset('js/toast.js') }}"></script>
     <script src="{{ asset('js/partner-email-check.js') }}" defer></script>
     <script src="{{ asset('js/partner-location.js') }}" defer></script>
+    <script src="{{ asset('js/partner-searchable-selects.js') }}" defer></script>
     <script src="{{ asset('js/restaurant-onboarding.js') }}" defer></script>
+    @if (app(\Modules\GeneralSetting\Services\CaptchaSettings::class)->enabled())
+        <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+    @endif
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {
@@ -423,17 +450,13 @@
                 );
             @endif
 
-            // Show error messages
-            @if($errors->any())
-                @foreach($errors->all() as $error)
-                    toastSystem.show(
-                        "{{ $error }}", 
-                        'error', 
-                        'Error', 
-                        5000
-                    );
-                @endforeach
-            @endif
+            // Show server errors as toasts after redirecting back to the form.
+            const formErrors = @json($errors->all());
+            formErrors.forEach(message => {
+                const text = document.createElement('span');
+                text.textContent = message;
+                toastSystem.show(text.innerHTML, 'error', 'Please try again', 6000);
+            });
         });
     </script>
 

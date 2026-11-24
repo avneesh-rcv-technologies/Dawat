@@ -51,6 +51,7 @@ class CartCacheService extends BaseCacheService
      */
     public function forgetCart(int $customerId, ?int $restaurantId = null): void
     {
+        $this->forget($this->cartKey($customerId));
         if ($restaurantId) {
             $this->forget($this->cartKey($customerId, $restaurantId));
         } else {

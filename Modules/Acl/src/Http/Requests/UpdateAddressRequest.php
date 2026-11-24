@@ -21,8 +21,8 @@ class UpdateAddressRequest extends FormRequest
             'state_id' => 'sometimes|required|integer|exists:country_states,id',
             'country_id' => 'sometimes|required|integer|exists:countries,id',
             'zip_code' => 'sometimes|required|string|max:20',
-            'latitude' => 'nullable|numeric|between:-90,90',
-            'longitude' => 'nullable|numeric|between:-180,180',
+            'latitude' => 'nullable|required_with:longitude|numeric|between:-90,90',
+            'longitude' => 'nullable|required_with:latitude|numeric|between:-180,180',
             'is_default' => 'nullable|boolean',
         ];
     }

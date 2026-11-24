@@ -14,7 +14,11 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->redirectGuestsTo(fn (Request $request) => app(\Modules\Acl\Services\LoginRedirector::class)->url($request));
+
         $middleware->web(append: [
+            \Modules\Acl\Http\Middleware\EnforceSessionIdleTimeout::class,
+            \Modules\Acl\Http\Middleware\PreventAuthenticatedPageCaching::class,
             \Modules\Acl\Http\Middleware\EnsureActiveAccount::class,
             \Modules\Restaurant\Http\Middleware\RequireRestaurantOnboarding::class,
         ]);
@@ -52,10 +56,43 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->render(function (ThrottleRequestsException $e, Request $request) {
             $retryAfter = $e->getHeaders()['Retry-After'] ?? 60;
 
+            if ($request->routeIs('website.partner.verify-captcha', 'website.partner-signup.verify-captcha', 'restaurant.onboarding.submit') && $request->expectsJson()) {
+                $seconds = max(1, (int) $retryAfter);
+                return response()->json([
+                    'success' => false,
+                    'message' => "Too many submission attempts. Please wait {$seconds} seconds before trying again.",
+                    'retry_after' => $seconds,
+                ], 429, $e->getHeaders());
+            }
+
+            if ($request->routeIs('website.contact.store')) {
+                $seconds = max(1, (int) $retryAfter);
+                $message = "Too many contact attempts. Please wait {$seconds} seconds before trying again.";
+
+                if ($request->expectsJson()) {
+                    return response()->json(['success' => false, 'message' => $message], 429, $e->getHeaders());
+                }
+
+                return redirect()->to(route('website.contact').'#contact-form')
+                    ->withInput($request->only(['first_name', 'last_name', 'email', 'message', 'terms']))
+                    ->withErrors(['throttle' => $message])
+                    ->withHeaders($e->getHeaders());
+            }
+
             $minutes = ceil($retryAfter / 60);
             $message = $request->routeIs('admin.login')
                 ? "Too many attempts. Please try again in about {$minutes} minute(s)."
                 : "Too many attempts. Please try again in about {$minutes} minute(s).";
+
+            if ($request->routeIs('restaurant.onboarding.submit') && !$request->expectsJson()) {
+                return redirect()->route('restaurant.onboarding.form')
+                    ->withInput($request->only([
+                        'owner_name', 'email', 'restaurant_name', 'phone',
+                        'country_id', 'state_id', 'city_id', 'address_line1',
+                        'email_verification_token',
+                    ]))
+                    ->withErrors(['throttle' => $message]);
+            }
 
             return response()->json([
                 'success' => false,

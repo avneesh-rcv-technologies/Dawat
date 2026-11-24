@@ -39,13 +39,22 @@ class RestaurantBankingSubmittedNotification implements Notification
             'restaurant_name' => e($this->data['restaurant_name'] ?? 'Restaurant'),
             'restaurant_id' => (int) ($this->data['restaurant_id'] ?? 0),
             'updated_at' => $this->data['updated_at'] ?? now()->format('Y-m-d H:i:s'),
+            'submitted_at' => $this->data['submitted_at'] ?? $this->data['updated_at'] ?? 'Not recorded',
+            'login_url' => route('website.partner-login'),
+            'support_url' => route('website.contact'),
+            'current_year' => now()->year,
             'app_name' => e(config('app.name', 'Dawat')),
         ];
     }
 
     public function getAvailableVariables(): array
     {
-        return ['restaurant_name' => 'Restaurant name', 'restaurant_id' => 'Restaurant ID', 'updated_at' => 'Submission time', 'app_name' => 'Application name'];
+        return [
+            'restaurant_name' => 'Restaurant name', 'restaurant_id' => 'Restaurant ID',
+            'updated_at' => 'Update time', 'submitted_at' => 'Recorded submission time',
+            'login_url' => 'Restaurant partner login URL', 'support_url' => 'Contact support URL',
+            'current_year' => 'Current year', 'app_name' => 'Application name',
+        ];
     }
 
     public function getAvailableRecipients(): array

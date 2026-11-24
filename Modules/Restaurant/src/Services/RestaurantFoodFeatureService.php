@@ -5,16 +5,25 @@ namespace Modules\Restaurant\Services;
 use Illuminate\Database\Eloquent\Builder;
 use Modules\FoodManagements\Models\FoodFeature;
 use Modules\FoodManagements\Services\FoodFeatureService;
+use Illuminate\Validation\ValidationException;
 
 class RestaurantFoodFeatureService
 {
+    public const TYPES = [
+        'S' => ['purpose' => 'find_products', 'feature_style' => 'text', 'filter_style' => 'checkbox'],
+        'M' => ['purpose' => 'find_products', 'feature_style' => 'multiple_checkbox', 'filter_style' => 'checkbox'],
+        'C' => ['purpose' => 'find_products', 'feature_style' => 'checkbox', 'filter_style' => 'checkbox'],
+        'T' => ['purpose' => 'describe_product', 'feature_style' => 'text', 'filter_style' => ''],
+        'O' => ['purpose' => 'find_products', 'feature_style' => 'number', 'filter_style' => 'slider'],
+    ];
+
     public function __construct(protected FoodFeatureService $featureService)
     {
     }
 
-    public function listForRestaurant(array $filters = [])
+    public function listForRestaurant(int $restaurantId, array $filters = [])
     {
-        $query = FoodFeature::query()
+        $query = FoodFeature::query()->forRestaurant($restaurantId)
             ->where('feature_type', '!=', 'G')
             ->with(['description', 'parent.description', 'categories', 'variants.description'])
             ->select('food_features.*');
@@ -76,25 +85,25 @@ class RestaurantFoodFeatureService
         return $query->paginate($perPage)->appends($filters);
     }
 
-    public function showForRestaurant(int $featureId): FoodFeature
+    public function showForRestaurant(int $restaurantId, int $featureId): FoodFeature
     {
-        return FoodFeature::query()
+        return FoodFeature::query()->forRestaurant($restaurantId)
             ->where('feature_type', '!=', 'G')
             ->with(['description', 'parent.description', 'categories', 'variants.description'])
             ->findOrFail($featureId);
     }
 
-    public function createForRestaurant(array $data): FoodFeature
+    public function createForRestaurant(int $restaurantId, array $data): FoodFeature
     {
-        $payload = $this->normalizePayload($data);
+        $payload = $this->normalizePayload($data) + ['restaurant_id' => $restaurantId];
         $feature = $this->featureService->create($payload);
 
         return $feature->fresh(['description', 'parent.description', 'categories', 'variants.description']);
     }
 
-    public function updateForRestaurant(int $featureId, array $data): FoodFeature
+    public function updateForRestaurant(int $restaurantId, int $featureId, array $data): FoodFeature
     {
-        $feature = $this->showForRestaurant($featureId);
+        $feature = $this->showForRestaurant($restaurantId, $featureId);
         $payload = $this->normalizePayload($data, $feature);
 
         $updated = $this->featureService->update($feature, $payload);
@@ -102,15 +111,44 @@ class RestaurantFoodFeatureService
         return $updated->fresh(['description', 'parent.description', 'categories', 'variants.description']);
     }
 
-    public function deleteForRestaurant(int $featureId): bool
+    public function updateStatusForRestaurant(int $restaurantId, int $featureId, bool $status): FoodFeature
     {
-        $feature = $this->showForRestaurant($featureId);
+        $feature = $this->showForRestaurant($restaurantId, $featureId);
+        $feature->update(['status' => $status ? 'A' : 'D']);
+
+        return $feature->fresh(['description', 'parent.description', 'categories', 'variants.description']);
+    }
+
+    /** Active features with active options, shaped for the app's food item form. */
+    public function activeListsForRestaurant(int $restaurantId): array
+    {
+        return FoodFeature::query()->forRestaurant($restaurantId)
+            ->where('feature_type', '!=', 'G')
+            ->where('status', 'A')
+            ->with(['description', 'variants' => fn ($query) => $query->where('status', 'A')->orderBy('position'), 'variants.description'])
+            ->orderBy('position')->orderBy('feature_id')
+            ->get()
+            ->map(fn (FoodFeature $feature) => [
+                'feature_id' => $feature->feature_id,
+                'name' => $feature->description?->name,
+                'feature_type' => $feature->feature_type,
+                'feature_style' => $feature->feature_style,
+                'variants' => $feature->variants->map(fn ($variant) => [
+                    'variant_id' => $variant->variant_id,
+                    'name' => $variant->description?->description,
+                ])->values()->all(),
+            ])->values()->all();
+    }
+
+    public function deleteForRestaurant(int $restaurantId, int $featureId): bool
+    {
+        $feature = $this->showForRestaurant($restaurantId, $featureId);
         $this->featureService->delete($feature);
 
         return true;
     }
 
-    public function bulkDeleteForRestaurant(array $ids): int
+    public function bulkDeleteForRestaurant(int $restaurantId, array $ids): int
     {
         $ids = $this->normalizeIds($ids);
 
@@ -118,7 +156,7 @@ class RestaurantFoodFeatureService
             return 0;
         }
 
-        $features = FoodFeature::query()
+        $features = FoodFeature::query()->forRestaurant($restaurantId)
             ->where('feature_type', '!=', 'G')
             ->whereIn('feature_id', $ids)
             ->get();
@@ -132,14 +170,16 @@ class RestaurantFoodFeatureService
 
     protected function normalizePayload(array $data, ?FoodFeature $feature = null): array
     {
+        $type = $data['feature_type'] ?? $feature?->feature_type ?? 'S';
+        if (! isset(self::TYPES[$type])) {
+            throw ValidationException::withMessages(['feature_type' => 'Choose S, M, C, T, or O.']);
+        }
         $payload = [
             'name' => trim((string) ($data['name'] ?? $feature?->description?->name ?? '')),
             'description' => array_key_exists('description', $data) ? (string) $data['description'] : ($feature?->description?->description ?? null),
             'feature_code' => trim((string) ($data['feature_code'] ?? $feature?->feature_code ?? '')),
-            'feature_type' => $data['feature_type'] ?? $feature?->feature_type ?? null,
-            'purpose' => $data['purpose'] ?? $feature?->purpose ?? '',
-            'feature_style' => $data['feature_style'] ?? $feature?->feature_style ?? '',
-            'filter_style' => $data['filter_style'] ?? $feature?->filter_style ?? '',
+            'feature_type' => $type,
+            ...self::TYPES[$type],
             'parent_id' => isset($data['parent_id']) ? (int) $data['parent_id'] : ($feature?->parent_id ?? 0),
             'display_on_product' => $data['display_on_product'] ?? $feature?->display_on_product ?? 'Y',
             'display_on_catalog' => $data['display_on_catalog'] ?? $feature?->display_on_catalog ?? 'Y',
@@ -155,6 +195,43 @@ class RestaurantFoodFeatureService
                 'status' => $variant->status,
             ])->all() ?? [],
         ];
+
+        if (! in_array($type, ['S', 'M'], true)) {
+            $payload['variants'] = [];
+        } else {
+            $existing = $feature?->variants ?? collect();
+            $names = [];
+            $ids = [];
+            $payload['variants'] = array_map(function ($variant, $index) use ($existing, &$names, &$ids) {
+                $description = trim((string) ($variant['description'] ?? ''));
+                $key = mb_strtolower($description);
+                if ($description === '' || in_array($key, $names, true)) {
+                    throw ValidationException::withMessages(['variants' => 'Enter distinct, non-empty option descriptions.']);
+                }
+                $names[] = $key;
+                $variantId = $variant['variant_id'] ?? null;
+                if ($variantId && ! $existing->contains('variant_id', (int) $variantId)) {
+                    throw ValidationException::withMessages(['variants' => 'Choose an option belonging to this feature.']);
+                }
+                // Retain unchanged options and their food-item assignments without requiring IDs.
+                $match = $variantId ? $existing->firstWhere('variant_id', (int) $variantId)
+                    : $existing->first(fn ($option) => mb_strtolower(trim((string) $option->description?->description)) === $key);
+                if ($match && in_array($match->variant_id, $ids, true)) {
+                    throw ValidationException::withMessages(['variants' => 'Each existing option can be included only once.']);
+                }
+                if ($match) {
+                    $ids[] = $match->variant_id;
+                }
+
+                return [
+                    'variant_id' => $match?->variant_id, 'description' => $description,
+                    'position' => $index + 1, 'status' => $variant['status'] ?? 'A',
+                ];
+            }, array_values($payload['variants']), array_keys(array_values($payload['variants'])));
+            if (count($payload['variants']) < 2) {
+                throw ValidationException::withMessages(['variants' => 'Add at least two options.']);
+            }
+        }
 
         if ($payload['parent_id'] !== null && $payload['parent_id'] > 0) {
             $payload['parent_id'] = (int) $payload['parent_id'];

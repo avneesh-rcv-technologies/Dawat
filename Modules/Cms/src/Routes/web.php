@@ -16,18 +16,28 @@ use Modules\Cms\Http\Controllers\Page\PagesController;
 */
 
 Route::middleware('web')->group(function () {
-    Route::middleware(['check.permission'])->prefix(config('acl::guards.guards.admin.prefix', 'admin'))->group(function () {
-        Route::prefix('cms')->name('cms.')->group(function () {
-
-            /*
-            |--------------------------------------------------------------------------
-            | CMS Pages
-            |--------------------------------------------------------------------------
-            */
-            Route::resource('pages', PagesController::class);
-            Route::post('pages/bulk-delete', [PagesController::class, 'bulkDelete'])->name('pages.bulk-delete');
-            Route::post('pages/toggle-status', [PagesController::class, 'toggleStatus'])->name('pages.toggle-status');
-
+    foreach (config('acl::guards.guards') as $guard => $guardConfig) {
+        $prefix = $guardConfig['prefix'];
+        // Keep existing admin route names and distinguish other guards.
+        $namePrefix = $guard === 'admin' ? '' : $guard . '.';
+        Route::group([
+            'middleware' => ['check.permission'],
+            'prefix' => $prefix,
+            'as' => $namePrefix,
+            'permission_name_prefix' => $namePrefix,
+        ], function () {
+            Route::prefix('cms')->name('cms.')->group(function () {
+                
+                /*
+                |--------------------------------------------------------------------------
+                | CMS Pages
+                |--------------------------------------------------------------------------
+                */
+                Route::resource('pages', PagesController::class);
+                Route::post('pages/bulk-delete', [PagesController::class, 'bulkDelete'])->name('pages.bulk-delete');
+                Route::post('pages/toggle-status', [PagesController::class, 'toggleStatus'])->name('pages.toggle-status');
+                
+            });
         });
-    });
-});
+    }
+}); 

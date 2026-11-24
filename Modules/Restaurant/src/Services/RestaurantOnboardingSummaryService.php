@@ -3,7 +3,6 @@
 namespace Modules\Restaurant\Services;
 
 use Illuminate\Support\Str;
-use Modules\FoodManagements\Models\FoodItem;
 use Modules\KYC\Models\KycSubmission;
 use Modules\Restaurant\Enums\OnboardingStatus;
 use Modules\Restaurant\Enums\OnboardingStep;
@@ -19,28 +18,19 @@ class RestaurantOnboardingSummaryService
             $restaurant->loadMissing('bankingDetail');
         }
         $records = $restaurant->onboardingSteps->keyBy('step_key');
-        $menu = in_array(OnboardingStep::MENU, $steps, true) ? FoodItem::where('restaurant_id', $restaurant->id)->orderBy('id')
-            ->get(['id', 'name', 'description', 'sale_price', 'list_price', 'food_type', 'is_available']) : collect();
         $submissions = in_array(OnboardingStep::KYC, $steps, true) && $restaurant->admin_id ? KycSubmission::where('user_id', $restaurant->admin_id)
             ->whereHas('kycType', fn ($query) => $query->where('type', 'kyc'))
             ->with(['kycType', 'data.field', 'files.field'])->latest('id')->get()->unique('kyc_type_id') : collect();
 
-        return array_map(function (OnboardingStep $step) use ($restaurant, $records, $menu, $submissions, $pendingRequests) {
+        return array_map(function (OnboardingStep $step) use ($restaurant, $records, $submissions, $pendingRequests) {
             $record = $records->get($step->value);
             $fields = match ($step) {
                 OnboardingStep::REGISTRATION => $this->registrationFields($restaurant),
-                OnboardingStep::MENU => $menu->map(fn ($item) => [
-                    'label' => $item->name,
-                    'value' => collect([
-                        $item->description,
-                        $item->food_type ? 'Food type: ' . $item->food_type : null,
-                        $item->list_price !== null ? 'List price: ' . $item->list_price : null,
-                        $item->sale_price !== null ? 'Sale price: ' . $item->sale_price : null,
-                        'Available: ' . ($item->is_available ? 'Yes' : 'No'),
-                    ])->filter(fn ($value) => filled($value))->implode("\n"),
-                ])->all(),
                 OnboardingStep::BANKING => $this->bankingFields($restaurant),
                 OnboardingStep::TAX => [],
+                OnboardingStep::DIETARY_CERTIFICATES => $restaurant->certifications()->with('certificationType')->get()
+                    ->map(fn ($certificate) => ['label' => $certificate->certificationType?->name ?? 'Certificate',
+                        'value' => Str::headline($certificate->status).($certificate->admin_notes ? ' — '.$certificate->admin_notes : '')])->all(),
                 OnboardingStep::KYC => $this->kycFields($submissions, $pendingRequests),
             };
 
@@ -91,6 +81,10 @@ class RestaurantOnboardingSummaryService
             'State' => $banking->locationName('state'),
             'Country' => $banking->locationName('country'),
             'Postal code' => $banking->postal_code,
+            'Platform commission accepted' => $restaurant->platform_commission_accepted ? 'Yes' : 'Not accepted',
+            'Accepted commission rate' => $restaurant->platform_commission_percentage !== null
+                ? \Modules\Restaurant\Support\PlatformCommission::format((float) $restaurant->platform_commission_percentage).'%' : null,
+            'Commission accepted at' => $restaurant->platform_commission_accepted_at?->format('M d, Y h:i A'),
         ]);
     }
 

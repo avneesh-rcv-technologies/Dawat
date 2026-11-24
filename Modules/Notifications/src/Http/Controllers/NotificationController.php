@@ -7,6 +7,8 @@ use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Log;
+use Modules\Notifications\Contracts\Notification;
 use Illuminate\Support\Facades\Validator;
 use Modules\Notifications\Models\NotificationEvent;
 use Modules\Notifications\Models\NotificationChannel;
@@ -42,26 +44,31 @@ class NotificationController extends Controller
                         $className = $file->getBasename('.php');
                         $fullClassName = "Modules\\{$moduleName}\\Notifications\\{$className}";
 
-                        // Check if class exists and implements Notification interface
-                        if (class_exists($fullClassName)) {
-                            try {
-                                $reflection = new \ReflectionClass($fullClassName);
-
-                                // Check if implements Notification interface
-                                if ($reflection->implementsInterface('Modules\\Notifications\\Contracts\\Notification')) {
-                                    $instance = $reflection->newInstanceWithoutConstructor();
-
-                                    $notificationClasses[] = [
-                                        'class' => $fullClassName,
-                                        'event_code' => $instance->getEventCode(),
-                                        'event_name' => ucwords(str_replace('_', ' ', $instance->getEventCode())),
-                                        'module' => $moduleName,
-                                    ];
-                                }
-                            } catch (\Exception $e) {
-                                // Skip if cannot instantiate
+                        try {
+                            // Autoloading itself can throw, so keep it inside the per-file boundary.
+                            if (!class_exists($fullClassName)) {
                                 continue;
                             }
+                            $reflection = new \ReflectionClass($fullClassName);
+                            if (!$reflection->isInstantiable() || !$reflection->implementsInterface(Notification::class)) {
+                                continue;
+                            }
+                            $instance = $reflection->newInstanceWithoutConstructor();
+                            $eventCode = $instance->getEventCode();
+                            if (trim($eventCode) === '') {
+                                continue;
+                            }
+                            $notificationClasses[] = [
+                                'class' => $fullClassName,
+                                'event_code' => $eventCode,
+                                'event_name' => ucwords(str_replace('_', ' ', $eventCode)),
+                                'module' => $moduleName,
+                            ];
+                        } catch (\Throwable $e) {
+                            Log::warning('Skipping invalid notification definition.', [
+                                'notification_class' => $fullClassName, 'error' => $e->getMessage(),
+                            ]);
+                            continue;
                         }
                     }
                 }
@@ -69,6 +76,55 @@ class NotificationController extends Controller
         }
 
         return $notificationClasses;
+    }
+
+    protected function availableRecipientsFor(?string $className): array
+    {
+        $fallback = ['notify_admin' => 'Notify Admin', 'notify_user_admin' => 'Notify Admin User'];
+        if (empty($className)) {
+            return $fallback;
+        }
+        try {
+            $reflection = new \ReflectionClass($className);
+            if (!$reflection->isInstantiable() || !$reflection->implementsInterface(Notification::class)) {
+                return $fallback;
+            }
+            return $reflection->newInstanceWithoutConstructor()->getAvailableRecipients();
+        } catch (\Throwable $e) {
+            Log::warning('Using fallback notification recipients.', [
+                'notification_class' => $className, 'error' => $e->getMessage(),
+            ]);
+            return $fallback;
+        }
+    }
+
+    protected function templatesForChannel(?string $className, ?string $channelName = null): array
+    {
+        // Template selection is reference data; it must not initialize mail/Firebase clients.
+        if ($channelName === 'email') {
+            return \Modules\EmailNotification\Models\NotificationTemplate::where('status', true)
+                ->orderBy('name')->get(['id', 'name'])->toArray();
+        }
+        if ($channelName === 'webpush') {
+            return \Modules\WebPushNotification\Models\NotificationTemplate::where('is_active', true)
+                ->orderBy('name')->get(['id', 'name'])->toArray();
+        }
+        if (empty($className)) {
+            return [];
+        }
+        try {
+            $reflection = new \ReflectionClass($className);
+            if (!$reflection->isInstantiable()) {
+                return [];
+            }
+            $channel = app($className, ['config' => []]);
+            return method_exists($channel, 'getTemplates') ? $channel->getTemplates() : [];
+        } catch (\Throwable $e) {
+            Log::warning('Skipping unavailable notification channel templates.', [
+                'channel_class' => $className, 'error' => $e->getMessage(),
+            ]);
+            return [];
+        }
     }
 
     /**
@@ -110,27 +166,7 @@ class NotificationController extends Controller
         $availableRecipients = [];
 
         foreach ($events as $event) {
-            // Get available recipients for this event
-            if (!empty($event->notification_class) && class_exists($event->notification_class)) {
-                try {
-                    $notificationInstance = new $event->notification_class([]);
-                    if (method_exists($notificationInstance, 'getAvailableRecipients')) {
-                        $availableRecipients[$event->id] = $notificationInstance->getAvailableRecipients();
-                    } else {
-                        // Default recipients if method doesn't exist
-                        $availableRecipients[$event->id] = [
-                            'notify_admin' => 'Notify Admin',
-                            'notify_user_admin' => 'Notify Admin User'
-                        ];
-                    }
-                } catch (\Exception $e) {
-                    // Default recipients on error
-                    $availableRecipients[$event->id] = [
-                        'notify_admin' => 'Notify Admin',
-                        'notify_user_admin' => 'Notify Admin User'
-                    ];
-                }
-            }
+            $availableRecipients[$event->id] = $this->availableRecipientsFor($event->notification_class);
 
             foreach ($event->mappings as $mapping) {
                 // Channel mappings
@@ -167,28 +203,7 @@ class NotificationController extends Controller
             $event = NotificationEvent::findOrFail($id);
             $mappings = NotificationMapping::where('event_id', $id)->get();
 
-            // Get available recipients from notification class
-            $availableRecipients = [];
-            if (!empty($event->notification_class) && class_exists($event->notification_class)) {
-                try {
-                    $notificationInstance = new $event->notification_class([]);
-                    if (method_exists($notificationInstance, 'getAvailableRecipients')) {
-                        $availableRecipients = $notificationInstance->getAvailableRecipients();
-                    } else {
-                        // Default recipients
-                        $availableRecipients = [
-                            'notify_admin' => 'Notify Admin',
-                            'notify_user_admin' => 'Notify Admin User'
-                        ];
-                    }
-                } catch (\Exception $e) {
-                    // Default recipients on error
-                    $availableRecipients = [
-                        'notify_admin' => 'Notify Admin',
-                        'notify_user_admin' => 'Notify Admin User'
-                    ];
-                }
-            }
+            $availableRecipients = $this->availableRecipientsFor($event->notification_class);
 
             $channelMappings = [];
             $templates = [];
@@ -201,13 +216,7 @@ class NotificationController extends Controller
                 $channels = NotificationChannel::where('id', $mapping->channel_id)->get();
 
                 foreach ($channels as $channel) {
-                    // Instantiate the channel class with config
-                    $channelInstance = app($channel->channel_class, ['config' => []]);
-
-                    if (method_exists($channelInstance, 'getTemplates')) {
-                        $channelTemplates = $channelInstance->getTemplates();
-                        $templates[$channel_id] = array_merge($templates[$channel_id], $channelTemplates);
-                    }
+                    $templates[$channel_id] = array_merge($templates[$channel_id], $this->templatesForChannel($channel->channel_class, $channel->name));
                 }
 
                 // Organize mappings by channel with dynamic recipients

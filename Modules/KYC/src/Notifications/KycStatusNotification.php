@@ -12,6 +12,8 @@ use Illuminate\Support\Facades\Log;
 
 class KycStatusNotification extends Notification implements NotificationContract
 {
+    use \Modules\KYC\Notifications\Concerns\BuildsKycEmailVariables;
+
     protected $data;
     protected $submission;
 
@@ -36,17 +38,34 @@ class KycStatusNotification extends Notification implements NotificationContract
      */
     public function getVariables(): array
     {
-        $variables = [
+        $status = $this->data['status'] ?? $this->submission?->status ?? '';
+        $reason = $this->data['rejection_reason'] ?? $this->submission?->rejection_reason ?? '';
+        $needsCorrections = in_array($status, ['rejected', 'changes_requested', 'action_required'], true);
+        $document = $this->data['document_type'] ?? $this->data['kyc_type_name'] ?? $this->submission?->kycType?->name ?? 'KYC Document';
+        $variables = $this->kycEmailVariables() + [
             'notification_type' => 'kyc_status_update',
-            'owner_name' => $this->data['owner_name'] ?? $this->data['user_name'] ?? 'Restaurant Owner',
+            'owner_name' => e($this->data['owner_name'] ?? $this->data['user_name'] ?? $this->submission?->user?->name ?? 'Restaurant Owner'),
             'user_name' => $this->data['user_name'] ?? $this->data['owner_name'] ?? 'Restaurant Owner',
-            'status_message' => $this->data['status_message'] ?? 'Your KYC submission status has been updated.',
-            'kyc_type_name' => $this->data['kyc_type_name'] ?? 'KYC Document',
-            'document_type' => $this->data['document_type'] ?? 'KYC Document',
-            'status' => $this->data['status'] ?? '',
-            'submission_url' => url('/restaurant/kyc/history'),
-            'rejection_reason' => $this->data['rejection_reason'] ?? '',
-            'reviewed_at' => $this->data['reviewed_at'] ?? '',
+            'status_message' => e($this->data['status_message'] ?? 'Your KYC submission status has been updated.'),
+            'kyc_type_name' => e($this->data['kyc_type_name'] ?? $document),
+            'document_type' => e($document),
+            'status' => $status,
+            'status_label' => match ($status) {
+                'changes_requested', 'action_required' => 'Corrections requested',
+                '' => 'Not recorded',
+                default => \Illuminate\Support\Str::headline($status),
+            },
+            'status_time_label' => in_array($status, ['approved', 'rejected'], true) ? 'Reviewed on' : 'Status updated on',
+            'rejection_reason' => e($reason),
+            'reviewed_at' => e($this->data['reviewed_at'] ?? $this->submission?->reviewed_at?->format('M d, Y h:i A T') ?? 'Not recorded'),
+            'status_feedback_html' => $needsCorrections ? view('kyc::emails.partials.status-feedback', [
+                'reason' => $reason, 'refill' => $status !== 'rejected',
+            ])->render() : '',
+            'status_next_steps' => match ($status) {
+                'approved' => 'This document is approved. Check any remaining KYC documents and onboarding steps in your restaurant account.',
+                'rejected', 'changes_requested', 'action_required' => 'Log in, open KYC Documents, correct the requested information or upload a replacement document, and resubmit it for review.',
+                default => 'The review team is checking your document. Log in to view its latest status and any messages.',
+            },
             'company_name' => $this->data['company_name'] ?? config('app.name', 'Our Company'),
             'current_year' => $this->data['current_year'] ?? date('Y'),
         ];
@@ -89,7 +108,10 @@ class KycStatusNotification extends Notification implements NotificationContract
             'submission_url' => 'Submission URL',
             'rejection_reason' => 'Rejection Reason',
             'reviewed_at' => 'Review timestamp',
-        ];
+            'status_label' => 'Readable document status', 'status_time_label' => 'Review or status update time label',
+            'status_feedback_html' => 'Correction or rejection feedback, when applicable',
+            'status_next_steps' => 'Instructions for the current document status',
+        ] + $this->kycEmailAvailableVariables();
     }
 
     /**

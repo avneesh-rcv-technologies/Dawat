@@ -54,14 +54,16 @@ class RestaurantPasswordResetNotification implements Notification
         }
 
         return [
-            'restaurant_name' => $this->data['restaurant_name'] ?? 'Restaurant',
-            'restaurant_email' => $this->data['restaurant_email'] ?? $this->data['email'] ?? '',
-            'reset_time' => $this->data['reset_time'] ?? now()->format('Y-m-d H:i:s'),
-            'login_url' => route('admin.login.form'),
+            'restaurant_name' => e($this->data['restaurant_name'] ?? 'Restaurant'),
+            'owner_name' => e($this->data['owner_name'] ?? 'Restaurant owner'),
+            'restaurant_email' => e($this->data['restaurant_email'] ?? $this->data['email'] ?? ''),
+            'reset_time' => e($this->data['reset_time'] ?? 'Not recorded'),
+            'login_url' => route('website.partner-login'),
+            'forgot_password_url' => route('website.partner.password.request'),
             'app_name' => fn_get_setting('general.company.name') ?: config('app.name', 'Dawat'),
             'current_year' => now()->year,
-            'support_url' => config('app.url', 'https://app.local') . '/support',
-            'privacy_url' => config('app.url', 'https://app.local') . '/privacy-policy',
+            'support_url' => route('website.contact'),
+            'privacy_url' => route('website.privacy-policy'),
         ];
     }
 
@@ -69,9 +71,11 @@ class RestaurantPasswordResetNotification implements Notification
     {
         return [
             'restaurant_name' => 'Restaurant name',
+            'owner_name' => 'Restaurant owner name',
             'restaurant_email' => 'Restaurant owner email address',
             'reset_time' => 'Password reset timestamp',
             'login_url' => 'Restaurant login URL',
+            'forgot_password_url' => 'Restaurant password recovery URL',
             'app_name' => 'Application name',
             'current_year' => 'Current year',
             'support_url' => 'Support page URL',

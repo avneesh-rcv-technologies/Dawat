@@ -12,9 +12,9 @@ class RegisterSettings
             'category_code' => "access_control",
             'title' => 'Activity Logs',
             'description' => 'Track application',
-            'route' => route('activity-log.index'),
+            'route' => route('activity-log.advance-logging'),
             'icon' => 'flag',
-            'permission' => 'activity-log.index'
+            'permission' => 'activity-log.advance-logging'
         ]);
     }
 }

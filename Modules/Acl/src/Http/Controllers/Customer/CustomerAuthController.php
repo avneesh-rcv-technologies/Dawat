@@ -17,7 +17,7 @@ class CustomerAuthController extends Controller
     protected $redirectTo = '/dashboard';
     protected $loginView = 'acl::customer.auth.login';
     protected $registerView = 'acl::customer.auth.register';
-    protected $forgotPasswordView = 'acl::customer.auth.forget-password';
+    protected $forgotPasswordView = 'acl::customer.auth.forgot-password';
     protected $resetPasswordView = 'acl::customer.auth.reset-password';
 
     public function __construct()
@@ -131,6 +131,11 @@ class CustomerAuthController extends Controller
         return redirect($this->redirectPath());
     }
 
+    public function showForgotPasswordForm()
+    {
+        return $this->showLinkRequestForm();
+    }
+
     public function showLinkRequestForm()
     {
         return view($this->forgotPasswordView);
@@ -186,6 +191,11 @@ class CustomerAuthController extends Controller
         }
 
         return redirect()->route('customer.login')->with('status','We have emailed your password reset link!');
+    }
+
+    public function showResetPasswordForm(Request $request, $token = null)
+    {
+        return $this->showResetForm($request, $token);
     }
 
     public function showResetForm(Request $request, $token = null)

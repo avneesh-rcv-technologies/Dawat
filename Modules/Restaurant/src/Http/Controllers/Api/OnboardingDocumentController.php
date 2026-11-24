@@ -121,6 +121,10 @@ class OnboardingDocumentController extends Controller
         $documents = array_replace_recursive($request->input('documents', []), $request->file('documents', []));
         try {
             $created = DB::transaction(function () use ($admin, $documents, $reupload) {
+                $restaurants = Restaurant::where('admin_id', $admin->id)->lockForUpdate()->get();
+                foreach ($restaurants as $restaurant) {
+                    \Modules\Restaurant\Services\RestaurantOnboardingAccessService::assertStepEditable($restaurant, OnboardingStep::KYC);
+                }
                 $ids = array_column($documents, 'kyc_type_id');
                 $types = KycType::active()->kyc()->with('fields')->whereIn('id', $ids)->get()->keyBy('id');
                 $existing = KycSubmission::where('user_id', $admin->id)->whereIn('kyc_type_id', $ids)
@@ -132,6 +136,7 @@ class OnboardingDocumentController extends Controller
                     $submissions = $existing->where('kyc_type_id', $document['kyc_type_id']);
                     $error = match (true) {
                         !$type => 'This KYC document type is inactive or unavailable.',
+                        $submissions->contains('status', 'under_review') => 'Documents under review cannot be reuploaded.',
                         $submissions->contains('status', 'approved') => 'Approved documents cannot be reuploaded.',
                         $reupload && $submissions->isEmpty() => 'This document has not been submitted yet. Use the upload endpoint.',
                         !$reupload && $submissions->isNotEmpty() => 'This document has already been submitted. Use the reupload endpoint.',
@@ -152,30 +157,29 @@ class OnboardingDocumentController extends Controller
                             $mapped ?: ["documents.{$index}" => $exception->getMessage()]
                         );
                     }
-                    if ($reupload && !\Modules\Restaurant\Services\OnboardingChanges::documentChanged(
-                        $type, $submissions->sortByDesc('id')->first(), $document
-                    )) {
-                        \Modules\Restaurant\Services\OnboardingChanges::reject("documents.{$index}");
-                    }
+
                 }
 
                 $created = [];
                 foreach ($documents as $document) {
                     $typeId = (int) $document['kyc_type_id'];
                     unset($document['kyc_type_id']);
-                    $created[] = $this->submissionService->createSubmission($admin->id, $typeId, $document, $reupload)
+                    $created[] = $this->submissionService->createSubmission($admin->id, $typeId, $document, $reupload, false)
                         ->fresh(['data', 'files']);
                 }
                 app(\Modules\Restaurant\Services\KycOnboardingStepService::class)->syncAfterReview(end($created), 0, true);
-                foreach (Restaurant::where('admin_id', $admin->id)->lockForUpdate()->get() as $restaurant) {
+                foreach ($restaurants as $restaurant) {
                     $restaurant->update(['onboarding_step' => OnboardingStep::KYC->order()]);
                 }
-                if (!$reupload) {
+                if ($reupload) {
+                    $this->submissionService->notifyDocumentResubmission($admin->id, $created);
+                } else {
                     DB::afterCommit(function () use ($admin, $types, $created) {
                         try {
                             app(\Modules\Notifications\Services\NotificationService::class)->trigger('KYC', 'KycDocumentSubmission', $admin, [
                                 'title' => 'KYC Documents Submitted', 'owner_name' => $admin->name,
                                 'document_types' => $types->pluck('name')->all(), 'submission_count' => count($created),
+                                'submitted_at' => collect($created)->last()?->created_at?->format('M d, Y h:i A T'),
                                 'submission_url' => route('restaurant.onboarding.kyc', ['step' => 'kyc']),
                                 'request_message' => 'Your KYC documents have been submitted successfully. Our team will review them shortly.',
                                 'company_name' => config('app.name'), 'current_year' => now()->year,

@@ -2,6 +2,9 @@
     $pagination = request('pagination', []);
     $currentPage = $pagination['page'] ?? $data['current_page'];
     $perPage = $pagination['per_page'] ?? $data['per_page'];
+    $paginationUrl = fn (array $changes) => request()->fullUrlWithQuery([
+        'pagination' => array_merge($pagination, $changes),
+    ]);
 @endphp
 
 <div class="flex items-center justify-between mt-4 px-4 py-3 bg-white  sm:px-6">
@@ -20,7 +23,7 @@
     <div class="flex items-center space-x-2">
         <nav class="flex items-center space-x-2">
             <!-- First page (<<) -->
-            <a href="{{ request()->fullUrlWithQuery(['pagination[page]' => 1]) }}"
+            <a href="{{ $paginationUrl(['page' => 1]) }}"
                 class="p-2 rounded-md border border-gray-200 bg-white text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors duration-150 {{ $currentPage == 1 ? 'opacity-50 cursor-not-allowed' : '' }}"
                 aria-label="First page">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -31,7 +34,7 @@
             </a>
 
             <!-- Previous page (<) -->
-            <a href="{{ request()->fullUrlWithQuery(['pagination[page]' => max(1, $currentPage - 1)]) }}"
+            <a href="{{ $paginationUrl(['page' => max(1, $currentPage - 1)]) }}"
                 class="p-2 rounded-md border border-gray-200 bg-white text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors duration-150 {{ $currentPage == 1 ? 'opacity-50 cursor-not-allowed' : '' }}"
                 aria-label="Previous page">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -47,7 +50,7 @@
                     class="appearance-none pl-3 pr-8 py-2 border border-gray-200 rounded-md bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm shadow-sm">
                     @foreach($data['per_page_options'] as $option)
                         <option
-                            value="{{ request()->fullUrlWithQuery(['pagination[per_page]' => $option, 'pagination[page]' => 1]) }}"
+                            value="{{ $paginationUrl(['per_page' => $option, 'page' => 1]) }}"
                             {{ $perPage == $option ? 'selected' : '' }}>
                             {{ $option }}
                         </option>
@@ -63,7 +66,7 @@
             </div>
 
             <!-- Next page (>) -->
-            <a href="{{ request()->fullUrlWithQuery(['pagination[page]' => min($data['last_page'], $currentPage + 1)]) }}"
+            <a href="{{ $paginationUrl(['page' => min($data['last_page'], $currentPage + 1)]) }}"
                 class="p-2 rounded-md border border-gray-200 bg-white text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors duration-150 {{ $currentPage == $data['last_page'] ? 'opacity-50 cursor-not-allowed' : '' }}"
                 aria-label="Next page">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -74,7 +77,7 @@
             </a>
 
             <!-- Last page (>>) -->
-            <a href="{{ request()->fullUrlWithQuery(['pagination[page]' => $data['last_page']]) }}"
+            <a href="{{ $paginationUrl(['page' => $data['last_page']]) }}"
                 class="p-2 rounded-md border border-gray-200 bg-white text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors duration-150 {{ $currentPage == $data['last_page'] ? 'opacity-50 cursor-not-allowed' : '' }}"
                 aria-label="Last page">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">

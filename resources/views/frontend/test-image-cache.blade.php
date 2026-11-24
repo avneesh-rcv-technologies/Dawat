@@ -314,6 +314,7 @@
             }
         }
     </style>
+    <script src="{{ asset('js/app-popup.js') }}?v={{ filemtime(public_path('js/app-popup.js')) }}"></script>
 </head>
 
 <body>
@@ -480,16 +481,22 @@
             }
         });
 
-        function clearCache() {
-            if (confirm('This will clear:\n✓ Laravel data cache\n✓ Image metadata cache\n\nYou should also clear Browser Cache (Ctrl+Shift+Del) for full reset.')) {
+        async function clearCache() {
+            const confirmed = await appConfirm({
+                title: 'Clear server cache?',
+                message: 'This will clear:\n✓ Laravel data cache\n✓ Image metadata cache\n\nYou should also clear Browser Cache (Ctrl+Shift+Del) for full reset.',
+                confirmText: 'Clear cache',
+                tone: 'warning',
+            });
+            if (confirmed) {
                 fetch('{{ route("clear.cache") }}')
                     .then(response => response.json())
                     .then(data => {
-                        alert('✅ Server cache cleared!\n\nNow clear browser cache:\nCtrl+Shift+Del → Clear All Time');
-                        location.reload();
+                        appAlert('Now clear browser cache:\nCtrl+Shift+Del → Clear All Time', { tone: 'success', title: 'Server cache cleared' })
+                            .then(() => location.reload());
                     })
                     .catch(error => {
-                        alert('Error clearing cache: ' + error);
+                        appAlert('Error clearing cache: ' + error, { tone: 'error', title: 'Cache not cleared' });
                     });
             }
         }

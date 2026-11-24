@@ -10,6 +10,7 @@ use Modules\Admin\DataView\UsersGrid;
 use Illuminate\Support\Facades\Validator;
 use Modules\Acl\Services\UserAdminService;
 use Modules\Notifications\Services\NotificationService;
+use Modules\Restaurant\Services\RestaurantOwnerRoleResolver;
 
 class UserAdminController extends Controller
 {
@@ -28,18 +29,50 @@ class UserAdminController extends Controller
 
     public function create()
     {
-        return view('admin::pages.users.form');
+        $excludedRoleId = $this->defaultRestaurantRoleId();
+        return view('admin::pages.users.form', compact('excludedRoleId'));
+    }
+
+    /**
+     * Default Restaurant Role id (General Settings → general.default_role).
+     * Team members must not be assigned this role from User Management.
+     */
+    protected function defaultRestaurantRoleId(): ?int
+    {
+        return app(RestaurantOwnerRoleResolver::class)->id();
+    }
+
+    /**
+     * Rule rejecting the Default Restaurant Role, except when the user already has it.
+     */
+    protected function notDefaultRestaurantRole(?int $currentRoleId = null): array
+    {
+        $excluded = $this->defaultRestaurantRoleId();
+
+        if ($excluded === null || $currentRoleId === $excluded) {
+            return [];
+        }
+
+        return [Rule::notIn([$excluded])];
     }
 
     public function store(Request $request)
     {
         $request->merge(['guard' => 'admin']);
+        if ($request->input('role_id') === '') {
+            $request->merge(['role_id' => null]);
+        }
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:128',
             'email' => 'required|email:rfc,dns|unique:admins,email',
             'password' => ['required', 'string', new StrongPassword()],
             'guard' => ['required', Rule::in(['admin'])],
-            'role_id' => ['required', 'integer', Rule::exists('roles', 'id')->where('guard', 'admin')],
+            'role_id' => array_merge(
+                ['nullable', 'integer', Rule::exists('roles', 'id')->where('guard', 'admin')],
+                $this->notDefaultRestaurantRole()
+            ),
+        ], [
+            'role_id.not_in' => 'The Default Restaurant Role cannot be assigned to a team member.',
         ]);
 
         if ($validator->fails()) {
@@ -76,21 +109,33 @@ class UserAdminController extends Controller
         if (!$user) {
             return redirect()->route('users.index')->with('error', 'User not found.');
         }
-        return view('admin::pages.users.form', compact('user'));
+        $excludedRoleId = $this->defaultRestaurantRoleId();
+        return view('admin::pages.users.form', compact('user', 'excludedRoleId'));
     }
 
 
     public function update(Request $request, $id)
     {
         $request->merge(['guard' => 'admin']);
+        if ($request->input('role_id') === '') {
+            $request->merge(['role_id' => null]);
+        }
+        $existing = $this->userAdminService->find($id);
+        $currentRoleId = $existing && $existing->role_id !== null ? (int) $existing->role_id : null;
+
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:128',
             'email' => ['required', 'email', Rule::unique('admins')->ignore($id)],
             'guard' => ['required', Rule::in(['admin'])],
-            'role_id' => ['required', 'integer', Rule::exists('roles', 'id')->where('guard', 'admin')],
+            'role_id' => array_merge(
+                ['nullable', 'integer', Rule::exists('roles', 'id')->where('guard', 'admin')],
+                $this->notDefaultRestaurantRole($currentRoleId)
+            ),
             'password' => ['nullable', 'string', new StrongPassword()],
             'email_verified' => ['sometimes', 'boolean'],
             'status' => ['sometimes', 'boolean'],
+        ], [
+            'role_id.not_in' => 'The Default Restaurant Role cannot be assigned to a team member.',
         ]);
 
         if ($validator->fails()) {

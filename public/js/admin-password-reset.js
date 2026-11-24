@@ -45,11 +45,42 @@
         input.addEventListener('blur', () => validate());
         input.addEventListener('invalid', () => validate(true));
     });
+    // Second pass (after the passwords are encrypted) goes straight to the form-ajax handler.
+    let secured = false;
+    let securing = false;
     form.addEventListener('submit', event => {
-        if (validate(true)) return;
+        if (secured) {
+            secured = false;
+            return;
+        }
         event.preventDefault();
         event.stopImmediatePropagation();
-        (password.validationMessage ? password : confirmation).reportValidity();
+        if (!validate(true)) {
+            (password.validationMessage ? password : confirmation).reportValidity();
+            return;
+        }
+        if (securing) return;
+        securing = true;
+        Promise.resolve()
+            .then(() => {
+                if (!window.PasswordTransport) throw new Error('Unable to secure your password. Please refresh the page and try again.');
+                return window.PasswordTransport.prepare(form);
+            })
+            .then(() => {
+                secured = true;
+                form.requestSubmit();
+            })
+            .catch(error => {
+                const message = error instanceof TypeError
+                    ? 'Unable to connect. Check your connection and try again.'
+                    : error.message;
+                passwordError.textContent = message;
+                window.showToast?.(message, 'error', 'Error');
+            })
+            .finally(() => {
+                securing = false;
+                secured = false;
+            });
     }, true);
     validate();
 })();

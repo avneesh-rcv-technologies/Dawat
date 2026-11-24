@@ -3,6 +3,7 @@
     @method('PATCH')
     <input type="hidden" name="_tax_edit" value="1">
     <input type="hidden" name="tax_type" value="{{ $taxType }}">
+    <h4 class="review-edit-title">Edit {{ $taxType }} tax information</h4>
     <p class="review-help">Edit {{ $taxType }} tax information. The current review status will be preserved.</p>
     @if($errors->any() && old('_tax_edit'))
         <div role="alert" class="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
@@ -50,7 +51,7 @@
         @endforeach
     </div>
     <fieldset id="tax-mailing-fields" class="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <legend class="mb-3 font-semibold">Mailing address</legend>
+        <legend>Mailing address</legend>
         @foreach(['mailing_address' => ['Address', 150], 'mailing_city' => ['City', 100], 'mailing_state' => ['State', 100], 'mailing_zip_code' => ['ZIP code', 20]] as $field => [$label, $maxLength])
             <div>
                 <label for="tax-{{ $field }}" class="mb-1 block text-sm font-medium">{{ $label }} *</label>
@@ -59,8 +60,8 @@
         @endforeach
     </fieldset>
     <p id="tax-location-error" role="alert" class="hidden text-sm text-red-600"></p>
-    <div class="flex gap-3">
-        <button type="submit" class="rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white">Save changes</button>
-        <button id="cancel-tax-edit" type="button" class="rounded-lg border border-gray-300 px-4 py-2">Cancel</button>
+    <div class="ar-form-actions">
+        <button type="submit" class="ar-btn ar-btn--primary">Save changes</button>
+        <button id="cancel-tax-edit" type="button" class="ar-btn">Cancel</button>
     </div>
 </form>

@@ -31,6 +31,7 @@ class KYCServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        $this->registerMessageRateLimiter();
         $this->publishModuleConfigs();
         $this->registerCommands();
         $this->registerRoutes();
@@ -42,6 +43,21 @@ class KYCServiceProvider extends ServiceProvider
         // Compliance record lifecycle: open/refresh a compliance_records row
         // whenever a compliance-type KYC submission is approved.
         \Modules\KYC\Models\KycSubmission::observe(\Modules\KYC\Observers\KycSubmissionObserver::class);
+    }
+
+    protected function registerMessageRateLimiter(): void
+    {
+        \Illuminate\Support\Facades\RateLimiter::for('kyc-messages', function (\Illuminate\Http\Request $request) {
+            return \Illuminate\Cache\RateLimiting\Limit::perSecond(1, 10)
+                ->by('admin:' . $request->user('admin')->getAuthIdentifier())
+                ->response(function (\Illuminate\Http\Request $request, array $headers) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Please wait before sending another message.',
+                        'retry_after' => (int) ($headers['Retry-After'] ?? 10),
+                    ], 429, $headers);
+                });
+        });
     }
 
     /**

@@ -196,6 +196,8 @@ if (!function_exists('fn_get_usergroups')) {
     if (! function_exists('fn_get_payment_method_code')) {
         function fn_get_payment_method_code($paymentMethodId)
         {
+            $configuration = \Modules\Payments\Models\PaymentConfiguration::with('method')->find($paymentMethodId);
+            if ($configuration?->method) return $configuration->method->code;
             $paymentMethod = \Modules\Payments\Models\PaymentMethod::find($paymentMethodId);
             return $paymentMethod ? $paymentMethod->code : null;
         }

@@ -3,13 +3,17 @@
 namespace Modules\EmailNotification\Channels;
 
 use Exception;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
-use Modules\Notifications\Models\NotificationLog;
-use Modules\Notifications\Models\Notification;
+use Modules\Acl\Models\Admin;
+use Modules\Acl\Notifications\AdminEmailVerificationNotification;
+use Modules\Acl\Notifications\AdminPasswordResetNotification;
 use Modules\EmailNotification\Mail\NotificationEmail;
-use Modules\Activitylog\Exceptions\ApiExceptionHandler;
-use Modules\Notifications\Contracts\NotificationChannel;
 use Modules\EmailNotification\Models\NotificationTemplate;
+use Modules\Notifications\Contracts\NotificationChannel;
+use Modules\Notifications\Models\Notification;
+use Modules\Notifications\Models\NotificationLog;
+use Modules\Payments\Notifications\PaymentSuccessNotification;
 
 class EmailChannel implements NotificationChannel
 {
@@ -23,16 +27,15 @@ class EmailChannel implements NotificationChannel
         $template = NotificationTemplate::where('id', $notificationMapping[$this->getName()] ?? 0)
             ->first();
 
-            
         foreach ($notifiables as $notifiable) {
             try {
                 $recipient = [];
 
                 // Log::info("EmailChannel varaible", [$notification->getVariables()]);
-                if (!$template) {
+                if (! $template) {
                     $compiled = [
                         'subject' => 'Notification',
-                        'content' => implode(',\\n', $notification->getVariables())
+                        'content' => implode(',\\n', $notification->getVariables()),
                     ];
                 } else {
                     $compiled = $template->compile($notification->getVariables());
@@ -42,20 +45,19 @@ class EmailChannel implements NotificationChannel
                     ? $notification->getEmailAttachments()
                     : ($notification->getVariables()['attachments'] ?? null);
 
-                if(!empty($notification->getAvailableRecipients())) {
+                if (! empty($notification->getAvailableRecipients())) {
                     $recipientTypes = $notification->getRecipientTypeMapping();
                     foreach ($notification->getAvailableRecipients() as $key => $type) {
-                        if (!empty($notificationMapping[$key]) && $notificationMapping[$key]) {
+                        if (! empty($notificationMapping[$key]) && $notificationMapping[$key]) {
                             $typeKey = $recipientTypes[$key] ?? null;
-                            
+
                             if ($typeKey === 'admin') {
                                 // Send to super admin email (role_id = 1)
-                                $superAdmin = \Modules\Acl\Models\Admin::where('role_id', 1)->first();
+                                $superAdmin = Admin::where('role_id', 1)->first();
                                 if ($superAdmin && $superAdmin->email) {
                                     $recipient[] = $superAdmin->email;
                                 }
-                            } 
-                            elseif ($typeKey === 'notifiable') {
+                            } elseif ($typeKey === 'notifiable') {
                                 // Special handling for vendor notifications
                                 if ($key === 'notify_vendor') {
                                     // Get vendor email from notification variables
@@ -76,9 +78,10 @@ class EmailChannel implements NotificationChannel
                     }
                 }
 
+                $recipient = array_values(array_filter($recipient));
+
                 if (empty($recipient)) {
-                    throw new Exception("No recipients found for email notification.");
-                    continue;
+                    throw new Exception('No recipients found for email notification.');
                 }
 
                 $log = NotificationLog::create([
@@ -88,7 +91,7 @@ class EmailChannel implements NotificationChannel
                     'notifiable_id' => is_object($notifiable) ? ($notifiable->id ?? null) : 0,
                     'content' => $compiled['content'],
                     'status' => 'queued',
-                    'sent_at' => null
+                    'sent_at' => null,
                 ]);
 
                 // Store in notifications table for app developers
@@ -101,7 +104,7 @@ class EmailChannel implements NotificationChannel
 
                 $this->dispatchToQueue($recipient, $compiled['subject'], $compiled['content'], $log->id, $attachment);
             } catch (\Throwable $e) {
-                ApiExceptionHandler::handle($e);
+                Log::warning('Email notification delivery failed.', ['exception_type' => get_class($e)]);
                 NotificationLog::create([
                     'event_code' => $notification->getEventCode(),
                     'channel_name' => $this->getName(),
@@ -109,9 +112,11 @@ class EmailChannel implements NotificationChannel
                     'notifiable_id' => is_object($notifiable) ? ($notifiable->id ?? null) : 0,
                     'status' => 'failed',
                     'error_message' => $e->getMessage(),
-                    'config' => json_encode($this->config)
+                    'config' => json_encode($this->config),
                 ]);
-                if ($notification instanceof \Modules\Acl\Notifications\AdminPasswordResetNotification) {
+                if ($notification instanceof AdminPasswordResetNotification
+                    || $notification instanceof AdminEmailVerificationNotification
+                    || $notification instanceof PaymentSuccessNotification) {
                     throw $e;
                 }
             }
@@ -120,18 +125,18 @@ class EmailChannel implements NotificationChannel
 
     protected function dispatchToQueue($recipient, $subject, $content, $logId, $attachment)
     {
-        try {   
+        try {
 
             $mailable = new NotificationEmail($subject, $content, $logId, $attachment);
             Mail::mailer(fn_get_setting('general.mail.driver'))->to($recipient)->queue($mailable);
-            
+
         } catch (\Throwable $e) {
-            
-            ApiExceptionHandler::handle($e);
+
+            Log::warning('Email notification could not be queued.', ['log_id' => $logId, 'exception_type' => get_class($e)]);
             NotificationLog::where('id', $logId)
                 ->update([
                     'status' => 'failed',
-                    'error_message' => 'Queue dispatch failed: ' . $e->getMessage()
+                    'error_message' => 'Queue dispatch failed: '.$e->getMessage(),
                 ]);
 
             throw $e;
@@ -174,6 +179,7 @@ class EmailChannel implements NotificationChannel
         if (is_array($value)) {
             return array_filter(array_map('trim', $value));
         }
+
         return [];
     }
 }

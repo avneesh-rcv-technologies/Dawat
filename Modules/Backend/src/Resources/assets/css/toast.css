@@ -17,7 +17,7 @@
 
 /* Base card */
 .toast {
-    --toast-accent: #103647;
+    --toast-accent: #141414;
     width: 100%;
     min-width: 0;
     flex-shrink: 0;
@@ -75,12 +75,12 @@
 
 /* SUCCESS */
 .toast-success .toast-left {
-    border: 7px solid rgba(22, 132, 91, 0.22);
+    border: 7px solid rgba(255, 98, 16, 0.22);
     /* visible ring */
 }
 
 .toast-success .toast-inner {
-    background: #16845b;
+    background: #FF6210;
     /* solid center */
 }
 
@@ -93,10 +93,10 @@
     background: #c44949;
 }
 
-.toast-success { --toast-accent: #16845b; }
+.toast-success { --toast-accent: #FF6210; }
 .toast-error { --toast-accent: #c44949; }
 .toast-warning { --toast-accent: #c98520; }
-.toast-info { --toast-accent: #103647; }
+.toast-info { --toast-accent: #141414; }
 
 /* WARNING */
 .toast-warning .toast-left {
@@ -113,7 +113,7 @@
 }
 
 .toast-info .toast-inner {
-    background: #103647;
+    background: #141414;
 }
 
 /* Body */
@@ -139,6 +139,11 @@
 
 /* Close Button (colored like right icon in screenshot) */
 .toast-close {
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    color: var(--toast-accent, #141414);
     position: absolute;
     top: 10px;
     right: 10px;
@@ -151,14 +156,22 @@
    
 }
 
-.toast-close span {
-    font-size: 18px;
+.toast-close svg {
+    display: block;
+    width: 18px;
+    height: 18px;
+    pointer-events: none;
+}
+
+.toast-close:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: 2px;
 }
 
 
 /* Close icon colors */
 .toast-success .toast-close span {
-    color: #16845b;
+    color: #FF6210;
 }
 
 .toast-error .toast-close span {
@@ -170,7 +183,7 @@
 }
 
 .toast-info .toast-close span {
-    color: #103647;
+    color: #141414;
 }
 
 /* Progress Bar */

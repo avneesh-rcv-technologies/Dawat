@@ -10,9 +10,10 @@ class OnboardingStatusPresentation
             'approved', 'active' => ['tone' => 'approved', 'message' => 'This step is approved. No further action is needed.', 'action' => null],
             'rejected' => ['tone' => 'rejected', 'message' => 'Review the feedback below, correct your information, and submit it again.', 'action' => 'Update & resubmit'],
             'action_required' => ['tone' => 'attention', 'message' => 'A refill has been requested for this onboarding step. Read the reason, update the requested details or documents, and resubmit for review.', 'action' => 'Refill & resubmit'],
-            'under_review' => ['tone' => 'review', 'message' => 'Our team is reviewing your submission. No action is needed unless we request changes.', 'action' => 'View submission'],
-            'submitted', 'pending', 'resubmitted' => ['tone' => 'pending', 'message' => 'Your information has been submitted and is waiting for review.', 'action' => 'View submission'],
+            'under_review' => ['tone' => 'review', 'message' => 'Our team is reviewing your submission. Updates are disabled until the review is complete.', 'action' => 'View submission'],
+            'submitted', 'pending', 'resubmitted' => ['tone' => 'pending', 'message' => 'Your information has been submitted. You can update it until our team starts the review.', 'action' => 'Update submission'],
             'suspended' => ['tone' => 'suspended', 'message' => 'This step is on hold. Please contact the administrator for assistance.', 'action' => 'View details'],
+            'skipped' => ['tone' => 'draft', 'message' => 'You skipped this optional step. You can upload certificates later.', 'action' => 'Upload certificates'],
             default => ['tone' => 'draft', 'message' => 'Add your information and submit this step for review.', 'action' => 'Start'],
         };
     }
@@ -20,7 +21,7 @@ class OnboardingStatusPresentation
     public static function notice(array $timeline): array
     {
         $status = $timeline['restaurant']['onboarding_status'] ?? 'draft';
-        $steps = collect($timeline['steps']);
+        $steps = collect($timeline['steps'])->where('can_skip', false);
         $attention = $steps->whereIn('status', ['rejected', 'action_required']);
         $waiting = $steps->whereIn('status', ['submitted', 'pending', 'resubmitted', 'under_review']);
 
@@ -48,6 +49,6 @@ class OnboardingStatusPresentation
         }
 
         return ['tone' => 'draft', 'title' => 'Continue setting up your restaurant',
-            'message' => 'Complete and submit the remaining required steps. Each step will show its review status here. Menu details are optional.'];
+            'message' => 'Complete and submit the remaining required steps. Each step will show its review status here.'];
     }
 }

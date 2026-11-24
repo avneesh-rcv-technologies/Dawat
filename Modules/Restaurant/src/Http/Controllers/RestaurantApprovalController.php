@@ -2,40 +2,60 @@
 
 namespace Modules\Restaurant\Http\Controllers;
 
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Modules\Acl\Models\Admin;
-use Modules\Restaurant\Models\Restaurant;
-use Modules\Restaurant\Models\OnboardingStatusHistory;
-use Modules\Restaurant\DataView\RestaurantApprovalGrid;
-use Modules\Notifications\Services\NotificationService;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
-use Modules\Restaurant\Enums\OnboardingStep;
-use Modules\Restaurant\Enums\OnboardingStatus;
-use Modules\Restaurant\Services\OnboardingStepReviewService;
-use Modules\Restaurant\Http\Requests\UpdateRegistrationRequest;
-use Modules\Restaurant\Http\Requests\UpdateBankingRequest;
-use Modules\Restaurant\Services\RestaurantBankingService;
+use Modules\Acl\Models\Admin;
+use Modules\Countries\Models\City;
+use Modules\Countries\Models\Country;
+use Modules\Countries\Models\CountryState;
 use Modules\KYC\Models\KycSubmission;
 use Modules\KYC\Models\KycType;
+use Modules\KYC\Services\KycRequestService;
+use Modules\Notifications\Services\NotificationService;
+use Modules\Restaurant\DataView\RestaurantApprovalGrid;
+use Modules\Restaurant\Enums\OnboardingStatus;
+use Modules\Restaurant\Enums\OnboardingStep;
+use Modules\Restaurant\Http\Requests\UpdateBankingRequest;
+use Modules\Restaurant\Http\Requests\UpdateRegistrationRequest;
+use Modules\Restaurant\Models\OnboardingStatusHistory;
+use Modules\Restaurant\Models\Restaurant;
+use Modules\Restaurant\Models\TaxInformation;
+use Modules\Restaurant\Services\OnboardingHistoryService;
+use Modules\Restaurant\Services\OnboardingStepReviewService;
+use Modules\Restaurant\Services\RestaurantApprovalAccess;
+use Modules\Restaurant\Services\RestaurantBankingService;
+use Modules\Restaurant\Services\RestaurantOnboardingReviewService;
+use Modules\Restaurant\Services\RestaurantOwnerRoleResolver;
+use Modules\Restaurant\Services\RestaurantTaxService;
 
 class RestaurantApprovalController
 {
     protected $notificationService;
 
-    public function __construct(NotificationService $notificationService = null)
+    public function __construct(?NotificationService $notificationService = null)
     {
         $this->notificationService = $notificationService;
     }
 
     public function index()
     {
+        $access = app(RestaurantApprovalAccess::class);
+        $admin = auth('admin')->user();
+        $ownerOnly = $access->isOwner($admin);
+
+        if ($ownerOnly) {
+            $restaurant = $access->scope(Restaurant::query(), $admin)->orderBy('id')->firstOrFail();
+
+            return redirect()->route('admin.restaurant.approvals.show', ['id' => $restaurant->id]);
+        }
+
         $lists = fn_datagrid(RestaurantApprovalGrid::class)->process();
         $applications = Restaurant::query()->whereIn('approval_status', ['pending', 'approved', 'rejected']);
-        $access = app(\Modules\Restaurant\Services\RestaurantApprovalAccess::class);
-        $access->scope($applications, auth('admin')->user());
-        $ownerOnly = $access->isOwner(auth('admin')->user());
+        $access->scope($applications, $admin);
         $statusCounts = (clone $applications)->selectRaw('approval_status, COUNT(*) AS total')
             ->groupBy('approval_status')->pluck('total', 'approval_status');
         $draftCount = (clone $applications)->where('approval_status', 'pending')
@@ -58,11 +78,12 @@ class RestaurantApprovalController
     public function requestChanges(Request $request, $id)
     {
         $admin = $request->user('admin');
-        abort_if(app(\Modules\Restaurant\Services\RestaurantApprovalAccess::class)->isOwner($admin), 403);
+        abort_if(app(RestaurantApprovalAccess::class)->isOwner($admin), 403);
         $request->merge(['reason' => is_string($request->input('reason')) ? trim($request->input('reason')) : $request->input('reason')]);
         $data = $request->validate([
             'step_key' => ['required', Rule::enum(OnboardingStep::class)],
             'reason' => ['required', 'string', 'max:500'],
+            'submission_id' => ['nullable', 'integer', 'min:1', 'prohibited_unless:step_key,kyc'],
         ]);
         $step = OnboardingStep::from($data['step_key']);
         $permission = match ($step) {
@@ -72,19 +93,10 @@ class RestaurantApprovalController
             default => 'admin.restaurant.approvals.show',
         };
         abort_unless($admin->hasPermission($permission), 403);
-        app(OnboardingStepReviewService::class)->requestChanges((int) $id, (int) $admin->id, $step, $data['reason']);
+        app(OnboardingStepReviewService::class)->requestChanges((int) $id, (int) $admin->id, $step, $data['reason'], isset($data['submission_id']) ? (int) $data['submission_id'] : null);
 
         return redirect()->route('admin.restaurant.approvals.show', ['id' => $id, 'step' => $step->value])
             ->with('success', 'Changes requested. The owner can update and resubmit this step.');
-    }
-
-    public function reviewMenu(Request $request, $id)
-    {
-        abort_if(app(\Modules\Restaurant\Services\RestaurantApprovalAccess::class)->isOwner($request->user('admin')), 403);
-        $data = $request->validate(['action' => ['required', 'in:approve,reject'],
-            'reason' => ['nullable', 'required_if:action,reject', 'string', 'max:500']]);
-        app(OnboardingStepReviewService::class)->reviewMenu((int) $id, (int) $request->user('admin')->id(), $data['action'] === 'approve', $data['reason'] ?? null);
-        return redirect()->route('admin.restaurant.approvals.show', ['id' => $id, 'step' => 'menu'])->with('success', 'Menu review saved.');
     }
 
     public function show(Request $request, $id)
@@ -97,7 +109,7 @@ class RestaurantApprovalController
         $isProfile = $requestedStep === 'profile';
         $isReview = $requestedStep === 'review';
         $activeStep = OnboardingStep::tryFrom($requestedStep);
-        abort_unless($isProfile || $isReview || in_array($activeStep, [OnboardingStep::REGISTRATION, OnboardingStep::MENU, OnboardingStep::BANKING, OnboardingStep::TAX, OnboardingStep::KYC], true), 404);
+        abort_unless($isProfile || $isReview || in_array($activeStep, [OnboardingStep::REGISTRATION, OnboardingStep::BANKING, OnboardingStep::TAX, OnboardingStep::DIETARY_CERTIFICATES, OnboardingStep::KYC], true), 404);
         if ($isProfile) {
             $restaurant->load(['addresses.city', 'addresses.state', 'addresses.country']);
         }
@@ -105,11 +117,11 @@ class RestaurantApprovalController
         $registrationCountryId = $registrationStateId = $registrationCityId = null;
         if ($activeStep === OnboardingStep::REGISTRATION && bouncer('admin')->hasPermission('admin.restaurant.approvals.registration.update')) {
             $address = $restaurant->addresses()->orderByDesc('is_default')->orderBy('id')->first();
-            $registrationCountries = \Modules\Countries\Models\Country::orderBy('name')->get(['id', 'name']);
+            $registrationCountries = Country::orderBy('name')->get(['id', 'name']);
             $registrationCountryId = old('country_id', $address?->country_id ?: $registrationCountries->firstWhere('name', $restaurant->country)?->id);
-            $registrationStates = \Modules\Countries\Models\CountryState::where('country_id', is_scalar($registrationCountryId) ? $registrationCountryId : null)->orderBy('name')->get(['id', 'name', 'code']);
+            $registrationStates = CountryState::where('country_id', is_scalar($registrationCountryId) ? $registrationCountryId : null)->orderBy('name')->get(['id', 'name', 'code']);
             $registrationStateId = old('state_id', $address?->state_id ?: ($registrationStates->firstWhere('name', $restaurant->state)?->id ?? $registrationStates->firstWhere('code', $restaurant->state)?->id));
-            $registrationCities = \Modules\Countries\Models\City::where('country_id', is_scalar($registrationCountryId) ? $registrationCountryId : null)->where('state_id', is_scalar($registrationStateId) ? $registrationStateId : null)->orderBy('name')->get(['id', 'name']);
+            $registrationCities = City::where('country_id', is_scalar($registrationCountryId) ? $registrationCountryId : null)->where('state_id', is_scalar($registrationStateId) ? $registrationStateId : null)->orderBy('name')->get(['id', 'name']);
             $registrationCityId = old('city_id', $address?->city_id ?: $registrationCities->firstWhere('name', $restaurant->city)?->id);
         }
         $canViewBanking = bouncer('admin')->hasPermission('admin.restaurant.approvals.banking.show');
@@ -126,11 +138,17 @@ class RestaurantApprovalController
                 $taxRecord = $taxRecords->get($taxType);
                 $countryId = old('country_id', $taxRecord?->country_id);
                 $stateId = old('state_id', $taxRecord?->state_id);
-                $taxCountries = \Modules\Countries\Models\Country::orderBy('name')->get(['id', 'name']);
-                $taxStates = \Modules\Countries\Models\CountryState::where('country_id', is_scalar($countryId) ? $countryId : null)->orderBy('name')->get(['id', 'name']);
-                $taxCities = \Modules\Countries\Models\City::where('state_id', is_scalar($stateId) ? $stateId : null)->orderBy('name')->get(['id', 'name']);
+                $taxCountries = Country::orderBy('name')->get(['id', 'name']);
+                $taxStates = CountryState::where('country_id', is_scalar($countryId) ? $countryId : null)->orderBy('name')->get(['id', 'name']);
+                $taxCities = City::where('state_id', is_scalar($stateId) ? $stateId : null)->orderBy('name')->get(['id', 'name']);
             }
         }
+        $canViewDietary = bouncer('admin')->hasPermission('admin.dietarymanagment.certifications.show');
+        if ($activeStep === OnboardingStep::DIETARY_CERTIFICATES) {
+            abort_unless($canViewDietary, 403);
+        }
+        $dietaryCertificates = $activeStep === OnboardingStep::DIETARY_CERTIFICATES
+            ? $restaurant->certifications()->with(['certificationType.dietaryLabel', 'reviewer'])->latest('id')->get() : collect();
         $canViewKyc = bouncer('admin')->hasPermission('admin.kyc.submissions.show');
         $canReviewKyc = bouncer('admin')->hasPermission('admin.kyc.submissions.review');
         $kycSubmissions = collect();
@@ -142,13 +160,15 @@ class RestaurantApprovalController
             if (bouncer('admin')->hasPermission('admin.restaurant.approvals.banking.update')) {
                 $countryId = old('country_id', $restaurant->bankingDetail?->country_id);
                 $stateId = old('state_id', $restaurant->bankingDetail?->state_id);
-                $bankingCountries = \Modules\Countries\Models\Country::orderBy('name')->get(['id', 'name']);
-                $bankingStates = \Modules\Countries\Models\CountryState::where('country_id', is_scalar($countryId) ? $countryId : null)->orderBy('name')->get(['id', 'name']);
-                $bankingCities = \Modules\Countries\Models\City::where('state_id', is_scalar($stateId) ? $stateId : null)->where('country_id', is_scalar($countryId) ? $countryId : null)->orderBy('name')->get(['id', 'name']);
+                $bankingCountries = Country::orderBy('name')->get(['id', 'name']);
+                $bankingStates = CountryState::where('country_id', is_scalar($countryId) ? $countryId : null)->orderBy('name')->get(['id', 'name']);
+                $bankingCities = City::where('state_id', is_scalar($stateId) ? $stateId : null)->where('country_id', is_scalar($countryId) ? $countryId : null)->orderBy('name')->get(['id', 'name']);
             }
         }
         if ($activeStep === OnboardingStep::KYC) {
             abort_unless($canViewKyc, 403);
+        }
+        if ($canViewKyc) {
             $kycTypes = KycType::active()->kyc()->orderBy('name')->get(['id', 'name']);
             if ($restaurant->admin_id) {
                 $kycSubmissions = KycSubmission::where('user_id', $restaurant->admin_id)
@@ -158,16 +178,17 @@ class RestaurantApprovalController
             }
         }
         $tabs = array_filter($steps, fn (OnboardingStep $step) => $step === OnboardingStep::REGISTRATION
-            || $step === OnboardingStep::MENU
             || ($step === OnboardingStep::BANKING && $canViewBanking)
             || ($step === OnboardingStep::TAX && $canViewTax)
+            || ($step === OnboardingStep::DIETARY_CERTIFICATES && $canViewDietary)
             || ($step === OnboardingStep::KYC && $canViewKyc));
         $stepHistories = OnboardingStatusHistory::query()
             ->where('restaurant_id', $restaurant->id)
             ->whereIn('step_key', array_map(fn (OnboardingStep $step) => $step->value, $steps))
-            ->when(!$canViewBanking, fn ($query) => $query->where('step_key', '!=', OnboardingStep::BANKING->value))
-            ->when(!$canViewTax, fn ($query) => $query->where('step_key', '!=', OnboardingStep::TAX->value))
-            ->when(!$canViewKyc, fn ($query) => $query->where('step_key', '!=', OnboardingStep::KYC->value))
+            ->when(! $canViewBanking, fn ($query) => $query->where('step_key', '!=', OnboardingStep::BANKING->value))
+            ->when(! $canViewTax, fn ($query) => $query->where('step_key', '!=', OnboardingStep::TAX->value))
+            ->when(! $canViewDietary, fn ($query) => $query->where('step_key', '!=', OnboardingStep::DIETARY_CERTIFICATES->value))
+            ->when(! $canViewKyc, fn ($query) => $query->where('step_key', '!=', OnboardingStep::KYC->value))
             ->with('changer')
             ->orderByDesc('created_at')
             ->orderByDesc('id')
@@ -183,10 +204,10 @@ class RestaurantApprovalController
             $refillRequested = $status === 'action_required' || ($status === 'rejected'
                 && $stepHistories->get($step->value, collect())->first()?->action === 'changes_requested');
             $stepTabStates[$step->value] = [
-                'label' => $refillRequested ? 'Refill requested' : ($statusEnum?->label() ?? ($status ? \Illuminate\Support\Str::headline($status) : 'Not started')),
+                'label' => $refillRequested ? 'Refill requested' : ($statusEnum?->label() ?? ($status ? Str::headline($status) : 'Not started')),
                 'color' => $refillRequested ? 'bg-orange-100 text-orange-800' : ($statusEnum?->color() ?? 'bg-gray-100 text-gray-600'),
                 'refill_requested' => $refillRequested,
-                'resubmitted' => !$refillRequested && ($status === 'resubmitted' || $latestResubmission !== null),
+                'resubmitted' => ! $refillRequested && ($status === 'resubmitted' || $latestResubmission !== null),
                 'resubmitted_at' => $latestResubmission?->created_at,
             ];
         }
@@ -206,21 +227,24 @@ class RestaurantApprovalController
 
         $reviewSummary = $isReview ? $this->buildReviewSummary($restaurant) : null;
 
-        return view('restaurant::admin.approvals.show', compact('registrationCountries', 'registrationStates', 'registrationCities', 'registrationCountryId', 'registrationStateId', 'registrationCityId', 'restaurant', 'steps', 'stepRecords', 'tabs', 'activeStep', 'isProfile', 'isReview', 'reviewSummary', 'stepHistories', 'canViewBanking', 'canViewTax', 'taxType', 'taxRecords', 'taxCountries', 'taxStates', 'taxCities', 'bankingCountries', 'bankingStates', 'bankingCities', 'canViewKyc', 'canReviewKyc', 'kycTypes', 'kycSubmissions', 'kycCounts', 'stepTabStates'));
+        return view('restaurant::admin.approvals.show', compact('registrationCountries', 'registrationStates', 'registrationCities', 'registrationCountryId', 'registrationStateId', 'registrationCityId', 'restaurant', 'steps', 'stepRecords', 'tabs', 'activeStep', 'isProfile', 'isReview', 'reviewSummary', 'stepHistories', 'canViewBanking', 'canViewTax', 'taxType', 'taxRecords', 'taxCountries', 'taxStates', 'taxCities', 'bankingCountries', 'bankingStates', 'bankingCities', 'canViewKyc', 'canReviewKyc', 'kycTypes', 'kycSubmissions', 'kycCounts', 'stepTabStates', 'canViewDietary', 'dietaryCertificates'));
     }
 
     private function buildReviewSummary(Restaurant $restaurant): array
     {
-        $visibleSteps = [OnboardingStep::REGISTRATION, OnboardingStep::MENU];
+        $visibleSteps = [OnboardingStep::REGISTRATION];
         foreach ([
             'admin.restaurant.approvals.banking.show' => OnboardingStep::BANKING,
             'admin.restaurant.approvals.tax.show' => OnboardingStep::TAX,
+            'admin.dietarymanagment.certifications.show' => OnboardingStep::DIETARY_CERTIFICATES,
             'admin.kyc.submissions.show' => OnboardingStep::KYC,
         ] as $permission => $step) {
-            if (bouncer('admin')->hasPermission($permission)) $visibleSteps[] = $step;
+            if (bouncer('admin')->hasPermission($permission)) {
+                $visibleSteps[] = $step;
+            }
         }
 
-        return app(\Modules\Restaurant\Services\RestaurantOnboardingReviewService::class)->build($restaurant, $visibleSteps);
+        return app(RestaurantOnboardingReviewService::class)->build($restaurant, $visibleSteps);
     }
 
     public function downloadReviewPdf($id)
@@ -231,9 +255,9 @@ class RestaurantApprovalController
         $restaurant = Restaurant::findOrFail($id);
         $reviewSummary = $this->buildReviewSummary($restaurant);
 
-        return \Barryvdh\DomPDF\Facade\Pdf::loadView('restaurant::admin.approvals.review-pdf', compact('reviewSummary'))
+        return Pdf::loadView('restaurant::admin.approvals.review-pdf', compact('reviewSummary'))
             ->setPaper('a4')->setOption('isRemoteEnabled', false)->setOption('defaultFont', 'DejaVu Sans')
-            ->download('restaurant-' . $restaurant->id . '-onboarding-review.pdf');
+            ->download('restaurant-'.$restaurant->id.'-onboarding-review.pdf');
     }
 
     public function startReview(Request $request, $id)
@@ -241,7 +265,7 @@ class RestaurantApprovalController
         abort_unless(auth('admin')->id()
             && bouncer('admin')->hasPermission('admin.restaurant.approvals.start-review'), 403);
         $validated = $request->validate([
-            'step_key' => ['required', Rule::in([OnboardingStep::REGISTRATION->value, OnboardingStep::MENU->value, OnboardingStep::BANKING->value, OnboardingStep::TAX->value])],
+            'step_key' => ['required', Rule::in([OnboardingStep::REGISTRATION->value, OnboardingStep::BANKING->value, OnboardingStep::TAX->value])],
             'type' => ['sometimes', 'required', Rule::in(['individual', 'business'])],
         ]);
         $step = OnboardingStep::from($validated['step_key']);
@@ -254,7 +278,7 @@ class RestaurantApprovalController
         app(OnboardingStepReviewService::class)->startReview((int) $id, (int) auth('admin')->id(), $step);
 
         return redirect()->route('admin.restaurant.approvals.show', ['id' => $id, 'step' => $step->value] + ($step === OnboardingStep::TAX ? ['type' => $validated['type'] ?? 'individual'] : []))
-            ->with('success', $step->label() . ' is now under review.');
+            ->with('success', $step->label().' is now under review.');
     }
 
     public function approveTax(Request $request, $id)
@@ -268,7 +292,7 @@ class RestaurantApprovalController
             && bouncer('admin')->hasPermission('admin.restaurant.approvals.tax.show')
             && bouncer('admin')->hasPermission('admin.restaurant.approvals.tax.type'), 403);
         $validated = $request->validate(['tax_type' => ['required', Rule::in(['individual', 'business'])]]);
-        app(\Modules\Restaurant\Services\RestaurantTaxService::class)->selectTypeForRestaurant((int) $id, $validated['tax_type']);
+        app(RestaurantTaxService::class)->selectTypeForRestaurant((int) $id, $validated['tax_type']);
 
         return redirect()->route('admin.restaurant.approvals.show', ['id' => $id, 'step' => 'tax'])
             ->with('success', 'Restaurant tax type updated successfully.');
@@ -279,7 +303,7 @@ class RestaurantApprovalController
         abort_unless(auth('admin')->id()
             && bouncer('admin')->hasPermission('admin.restaurant.approvals.tax.show')
             && bouncer('admin')->hasPermission('admin.restaurant.approvals.tax.update'), 403);
-        $fields = array_diff((new \Modules\Restaurant\Models\TaxInformation())->getFillable(), ['tax_certification', 'tax_certified_at']);
+        $fields = array_diff((new TaxInformation)->getFillable(), ['tax_certification', 'tax_certified_at']);
         $input = $request->only($fields);
         foreach ($input as $field => $value) {
             if (is_string($value)) {
@@ -294,7 +318,7 @@ class RestaurantApprovalController
         $type = in_array($input['tax_type'] ?? null, ['individual', 'business'], true) ? $input['tax_type'] : 'individual';
         $redirect = redirect()->route('admin.restaurant.approvals.show', ['id' => $id, 'step' => 'tax', 'type' => $type]);
         try {
-            app(\Modules\Restaurant\Services\RestaurantTaxService::class)->updateForRestaurant((int) $id, $input);
+            app(RestaurantTaxService::class)->updateForRestaurant((int) $id, $input);
         } catch (ValidationException $exception) {
             return $redirect->withErrors($exception->errors())->withInput($request->except('ssn', 'ein'));
         }
@@ -311,7 +335,7 @@ class RestaurantApprovalController
     {
         abort_unless(auth('admin')->id()
             && bouncer('admin')->hasPermission('admin.restaurant.approvals.tax.show')
-            && bouncer('admin')->hasPermission('admin.restaurant.approvals.tax.' . ($approved ? 'approve' : 'reject')), 403);
+            && bouncer('admin')->hasPermission('admin.restaurant.approvals.tax.'.($approved ? 'approve' : 'reject')), 403);
         if (is_string($request->input('rejection_reason'))) {
             $request->merge(['rejection_reason' => trim($request->input('rejection_reason'))]);
         }
@@ -346,7 +370,7 @@ class RestaurantApprovalController
 
     private function reviewBanking(Request $request, $id, bool $approved)
     {
-        $permission = 'admin.restaurant.approvals.banking.' . ($approved ? 'approve' : 'reject');
+        $permission = 'admin.restaurant.approvals.banking.'.($approved ? 'approve' : 'reject');
         abort_unless(auth('admin')->user()?->hasPermission($permission)
             && bouncer('admin')->hasPermission('admin.restaurant.approvals.banking.show'), 403);
         if (is_string($request->input('rejection_reason'))) {
@@ -373,11 +397,12 @@ class RestaurantApprovalController
             DB::beginTransaction();
 
             $restaurant = app(OnboardingStepReviewService::class)->reviewRegistration((int) $id, (int) auth('admin')->id(), true);
-            $role = fn_get_setting('general.default_role');
+            // Restaurant Owner role from general.default_role (falls back to role named "Restaurant Owner").
+            $role = app(RestaurantOwnerRoleResolver::class)->resolve()->getKey();
             // Activate the admin account
             $restaurant->admin->update([
                 'status' => 1, // 1 = active
-                'role_id' => $role
+                'role_id' => $role,
             ]);
 
             DB::commit();
@@ -386,7 +411,7 @@ class RestaurantApprovalController
             // Create pending KYC requests for the restaurant admin (if any active KYC types exist)
             try {
                 if ($restaurant->admin) {
-                    $kycRequestService = app(\Modules\KYC\Services\KycRequestService::class);
+                    $kycRequestService = app(KycRequestService::class);
                     $createdRequests = $kycRequestService->createPendingRequestsForAdmin($restaurant->admin, auth('admin')->id() ?? $restaurant->admin->id);
                 }
             } catch (\Throwable $e) {
@@ -405,10 +430,11 @@ class RestaurantApprovalController
                 } catch (\Throwable $e) {
                     \Log::warning('Failed to send approval notification', [
                         'restaurant_id' => $restaurant->id,
-                        'error' => $e->getMessage()
+                        'error' => $e->getMessage(),
                     ]);
                 }
             }
+
             return redirect()->route('admin.restaurant.approvals.show', $id)
                 ->with('success', 'Restaurant registration approved successfully!');
         } catch (ValidationException $e) {
@@ -416,6 +442,7 @@ class RestaurantApprovalController
             throw $e;
         } catch (\Exception $e) {
             DB::rollBack();
+
             return back()->withErrors(['error' => 'Failed to approve restaurant.']);
         }
     }
@@ -445,7 +472,7 @@ class RestaurantApprovalController
                 } catch (\Exception $e) {
                     \Log::warning('Failed to send rejection notification', [
                         'restaurant_id' => $restaurant->id,
-                        'error' => $e->getMessage()
+                        'error' => $e->getMessage(),
                     ]);
                 }
             }
@@ -463,11 +490,11 @@ class RestaurantApprovalController
     {
         $admin = $request->user('admin');
         abort_unless($admin?->hasPermission('admin.restaurant.approvals.status.update'), 403);
-        $validated = $request->validate(['status' => ['required', Rule::in(['active', 'inactive', 'draft'])]]);
+        $validated = $request->validate(['status' => ['required', Rule::in(['active', 'inactive'])]]);
 
         DB::transaction(function () use ($id, $admin, $validated) {
             $restaurant = Restaurant::query()->lockForUpdate()->findOrFail($id);
-            if ((int) $admin->role_id === 2) {
+            if (app(RestaurantOwnerRoleResolver::class)->isOwner($admin)) {
                 abort_unless((int) $restaurant->admin_id === (int) $admin->id, 403);
             }
             $restaurant->update(['status' => $validated['status']]);
@@ -475,31 +502,6 @@ class RestaurantApprovalController
 
         return redirect()->route('admin.restaurant.approvals.show', ['id' => $id, 'step' => 'profile'])
             ->with('success', 'Restaurant status updated to '.$validated['status'].'.');
-    }
-
-    public function updateOnboardingStatus(Request $request, $id)
-    {
-        $admin = $request->user('admin');
-        abort_unless($admin?->hasPermission('admin.restaurant.approvals.onboarding-status.update'), 403);
-        $validated = $request->validate([
-            'onboarding_status' => ['required', Rule::in([
-                OnboardingStatus::DRAFT->value,
-                OnboardingStatus::UNDER_REVIEW->value,
-                OnboardingStatus::ACTION_REQUIRED->value,
-                OnboardingStatus::APPROVED->value,
-            ])],
-        ]);
-
-        DB::transaction(function () use ($id, $admin, $validated) {
-            $restaurant = Restaurant::query()->lockForUpdate()->findOrFail($id);
-            if ((int) $admin->role_id === 2) {
-                abort_unless((int) $restaurant->admin_id === (int) $admin->id, 403);
-            }
-            $restaurant->update(['onboarding_status' => $validated['onboarding_status']]);
-        });
-
-        return redirect()->route('admin.restaurant.approvals.show', ['id' => $id, 'step' => 'profile'])
-            ->with('success', 'Onboarding status updated to '.OnboardingStatus::from($validated['onboarding_status'])->label().'.');
     }
 
     public function updateEmailVerification(Request $request, $id)
@@ -516,7 +518,7 @@ class RestaurantApprovalController
                 'email_verified_at' => $validated['verified'] ? ($owner->email_verified_at ?? now()) : null,
             ]);
             if ($owner->wasChanged('email_verified_at')) {
-                app(\Modules\Restaurant\Services\OnboardingHistoryService::class)->detailsUpdated(
+                app(OnboardingHistoryService::class)->detailsUpdated(
                     $restaurant, 'registration', $validated['verified'] ? 'email_verified' : 'email_unverified'
                 );
             }
@@ -534,9 +536,9 @@ class RestaurantApprovalController
         DB::transaction(function () use ($id, $validated) {
             $restaurant = Restaurant::query()->lockForUpdate()->findOrFail($id);
             abort_unless($restaurant->onboardingSteps()->where('step_key', OnboardingStep::REGISTRATION->value)->exists(), 422, 'No registration step exists for this restaurant.');
-            $country = \Modules\Countries\Models\Country::findOrFail($validated['country_id']);
-            $state = \Modules\Countries\Models\CountryState::findOrFail($validated['state_id']);
-            $city = \Modules\Countries\Models\City::findOrFail($validated['city_id']);
+            $country = Country::findOrFail($validated['country_id']);
+            $state = CountryState::findOrFail($validated['state_id']);
+            $city = City::findOrFail($validated['city_id']);
             $location = array_intersect_key($validated, array_flip(['country_id', 'state_id', 'city_id']));
             unset($validated['country_id'], $validated['state_id'], $validated['city_id']);
             $validated['country'] = $country->name;

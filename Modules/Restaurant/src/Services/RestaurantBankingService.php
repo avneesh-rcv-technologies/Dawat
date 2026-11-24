@@ -14,6 +14,7 @@ use Modules\Restaurant\Enums\OnboardingStatus;
 use Modules\Restaurant\Enums\OnboardingStep;
 use Modules\Restaurant\Models\Restaurant;
 use Modules\Restaurant\Models\RestaurantBankingDetail;
+use Modules\Restaurant\Support\PlatformCommission;
 
 class RestaurantBankingService
 {
@@ -49,11 +50,8 @@ class RestaurantBankingService
 
     private function persist(Restaurant $restaurant, Admin $owner, array $data, bool $creating, bool $ownerSubmission = false): RestaurantBankingDetail
     {
-        if ($ownerSubmission && $restaurant->onboardingSteps()->where('step_key', OnboardingStep::BANKING->value)
-            ->value('status') === OnboardingStatus::APPROVED->value) {
-            throw ValidationException::withMessages([
-                'banking' => 'Approved banking information cannot be updated.',
-            ]);
+        if ($ownerSubmission) {
+            RestaurantOnboardingAccessService::assertStepEditable($restaurant, OnboardingStep::BANKING);
         }
 
         $banking = $restaurant->bankingDetail()->first();
@@ -64,6 +62,19 @@ class RestaurantBankingService
             throw (new \Illuminate\Database\Eloquent\ModelNotFoundException())->setModel(RestaurantBankingDetail::class);
         }
         unset($data['account_number_confirmation']);
+
+        // The commission agreement is stored on the restaurant, not on the banking record.
+        $acceptsCommission = filter_var($data[PlatformCommission::INPUT] ?? false, FILTER_VALIDATE_BOOLEAN);
+        unset($data[PlatformCommission::INPUT]);
+        $commissionChanged = false;
+        if ($ownerSubmission && PlatformCommission::isRequired()) {
+            if (!$acceptsCommission) {
+                throw ValidationException::withMessages([
+                    PlatformCommission::INPUT => 'Please agree to the platform commission to continue.',
+                ]);
+            }
+            $commissionChanged = $acceptsCommission && !PlatformCommission::acceptedCurrent($restaurant);
+        }
         $banking ??= $restaurant->bankingDetail()->make();
         $location = array_replace([
             'country_id' => $banking->country_id,
@@ -80,7 +91,8 @@ class RestaurantBankingService
         ])->validate();
         if (!$creating && $ownerSubmission) {
             $data = OnboardingChanges::changedValues($banking, $data);
-            if (!$data) OnboardingChanges::reject('banking');
+            // Agreeing to a new commission rate counts as a change on its own.
+            if (!$data && !$commissionChanged) OnboardingChanges::reject('banking');
         }
         $banking->fill($data);
         // Older installations also require the location names alongside the IDs.
@@ -91,6 +103,23 @@ class RestaurantBankingService
         }
         if (!$creating && !$ownerSubmission && !$banking->isDirty()) return $banking;
         $banking->save();
+        if ($ownerSubmission && $acceptsCommission) {
+            PlatformCommission::accept($restaurant);
+            // Capture the recorded acceptance, so later setting changes cannot change this email.
+            $acceptance = [
+                'owner_name' => $owner->name, 'restaurant_name' => $restaurant->name,
+                'commission_percentage' => (float) $restaurant->platform_commission_percentage,
+                'accepted_at' => $restaurant->platform_commission_accepted_at->format('M d, Y h:i A T'),
+            ];
+            DB::afterCommit(function () use ($owner, $restaurant, $acceptance) {
+                try {
+                    $sent = $this->notifications->trigger('Restaurant', 'RestaurantCommissionAccepted', $owner, $acceptance);
+                    if (!$sent) Log::warning('Commission acceptance email could not be queued.', ['restaurant_id' => $restaurant->id]);
+                } catch (\Throwable $e) {
+                    Log::warning('Unable to send commission acceptance email.', ['restaurant_id' => $restaurant->id, 'exception_class' => get_class($e)]);
+                }
+            });
+        }
         if (!$creating && !$ownerSubmission) {
             return $banking;
         }
@@ -108,12 +137,14 @@ class RestaurantBankingService
             app(OnboardingHistoryService::class)->detailsUpdated($restaurant, OnboardingStep::BANKING->value, 'resubmitted');
         }
 
-        DB::afterCommit(function () use ($owner, $restaurant, $creating) {
+        $submittedAt = $step->submitted_at->format('M d, Y h:i A T');
+        DB::afterCommit(function () use ($owner, $restaurant, $creating, $submittedAt) {
             try {
                 $this->notifications->trigger('Restaurant', $creating ? 'RestaurantBankingSubmitted' : 'RestaurantBankingResubmitted', $owner, [
                     'restaurant_name' => $restaurant->name,
                     'restaurant_id' => $restaurant->id,
-                    'updated_at' => now()->format('Y-m-d H:i:s'),
+                    'updated_at' => $submittedAt,
+                    'submitted_at' => $submittedAt,
                 ]);
             } catch (\Throwable $e) {
                 Log::warning('Unable to send restaurant banking notification.', ['restaurant_id' => $restaurant->id]);

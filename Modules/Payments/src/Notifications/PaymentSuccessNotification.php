@@ -65,11 +65,13 @@ class PaymentSuccessNotification implements Notification
         return [
             'customer_name' => $customer?->name ?? 'Customer',
             'customer_email' => $customer?->email ?? '',
+            'customer_id' => $customer?->id,
             'order_number' => $order?->order_number ?? 'N/A',
             'order_id' => $order?->id ?? 'N/A',
             'payment_amount' => fn_format_currency_amount($this->payment->amount, $currencyCode),
-            'payment_method' => $this->payment->method?->name ?? 'N/A',
-            'transaction_id' => $this->payment->transaction_id ?? 'N/A',
+            'payment_method' => $this->payment->method?->merchant_name ?: ($this->payment->method?->method?->name ?? 'N/A'),
+            'transaction_id' => $this->payment->transactions->firstWhere('id', (int) $this->payment->transaction_id)?->transaction_number
+                ?? $this->payment->gateway_reference ?? $this->payment->transaction_id ?? 'N/A',
             'payment_id' => $this->payment->id,
             'order_link' => config('app.url', 'https://app.local') . '/orders/' . ($order?->id ?? ''),
             'app_name' => config('app.name', 'App'),
@@ -81,6 +83,7 @@ class PaymentSuccessNotification implements Notification
         return [
             'customer_name' => 'Full name of the customer',
             'customer_email' => 'Customer email address',
+            'customer_id' => 'Customer ID',
             'order_number' => 'Order number for reference',
             'order_id' => 'Unique ID of the order',
             'payment_amount' => 'Formatted payment amount',

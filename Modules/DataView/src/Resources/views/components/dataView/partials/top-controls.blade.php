@@ -233,7 +233,7 @@
             .map(checkbox => checkbox.value))];
 
         if (selectedIds.length === 0) {
-            alert('Please select at least one item');
+            appAlert('Please select at least one item.', { tone: 'warning', title: 'Nothing selected' });
             return;
         }
 

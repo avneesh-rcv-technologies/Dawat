@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use Modules\Orders\Http\Controllers\Api\OrderController;
 use Modules\Orders\Http\Controllers\Api\OrderTrackingController;
+use Modules\Orders\Http\Controllers\Api\DeliveryChargeController;
 
 /*
 |--------------------------------------------------------------------------
@@ -14,6 +15,9 @@ use Modules\Orders\Http\Controllers\Api\OrderTrackingController;
 | contains the "api" middleware group. Now create something great!
 |
 */
+
+Route::post('api/orders/delivery-charge', DeliveryChargeController::class)
+    ->middleware(['auth:customer', 'throttle:60,1'])->name('api.orders.delivery-charge');
 
 // Public API routes for fetching orders (require authentication)
 Route::prefix('api/orders')->name('api.orders.')->middleware('auth:sanctum')->group(function () {
@@ -39,4 +43,11 @@ Route::prefix('api/cart')->name('api.cart.')->group(function () {
 // Routes available:
 // - POST /api/cart/{restaurantId}/item/{cartItemId} (update quantity)
 // - DELETE /api/cart/{restaurantId}/item/{cartItemId} (remove item)  
-// - DELETE /api/cart/{restaurantId}/remove-coupon (remove discount) 
+// - DELETE /api/cart/{restaurantId}/remove-coupon (remove discount)
+
+// Commission ledger: owners can read their restaurants; permitted staff can read all.
+Route::prefix('api/order-commissions')->middleware('auth:sanctum')->name('api.order-commissions.')
+    ->controller(\Modules\Orders\Http\Controllers\Api\OrderCommissionController::class)->group(function () {
+        Route::get('/', 'index')->name('index');
+        Route::get('/{id}', 'show')->whereNumber('id')->name('show');
+    });

@@ -24,10 +24,14 @@ class AdminEmailVerificationNotification implements Notification
 
     public function getVariables(): array
     {
-        return array_merge([
-            'app_name' => config('app.name', 'Dawat'),
-            'expires_minutes' => 60,
-        ], $this->data);
+        return array_replace($this->data, [
+            'app_name' => e(config('app.name', 'Dawat')),
+            'admin_name' => e($this->data['admin_name'] ?? 'Account owner'),
+            'verification_url' => e($this->data['verification_url'] ?? ''),
+            'expires_minutes' => (int) ($this->data['expires_minutes'] ?? 60),
+            'support_url' => route('website.contact'),
+            'current_year' => now()->year,
+        ]);
     }
 
     public function getAvailableVariables(): array
@@ -37,6 +41,8 @@ class AdminEmailVerificationNotification implements Notification
             'verification_url' => 'Expiring email verification link',
             'expires_minutes' => 'Link lifetime in minutes',
             'app_name' => 'Application name',
+            'support_url' => 'Contact support URL',
+            'current_year' => 'Current year',
         ];
     }
 

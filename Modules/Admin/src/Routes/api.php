@@ -22,7 +22,9 @@ Route::prefix('api/admin')->name('api.admin.')->group(function () {
     // Route::delete('gallery/{id}', [GalleryController::class, 'destroy'])->name('gallery.destroy');
 
     // Analytics Routes
-    Route::prefix('analytics')->name('analytics.')->group(function () {
+    // Analytics expose customer/order/payment data: admin session + role permission required
+    // (previously these routes were reachable without logging in).
+    Route::prefix('analytics')->name('analytics.')->middleware(['web', 'auth:admin', 'check.permission:admin'])->group(function () {
         Route::get('restaurant/{restaurantId}', [AnalyticsController::class, 'restaurantAnalytics'])->name('restaurant');
         Route::get('customer/{customerId}', [AnalyticsController::class, 'customerAnalytics'])->name('customer');
         Route::get('order/{orderId}', [AnalyticsController::class, 'orderAnalytics'])->name('order');

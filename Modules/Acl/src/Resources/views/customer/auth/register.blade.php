@@ -1,12 +1,12 @@
 <!DOCTYPE html>
 <html class="h-full bg-gray-50">
 <head>
+    @include('partials.favicon')
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ ucfirst('customer') }} Register</title>
-    <script src="https://code.jquery.com/jquery-3.7.1.min.js" crossorigin="anonymous"></script>
     <link rel="stylesheet" href="{{ asset('css/toast.css') }}">
-    @vite(['Modules/Backend/src/Resources/assets/css/app.css', 'Modules/Backend/src/Resources/assets/js/app.js'])
+    @vite(['resources/css/public-forms.css', 'resources/js/public-forms.js'], 'build-website')
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet">
     <style>
@@ -19,6 +19,7 @@
     </style>
 </head>
 <body class="h-full font-sans antialiased">
+    <div id="toast-container" class="toast-container"></div>
     <div class="login-bg min-h-full flex items-center justify-center p-4 sm:px-6 lg:px-8 bg-gradient-to-br from-[var(--color-primary-light)] to-[var(--color-primary-lighter)]">
         <div class="w-full max-w-lg space-y-8">
             <div class="login-form bg-[var(--color-bg)] rounded-2xl shadow-xl ">
@@ -60,5 +61,6 @@
             </div>
         </div>
     </div>
+    <script src="{{ asset('js/toast.js') }}"></script>
 </body>
 </html>

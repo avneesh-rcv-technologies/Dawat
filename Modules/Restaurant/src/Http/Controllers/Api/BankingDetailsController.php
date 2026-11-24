@@ -8,6 +8,7 @@ use Modules\Acl\Models\Admin;
 use Modules\Restaurant\Http\Requests\BankingDetailsRequest;
 use Modules\Restaurant\Models\RestaurantBankingDetail;
 use Modules\Restaurant\Services\RestaurantBankingService;
+use Modules\Restaurant\Support\PlatformCommission;
 
 class BankingDetailsController
 {
@@ -23,6 +24,7 @@ class BankingDetailsController
             'success' => true,
             'data' => $banking ? $this->bankingData($banking) : null,
             'onboarding_step' => $restaurant->onboardingSteps()->where('step_key', 'banking')->first(),
+            'platform_commission' => PlatformCommission::forRestaurant($restaurant),
         ])->header('Cache-Control', 'no-store, private');
     }
 
@@ -35,7 +37,7 @@ class BankingDetailsController
         }
 
         $message = 'Banking details submitted successfully.';
-        $response = $this->response($banking, $message, 201);
+        $response = $this->response($request, $banking, $message, 201);
         if ($request->hasSession()) {
             $request->session()->flash('banking_success', $message);
         }
@@ -48,7 +50,7 @@ class BankingDetailsController
         $banking = $this->service->save($request->user(), $request->validated(), false);
 
         $message = 'Banking details updated successfully.';
-        $response = $this->response($banking, $message);
+        $response = $this->response($request, $banking, $message);
         if ($request->hasSession()) {
             $request->session()->flash('banking_success', $message);
         }
@@ -56,11 +58,14 @@ class BankingDetailsController
         return $response;
     }
 
-    private function response(RestaurantBankingDetail $banking, string $message = 'Banking details retrieved successfully.', int $status = 200): JsonResponse
+    private function response(Request $request, RestaurantBankingDetail $banking, string $message = 'Banking details retrieved successfully.', int $status = 200): JsonResponse
     {
+        $restaurant = $this->service->forOwner($request->user());
         return response()->json([
             'success' => true, 'message' => $message,
             'data' => $this->bankingData($banking),
+            'onboarding_step' => $restaurant->onboardingSteps()->where('step_key', 'banking')->first(),
+            'platform_commission' => PlatformCommission::forRestaurant($restaurant),
         ], $status)->header('Cache-Control', 'no-store, private');
     }
 

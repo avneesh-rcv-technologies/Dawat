@@ -21,6 +21,8 @@ class UsersGrid extends DataGrid
      */
     public function prepareQueryBuilder()
     {
+        $defaultRoleId = $this->defaultRoleId();
+
         return DB::table('admins')
             ->select(
                 'id',
@@ -29,7 +31,24 @@ class UsersGrid extends DataGrid
                 'status',
                 'role_id',
                 'created_at'
-            );
+            )
+            // Hide users with the default restaurant role (General Settings → general.default_role).
+            // NULL role_id rows are kept: `role_id != x` alone would drop them in SQL.
+            ->when($defaultRoleId, function ($query) use ($defaultRoleId) {
+                $query->where(function ($q) use ($defaultRoleId) {
+                    $q->whereNull('role_id')->orWhere('role_id', '!=', $defaultRoleId);
+                });
+            });
+    }
+
+    /**
+     * Role id configured as the default restaurant role, or null when not set.
+     */
+    protected function defaultRoleId(): ?int
+    {
+        $roleId = (int) fn_get_setting('general.default_role');
+
+        return $roleId > 0 ? $roleId : null;
     }
 
     /**
@@ -103,7 +122,7 @@ class UsersGrid extends DataGrid
                 return $roles[$row->role_id] ?? 'Unknown';
             },
             'filterable_type' => 'dropdown',
-            'filterable_options' => collect($roles)->map(function ($name, $id) {
+            'filterable_options' => collect($roles)->except($this->defaultRoleId())->map(function ($name, $id) {
                 return [
                     'label' => $name,
                     'value' => $id

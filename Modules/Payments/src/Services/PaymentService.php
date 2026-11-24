@@ -4,7 +4,6 @@ namespace Modules\Payments\Services;
 
 use Modules\Orders\Models\Order;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Auth;
 use Modules\Orders\Enums\OrderStatus;
 use Modules\Payments\Models\Payments;
 use Modules\Cart\Services\CartService;
@@ -13,7 +12,7 @@ use Modules\Payments\DTO\PaymentResponse;
 use Modules\Payments\Enums\PaymentStatus;
 use Modules\Orders\Enums\TransactionStatus;
 use Modules\Orders\Services\TransactionService;
-use Modules\Activitylog\Services\ActivityLoggerService;
+use Modules\Activitylog\Services\SpatieAuditLogger;
 use Modules\Notifications\Services\NotificationService;
 
 class PaymentService
@@ -39,7 +38,7 @@ class PaymentService
             $status = $response->getNormalizedStatus();
 
             \Log::info("Handling payment response with status: {$status->value} for order ID: {$sessionData['order_id']}");
-            $order = Order::findOrFail($sessionData['order_id']);
+            $order = Order::whereKey($sessionData['order_id'])->lockForUpdate()->firstOrFail();
 
             // Trigger payment initiated notification
             \Log::info("Triggering payment initiated notification for order ID: {$sessionData['order_id']}");
@@ -68,24 +67,24 @@ class PaymentService
             ];
 
             if ($status === PaymentStatus::COMPLETED || $status === PaymentStatus::CAPTURED || $status === PaymentStatus::PAID) {
-                $updateData['status'] = OrderStatus::DELIVERED->value;
+                $updateData['status'] = $order->status;
                 $updateData['payment_status'] = PaymentStatus::PAID->value;
             } elseif ($status === PaymentStatus::AUTHORIZED) {
-                $updateData['status'] = OrderStatus::CONFIRMED->value;
+                $updateData['status'] = $order->status;
                 $updateData['payment_status'] = PaymentStatus::AUTHORIZED->value;
             } elseif ($status === PaymentStatus::REFUNDED) {
-                $updateData['status'] = OrderStatus::CANCELLED->value;
+                $updateData['status'] = OrderStatus::CANCELLED->code();
                 $updateData['payment_status'] = PaymentStatus::REFUNDED->value;
             } elseif ($status === PaymentStatus::UNPAID) {
-                $updateData['status'] = OrderStatus::PENDING->value;
+                $updateData['status'] = OrderStatus::PENDING->code();
                 $updateData['payment_status'] = PaymentStatus::UNPAID->value;
             } elseif ($status === PaymentStatus::PROCESSING) {
-                $updateData['status'] = OrderStatus::CONFIRMED->value;
+                $updateData['status'] = $order->status;
                 $updateData['payment_status'] = PaymentStatus::PROCESSING->value;
             } elseif ($status === PaymentStatus::PENDING) {
                 $updateData['payment_status'] = PaymentStatus::PENDING->value;
             } else {
-                $updateData['status'] = OrderStatus::CANCELLED->value;
+                $updateData['status'] = OrderStatus::CANCELLED->code();
                 $updateData['payment_status'] = PaymentStatus::FAILED->value;
             }
 
@@ -94,15 +93,14 @@ class PaymentService
                     ->markOrderPaymentFailed($order, 'Payment failed via ' . $response->gateway);
             } else {
                 app(\Modules\Orders\Services\OrderService::class)
-                    // The order items were already created and inventory reserved
-                    // during checkout. A payment status update must not recreate
-                    // them or decrement inventory a second time.
+                    // Preserve the order items and pricing snapshots created during checkout.
                     ->updateOrder($order, $updateData, false);
             }
 
             // Refresh order after update
             $order = Order::findOrFail($sessionData['order_id']);
         \Log::info("status value: " . $status->value . " for order ID: {$sessionData['order_id']} after order update");
+            $existingDetails = Payments::where('order_id', $order->id)->lockForUpdate()->first()?->details ?? [];
             $payment = Payments::updateOrCreate(
                 [
                     'order_id' => $order->id,
@@ -116,26 +114,31 @@ class PaymentService
                     'amount' => $response->amount,
                     'currency' => $response->currency,
                     'status' => $status->value,
-                    'details' => [
+                    'details' => array_replace($existingDetails, [
                         'status'    => $response->status,
                         'card' => $response->card,
                         'billing_address' => $response->billingAddress,
                         'shipping_address' => $response->shippingAddress,
                         'metadata' => $response->metadata,
-                    ],
+                        'payment_url' => $response->redirect_url ?: null,
+                        'receipt_url' => $response->receiptUrl,
+                    ]),
                     'ip_address'         => request()->ip() ?? '',
                     'user_agent'         => request()->userAgent() ?? '',
                 ]
             );
 
-            // Trigger payment failed notification if payment failed
             if ($response->isFailure()) {
-                $this->notificationService->trigger(
-                    'Payments',
-                    'PaymentFailed',
-                    $order->customer->email,
-                    $payment
-                );
+                DB::afterCommit(function () use ($order, $payment) {
+                    try {
+                        $order->load('customer');
+                        if ($order->customer?->email) {
+                            $this->notificationService->trigger('Payments', 'PaymentFailed', $order->customer, $payment);
+                        }
+                    } catch (\Throwable $exception) {
+                        \Illuminate\Support\Facades\Log::warning('Payment failure notification failed after commit.', ['order_id' => $order->id]);
+                    }
+                });
             }
 
             $transaction = $this->transactionService->record(
@@ -157,6 +160,7 @@ class PaymentService
                 metadata: [
                     'transaction_id' => $response->gatewayPaymentId,
                     'gateway_response' => $response->gatewayPaymentId,
+                    'payment_url' => $response->redirect_url ?: null,
                 ],
                 notes: $status->transactionNote($response->gateway)
             );
@@ -169,55 +173,21 @@ class PaymentService
             $res = $payment->fresh();
 
             if ($response->isSuccessful()) {
-                ActivityLoggerService::log(
-                    "Payment:: Successful for order #{$order['order_id']}",
-                    Auth::guard('customer')->user(),
-                    [
-                        'user_id'    => Auth::guard('customer')->id(),
-                        'order_id'   => $order['order_id'],
-                        'severity'   => 'success',
-                        'event'      => 'Payment Success',
-                    ],
-                    'customer'
-                );
-
-                $user = Auth::guard('customer')->user();
-
-                // Trigger payment success notification
-                $this->notificationService->trigger(
-                    'Payments',
-                    'PaymentSuccess',
-                    $user->email,
-                    $payment
-                );
-
-                $this->notificationService->trigger(
-                    'Cart', //module name
-                    'PaymentConfirmation', // notification class name before Notification
-                    Auth::guard('customer')->user()->email,
-                    ['payment' => $res, 'customer' => Auth::guard('customer')->user(), 'order' => $order]
-                );
-
-                $this->notificationService->trigger(
-                    'Customers', //module name
-                    'QuestionnaireSend', // notification class
-                    $user,
-                    [
-                        'customer' => $user,
-                        'order' => $order,
-                    ]
-                );
-
-                $this->notificationService->trigger(
-                    'ScoreCard', //module name
-                    'ScorecardReminder', // notification class
-                    $user,
-                    [
-                        'customer' => $user,
-                        'order' => $order,
-                    ]
-                );
+                // PaymentObserver schedules the shared PaymentSuccess receipt after commit.
+                DB::afterCommit(function () use ($order) {
+                    try {
+                        $customer = $order->customer;
+                        app(SpatieAuditLogger::class)->log(
+                            'Payment Success', "Payment successful for order #{$order->id}", $customer,
+                            ['user_id' => $customer?->id, 'order_id' => $order->id,
+                                'severity' => 'success', 'event' => 'Payment Success'], $customer
+                        );
+                    } catch (\Throwable $exception) {
+                        \Illuminate\Support\Facades\Log::warning('Payment audit failed after commit.', ['order_id' => $order->id]);
+                    }
+                });
             }
+
             return $res;
         });
     }

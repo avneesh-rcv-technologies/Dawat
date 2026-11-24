@@ -3,6 +3,7 @@
 namespace Modules\KYC\Database\Seeders;
 
 use Illuminate\Database\Seeder;
+use Modules\EmailNotification\Support\SeederEmailView;
 use Modules\Notifications\Models\NotificationChannel;
 use Modules\Notifications\Models\NotificationEvent;
 use Modules\Notifications\Models\NotificationMapping;
@@ -21,19 +22,13 @@ class KycMessageNotificationSeeder extends Seeder
         $event = NotificationEvent::updateOrCreate(
             ['event_code' => 'kyc_message'],
             [
+                'notification_class' => \Modules\KYC\Notifications\KycMessageNotification::class,
                 'event_name' => 'KYC Message',
                 'event_description' => 'Notification sent when a new message is posted on a restaurant owner KYC submission.',
             ]
         );
 
-        $emailTemplate = EmailTemplate::updateOrCreate(
-            ['name' => 'KYC Message Notification'],
-            [
-                'subject' => 'New KYC Message - {{kyc_type_name}}',
-                'content' => $this->getEmailTemplate(),
-                'status' => true,
-            ]
-        );
+        $emailTemplate = $this->seedEmailTemplate();
 
         NotificationMapping::updateOrCreate(
             ['event_id' => $event->id, 'channel_id' => $emailChannel->id],
@@ -73,17 +68,29 @@ class KycMessageNotificationSeeder extends Seeder
         $this->command->info('KYC message notification seeded successfully.');
     }
 
-    protected function getEmailTemplate(): string
+    public function seedEmailTemplate(): EmailTemplate
     {
-        return <<<HTML
-<h1 style="margin:0 0 20px;font-size:20px;font-weight:700;color:#111827;">New KYC Message</h1>
-<div style="font-size:15px;line-height:1.6;color:#374151;">
-    <p style="margin:0 0 16px;">Hello {{owner_name}},</p>
-    <p style="margin:0 0 20px;">You have received a new message regarding your <strong>{{kyc_type_name}}</strong> KYC submission.</p>
-    <div style="margin:0 0 24px;padding:18px 20px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;color:#111827;">
-        {{message_content}}
-    </div>
-</div>
-HTML;
+        return EmailTemplate::updateOrCreate(['name' => 'KYC Message Notification', 'locale' => 'en'], [
+            'subject' => 'New KYC message — Dawat',
+            'content' => SeederEmailView::make('kyc::emails.notification', [
+                'kind' => 'message',
+                'heading' => 'A new message for you',
+                'badge' => 'NEW KYC MESSAGE',
+                'ownerName' => '{{owner_name}}',
+                'intro' => 'A new message has been posted about your KYC document. Read it below and log in to reply.',
+                'detailsHeading' => 'MESSAGE DETAILS',
+                'rows' => ['Document' => '{{kyc_type_name}}', 'Sent on' => '{{sent_at}}'],
+                'feedbackHtml' => '{{status_feedback_html}}',
+                'contentLabel' => 'Message',
+                'contentText' => '{{message_content}}',
+                'instructions' => 'Log in to your restaurant account to read the conversation and reply to the review team.',
+                'loginUrl' => '{{login_url}}',
+                'submissionUrl' => '{{submission_url}}',
+                'supportUrl' => '{{support_url}}',
+                'currentYear' => '{{current_year}}',
+            ])->render(),
+            'status' => true,
+            'locale' => 'en',
+        ]);
     }
 }

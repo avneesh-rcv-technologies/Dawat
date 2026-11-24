@@ -85,7 +85,8 @@ class CustomerService
 
     public function getCustomerView(int $id)
     {
-        $customer = $this->customerRepository->getCustomerView($id);
+        $restaurantId = app(\Modules\Restaurant\Services\RestaurantDataScope::class)->restaurantId();
+        $customer = $this->customerRepository->getCustomerView($id, $restaurantId);
         
         if (!$customer) {
             throw new \Exception('Customer not found');
@@ -95,7 +96,7 @@ class CustomerService
         $analyticsService = app(\Modules\Admin\Services\AnalyticsService::class);
         $dateFrom = request()->input('date_from');
         $dateTo = request()->input('date_to');
-        $analytics = $analyticsService->getCustomerAnalytics($id, $dateFrom, $dateTo);
+        $analytics = $analyticsService->getCustomerAnalytics($id, $dateFrom, $dateTo, $restaurantId);
 
         return compact('customer', 'analytics', 'dateFrom', 'dateTo');
     }

@@ -2,93 +2,95 @@
 
 namespace Modules\Acl\Services;
 
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Modules\Acl\Models\Customer;
+use Modules\Cart\Services\CartDeliveryService;
+use Modules\Checkout\Services\CheckoutCacheService;
+use Modules\Orders\Services\DeliveryCoordinatesService;
 use Modules\Countries\Models\Address;
 
 class CustomerAddressService
 {
-    /**
-     * Get all addresses for a customer
-     */
+    public function __construct(private CartDeliveryService $delivery, private DeliveryCoordinatesService $coordinates) {}
+
     public function getCustomerAddresses(Customer $customer)
     {
-        return $customer->addresses()
-            ->with(['country', 'state', 'city'])
-            ->orderByDesc('is_default')
-            ->orderByDesc('created_at')
-            ->get();
+        return $customer->addresses()->with(['country', 'state', 'city'])->orderByDesc('is_default')->latest()->get();
     }
 
-    /**
-     * Create a new address for customer
-     */
     public function createAddress(Customer $customer, array $data): Address
     {
-        $isDefault = $data['is_default'] ?? false || 
-                     $customer->addresses()->count() === 0;
-
-        if ($isDefault) {
-            $customer->addresses()->update(['is_default' => false]);
-        }
-
-        return $customer->addresses()->create([
-            'address_type' => $data['address_type'] ?? 'home',
-            'address_line_1' => $data['address_line_1'],
-            'address_line_2' => $data['address_line_2'] ?? null,
-            'city_id' => $data['city_id'],
-            'state_id' => $data['state_id'],
-            'country_id' => $data['country_id'],
-            'zip_code' => $data['zip_code'],
-            'latitude' => $data['latitude'] ?? null,
-            'longitude' => $data['longitude'] ?? null,
-            'is_default' => $isDefault,
-        ]);
+        return $this->save($customer, ['address_type' => 'home', ...$data])['address'];
     }
 
-    /**
-     * Update an address
-     */
     public function updateAddress(Address $address, array $data): Address
     {
-        if (isset($data['is_default']) && $data['is_default'] && !$address->is_default) {
-            $address->customer->addresses()->update(['is_default' => false]);
-        }
-
-        $address->update($data);
-        return $address;
+        return $this->save($address->addressable, $data, $address->id)['address'];
     }
 
-    /**
-     * Delete an address
-     */
     public function deleteAddress(Address $address): bool
     {
-        $customer = $address->addressable;
-
-        if ($customer->addresses()->count() === 1) {
-            throw new \Exception('Cannot delete the only address');
-        }
-
-        if ($address->is_default) {
-            $nextAddress = $customer->addresses()
-                ->where('id', '!=', $address->id)
-                ->first();
-            if ($nextAddress) {
-                $nextAddress->update(['is_default' => true]);
-            }
-        }
-
-        return $address->delete();
+        $this->delete($address->addressable, $address->id);
+        return true;
     }
 
-    /**
-     * Set address as default
-     */
     public function setDefaultAddress(Address $address): Address
     {
-        $customer = $address->addressable;
-        $customer->addresses()->update(['is_default' => false]);
-        $address->update(['is_default' => true]);
-        return $address;
+        return $this->save($address->addressable, ['is_default' => true], $address->id)['address'];
+    }
+
+    public function save(Customer $customer, array $data, ?int $id = null): array
+    {
+        return DB::transaction(function () use ($customer, $data, $id) {
+            Customer::whereKey($customer->id)->lockForUpdate()->firstOrFail();
+            $address = $id === null ? $customer->addresses()->make() : $customer->addresses()->lockForUpdate()->findOrFail($id);
+            $address->fill($data);
+            // An edit can resubmit unchanged text to refresh an old location.
+            $addressFieldsProvided = array_intersect_key($data, array_flip([
+                'address_line_1', 'address_line_2', 'city_id', 'state_id', 'country_id', 'zip_code', 'city_name',
+            ])) !== [];
+            $providedCoordinates = isset($data['latitude'], $data['longitude']);
+            $this->coordinates->address($address, $addressFieldsProvided && !$providedCoordinates);
+            $address->is_default = $address->is_default || !$customer->addresses()->where('id', '!=', $id ?? 0)->exists();
+            if ($address->is_default) {
+                $customer->addresses()->where('id', '!=', $id ?? 0)->update(['is_default' => false]);
+            }
+            $address->save();
+            $carts = $this->delivery->refreshCustomer($customer,
+                $address->is_default ? $address->id : null, $address->is_default ? null : $address->id);
+            $this->forgetAddresses($customer);
+
+            return ['address' => $address->load(['country', 'state', 'city']), 'carts' => $carts];
+        });
+    }
+
+    public function delete(Customer $customer, int $id): array
+    {
+        return DB::transaction(function () use ($customer, $id) {
+            Customer::whereKey($customer->id)->lockForUpdate()->firstOrFail();
+            $address = $customer->addresses()->lockForUpdate()->findOrFail($id);
+            $wasDefault = $address->is_default;
+            $address->delete();
+            $next = $customer->addresses()->orderByDesc('is_default')->orderBy('id')->first();
+            if ($wasDefault && $next) $next->update(['is_default' => true]);
+            // Unbind deleted destinations; recalculation selects the remaining default, if any.
+            $customer->ownedCarts()->where('delivery_address_id', $id)->update(['delivery_address_id' => null]);
+            $carts = $this->delivery->refreshCustomer($customer);
+            $this->forgetAddresses($customer);
+
+            return $carts;
+        });
+    }
+
+    private function forgetAddresses(Customer $customer): void
+    {
+        DB::afterCommit(function () use ($customer) {
+            try {
+                app(CheckoutCacheService::class)->forgetCustomerAddresses($customer->id);
+            } catch (\Throwable $e) {
+                Log::warning('Customer address cache invalidation failed.', ['customer_id' => $customer->id, 'exception_class' => get_class($e)]);
+            }
+        });
     }
 }

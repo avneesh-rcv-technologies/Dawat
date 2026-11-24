@@ -17,8 +17,10 @@ class OnboardingRefillRequestedNotification extends RestaurantBankingSubmittedNo
             'step_name' => e($this->data['step_name'] ?? 'Onboarding'),
             'document_name' => e($this->data['document_name'] ?? 'All details in this step'),
             'reason' => e($this->data['reason'] ?? ''),
-            'requested_at' => e($this->data['requested_at'] ?? now()->format('M d, Y h:i A')),
+            'requested_at' => e($this->data['requested_at'] ?? 'Not recorded'),
             'correction_url' => e($this->data['correction_url'] ?? route('restaurant.onboarding.kyc')),
+            'login_url' => route('website.partner-login'),
+            'support_url' => route('website.contact'),
             'app_name' => e(config('app.name', 'Dawat')),
             'current_year' => now()->year,
         ];
@@ -31,6 +33,7 @@ class OnboardingRefillRequestedNotification extends RestaurantBankingSubmittedNo
             'owner_name' => 'Restaurant owner name', 'step_name' => 'Onboarding step requiring a refill',
             'document_name' => 'Document or details to update', 'reason' => 'Reason and required corrections',
             'requested_at' => 'Time the refill was requested', 'correction_url' => 'Link to update the requested onboarding step',
+            'login_url' => 'Restaurant partner login URL', 'support_url' => 'Contact support URL',
             'app_name' => 'Application name', 'current_year' => 'Current year',
         ];
     }

@@ -9,7 +9,6 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification as LaravelNotification;
 use Modules\Notifications\Models\NotificationLog;
 use Modules\Notifications\Models\Notification;
-use Modules\Activitylog\Exceptions\ApiExceptionHandler;
 use Modules\Notifications\Contracts\NotificationChannel;
 use Modules\WebPushNotification\Models\WebPushSubscription;
 use Modules\WebPushNotification\Models\NotificationTemplate;
@@ -217,7 +216,7 @@ class WebPushChannel implements NotificationChannel
                         )->onQueue('push_notifications');
                     } catch (\Exception $e) {
 
-                        ApiExceptionHandler::handle($e);
+                        Log::warning('Push notification could not be queued.', ['exception_type' => get_class($e)]);
                         NotificationLog::create([
                             'event_code' => $notification->getEventCode(),
                             'channel_name' => $this->getName(),
@@ -227,10 +226,16 @@ class WebPushChannel implements NotificationChannel
                             'error_message' => $e->getMessage(),
                             'config' => json_encode($this->config)
                         ]);
+                        if ($notification instanceof \Modules\Payments\Notifications\PaymentSuccessNotification) {
+                            throw $e;
+                        }
                     }
                 }
             } catch (\Throwable $e) {
-                ApiExceptionHandler::handle($e);
+                Log::warning('Push notification delivery failed.', ['exception_type' => get_class($e)]);
+                if ($notification instanceof \Modules\Payments\Notifications\PaymentSuccessNotification) {
+                    throw $e;
+                }
             }
         }
     }

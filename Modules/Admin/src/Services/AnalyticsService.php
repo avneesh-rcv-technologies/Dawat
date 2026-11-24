@@ -2,6 +2,7 @@
 
 namespace Modules\Admin\Services;
 
+use Modules\Restaurant\Services\RestaurantDataScope;
 use Illuminate\Support\Facades\DB;
 use Modules\Restaurant\Models\Restaurant;
 use Modules\Acl\Models\Customer;
@@ -82,15 +83,15 @@ class AnalyticsService
         $pendingOrders = (clone $ordersQuery)->whereIn('status', ['W', 'O', 'P', 'H', 'Z', 'N'])->count();
 
         $paidOrdersQuery = (clone $ordersQuery)->where('payment_status', Order::PAYMENT_PAID);
-        $paidOrdersCount = (clone $paidOrdersQuery)->count();
 
-        // Revenue analytics
-        $totalRevenue = (clone $paidOrdersQuery)->sum('total');
-        $averageOrderValue = $paidOrdersCount > 0 ? $totalRevenue / $paidOrdersCount : 0;
+        $scope = app(RestaurantDataScope::class);
+        $commissionAnalytics = app(\Modules\Orders\Services\CommissionRevenueAnalytics::class)
+            ->forOrders($ordersQuery, $scope->isScoped());
 
         // Payment analytics
         $totalPayments = (clone $ordersQuery)->where('payment_status', Order::PAYMENT_PAID)->sum('total');
-        $pendingPayments = (clone $ordersQuery)->where('payment_status', Order::PAYMENT_PENDING)->sum('total');
+        $pendingPayments = (clone $ordersQuery)->where('payment_status', Order::PAYMENT_PENDING)
+            ->whereNotIn('status', [Order::STATUS_CANCELLED, Order::STATUS_FAILED])->sum('total');
         $failedPayments = (clone $ordersQuery)->where('payment_status', Order::PAYMENT_FAILED)->count();
 
         // Transaction analytics
@@ -135,8 +136,7 @@ class AnalyticsService
         $orderTypeBreakdown = (clone $ordersQuery)
             ->select(
                 'order_type',
-                DB::raw('COUNT(*) as count'),
-                DB::raw('SUM(CASE WHEN payment_status = "' . Order::PAYMENT_PAID . '" THEN total ELSE 0 END) as revenue')
+                DB::raw('COUNT(*) as count')
             )
             ->groupBy('order_type')
             ->get()
@@ -144,23 +144,8 @@ class AnalyticsService
                 return [
                     $item->order_type => [
                         'count' => $item->count,
-                        'revenue' => $item->revenue,
+                        'revenue' => 0,
                         'name' => ucfirst(str_replace('_', ' ', $item->order_type))
-                    ]
-                ];
-            });
-
-        // Payment method breakdown
-        $paymentMethodBreakdown = (clone $paidOrdersQuery)
-            ->select('payment_method', DB::raw('COUNT(*) as count'), DB::raw('SUM(total) as revenue'))
-            ->groupBy('payment_method')
-            ->get()
-            ->mapWithKeys(function($item) {
-                return [
-                    $item->payment_method => [
-                        'count' => $item->count,
-                        'revenue' => $item->revenue,
-                        'name' => $this->resolvePaymentMethodName($item->payment_method)
                     ]
                 ];
             });
@@ -170,8 +155,7 @@ class AnalyticsService
             ->select(
                 DB::raw('DATE(created_at) as date'),
                 DB::raw('COUNT(*) as total_orders'),
-                DB::raw('SUM(CASE WHEN status = "D" THEN 1 ELSE 0 END) as completed_orders'),
-                DB::raw('SUM(CASE WHEN payment_status = "' . Order::PAYMENT_PAID . '" THEN total ELSE 0 END) as revenue')
+                DB::raw('SUM(CASE WHEN status = "D" THEN 1 ELSE 0 END) as completed_orders')
             )
             ->groupBy('date')
             ->orderBy('date', 'desc')
@@ -179,6 +163,17 @@ class AnalyticsService
             ->get()
             ->reverse()
             ->values();
+
+        $dailyTrend->each(function ($day) use ($commissionAnalytics) {
+            $day->revenue = $commissionAnalytics['by_date']->get($day->date)['revenue'] ?? 0;
+        });
+        $orderTypeBreakdown = $orderTypeBreakdown->map(function ($item, $key) use ($commissionAnalytics) {
+            $item['revenue'] = $commissionAnalytics['by_type']->get($key)['revenue'] ?? 0;
+            return $item;
+        });
+        $paymentMethodBreakdown = $commissionAnalytics['by_method']->map(function ($item, $key) {
+            return $item + ['name' => $this->resolvePaymentMethodName($key)];
+        });
 
         // Peak hours analysis
         $peakHours = (clone $ordersQuery)
@@ -191,20 +186,20 @@ class AnalyticsService
 
         // Busiest days of week
         $busiestDays = (clone $ordersQuery)
-            ->select(DB::raw('DAYNAME(created_at) as day'), DB::raw('COUNT(*) as count'), DB::raw('SUM(CASE WHEN payment_status = "' . Order::PAYMENT_PAID . '" THEN total ELSE 0 END) as revenue'))
+            ->select(DB::raw('DAYNAME(created_at) as day'), DB::raw('COUNT(*) as count'))
             ->groupBy('day')
             ->orderByDesc('count')
             ->get();
+
+        $busiestDays->each(function ($day) use ($commissionAnalytics) {
+            $day->revenue = $commissionAnalytics['by_date']->filter(fn ($row, $date) => Carbon::parse($date)->format('l') === $day->day)->sum('revenue');
+        });
 
         // Average order processing time (using updated_at as completion time for delivered orders)
         $avgProcessingTime = (clone $ordersQuery)
             ->where('status', 'D')
             ->selectRaw('AVG(TIMESTAMPDIFF(MINUTE, created_at, updated_at)) as avg_minutes')
             ->value('avg_minutes') ?? 0;
-
-        // Highest order value
-        $highestOrder = (clone $paidOrdersQuery)->max('total') ?? 0;
-        $lowestOrder = (clone $paidOrdersQuery)->min('total') ?? 0;
 
         // Top customers
         $topCustomers = (clone $ordersQuery)
@@ -299,17 +294,7 @@ class AnalyticsService
                 'busiest_days' => $busiestDays,
                 'avg_processing_time' => round($avgProcessingTime, 1),
             ],
-            'revenue' => [
-                'total' => round($totalRevenue, 2),
-                'total_formatted' => $this->formatAnalyticsCurrency((float) $totalRevenue),
-                'average_order_value' => round($averageOrderValue, 2),
-                'average_order_value_formatted' => $this->formatAnalyticsCurrency((float) $averageOrderValue),
-                'highest_order' => round($highestOrder, 2),
-                'highest_order_formatted' => $this->formatAnalyticsCurrency((float) $highestOrder),
-                'lowest_order' => round($lowestOrder, 2),
-                'lowest_order_formatted' => $this->formatAnalyticsCurrency((float) $lowestOrder),
-                'currency' => fn_get_setting('general.currency', 'USD'),
-            ],
+            'revenue' => $commissionAnalytics['revenue'],
             'payments' => [
                 'total_collected' => round($totalPayments, 2),
                 'total_collected_formatted' => $this->formatAnalyticsCurrency((float) $totalPayments),
@@ -345,7 +330,11 @@ class AnalyticsService
     /**
      * Get customer analytics with related data
      */
-    public function getCustomerAnalytics($customerId, $dateFrom = null, $dateTo = null)
+    /**
+     * @param int|null $restaurantId When set (restaurant owner), only orders/transactions/revenue
+     *                               of that restaurant are counted. Null = platform-wide.
+     */
+    public function getCustomerAnalytics($customerId, $dateFrom = null, $dateTo = null, ?int $restaurantId = null)
     {
         $customer = Customer::findOrFail($customerId);
 
@@ -355,6 +344,7 @@ class AnalyticsService
         // Orders analytics
         $ordersQuery = Order::where('customer_type', Customer::class)
             ->where('customer_id', $customerId);
+        app(RestaurantDataScope::class)->scopeOrders($ordersQuery, $restaurantId);
 
         if ($dateFrom && $dateTo) {
             $ordersQuery->whereBetween('created_at', [$dateFrom, $dateTo]);
@@ -465,8 +455,9 @@ class AnalyticsService
             });
 
         // Transaction history
-        $transactions = Transaction::whereHas('order', function($q) use ($customerId) {
+        $transactions = Transaction::whereHas('order', function($q) use ($customerId, $restaurantId) {
             $q->where('customer_type', Customer::class)->where('customer_id', $customerId);
+            app(RestaurantDataScope::class)->scopeOrders($q, $restaurantId);
         })
         ->with('order')
         ->orderByDesc('created_at')

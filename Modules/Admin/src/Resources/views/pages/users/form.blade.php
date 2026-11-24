@@ -26,10 +26,12 @@
         
         <!-- Role Field -->
         <div class="col-span-1">
-            <label for="role_id" class="custom-label required">Role</label>
-            <select name="role_id" id="role_id" class="input-field" required>
-                <option value="">Select Role</option>
+            <label for="role_id" class="custom-label">Role</label>
+            <select name="role_id" id="role_id" class="input-field">
+                <option value="">No role</option>
                 @foreach (fn_get_usergroups(['guard' => 'admin']) as $role)
+                    {{-- Hide the Default Restaurant Role, unless the edited user already has it --}}
+                    @continue(!empty($excludedRoleId) && $role->id == $excludedRoleId && !(isset($user) && $user->role_id == $role->id))
                     <option value="{{ $role->id }}" data-guard="{{ $role->guard }}"
                         @isset($user) @if ($user->role_id == $role->id) selected @endif @endisset
                         @if (old('role_id') == $role->id) selected @endif>

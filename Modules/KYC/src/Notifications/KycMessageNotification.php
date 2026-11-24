@@ -10,6 +10,8 @@ use Modules\KYC\Models\KycMessage;
 
 class KycMessageNotification extends Notification implements NotificationContract
 {
+    use \Modules\KYC\Notifications\Concerns\BuildsKycEmailVariables;
+
     protected $data;
     protected $submission;
     protected $message;
@@ -38,16 +40,14 @@ class KycMessageNotification extends Notification implements NotificationContrac
      */
     public function getVariables(): array
     {
-        $recipientName = $this->submission->user->name ?? $this->submission->restaurant_owner->name ?? $this->data['owner_name'] ?? 'Restaurant Owner';
+        $recipientName = $this->submission?->user?->name ?? $this->data['owner_name'] ?? 'Restaurant Owner';
         $messageContent = $this->message->message ?? $this->data['message_content'] ?? '';
         $kycTypeName = $this->submission->kycType->name ?? $this->data['kyc_type_name'] ?? 'KYC Document';
-        $submissionUrl = $this->data['submission_url'] ?? url('/restaurant/kyc/history');
-
-        return [
-            'owner_name' => $recipientName,
-            'message_content' => $messageContent,
-            'kyc_type_name' => $kycTypeName,
-            'submission_url' => $submissionUrl,
+        return $this->kycEmailVariables() + [
+            'owner_name' => e($recipientName),
+            'message_content' => e($messageContent),
+            'kyc_type_name' => e($kycTypeName),
+            'sent_at' => e($this->data['sent_at'] ?? $this->message?->created_at?->format('M d, Y h:i A T') ?? 'Not recorded'),
         ];
     }
 
@@ -79,7 +79,8 @@ class KycMessageNotification extends Notification implements NotificationContrac
             'message_content' => 'Message Content',
             'kyc_type_name' => 'KYC Type Name',
             'submission_url' => 'Submission URL',
-        ];
+            'sent_at' => 'Recorded message time',
+        ] + $this->kycEmailAvailableVariables();
     }
 
     /**
@@ -115,7 +116,7 @@ class KycMessageNotification extends Notification implements NotificationContrac
             ->subject('New Message regarding your KYC Submission')
             ->line('You have received a new message from the admin:')
             ->line('"' . $this->message->message . '"')
-            ->action('View Message', url('/restaurant/kyc/history'))
+            ->action('View Message', route('restaurant.onboarding.kyc', ['step' => 'kyc']))
             ->line('Please log in to reply.');
     }
 }

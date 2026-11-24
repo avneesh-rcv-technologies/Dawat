@@ -44,6 +44,14 @@
         </div>
     </div>
     <div class="flex justify-between py-3 mt-2 border-t border-gray-100">
+        <span class="text-gray-600">Delivery fee</span>
+        <span class="text-gray-800 font-medium">{{ fn_convert_currency($order_summary['delivery_fee'] ?? 0, $currency) }}</span>
+    </div>
+    <div class="flex justify-between py-2">
+        <span class="text-gray-600">Service charge</span>
+        <span class="text-gray-800 font-medium">{{ fn_convert_currency($order_summary['service_charge'] ?? 0, $currency) }}</span>
+    </div>
+    <div class="flex justify-between py-3 mt-2 border-t border-gray-100">
         <span class="text-gray-800 font-semibold">Total</span>
         <span
             class="text-gray-800 font-bold text-lg">{{ !empty($order_summary['total']) ? fn_convert_currency($order_summary['total'] ?? 0, $currency) : 0 }}</span>

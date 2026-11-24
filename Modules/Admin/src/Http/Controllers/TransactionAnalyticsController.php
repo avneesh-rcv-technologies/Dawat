@@ -4,6 +4,7 @@ namespace Modules\Admin\Http\Controllers;
 
 use Illuminate\Routing\Controller;
 use Modules\Admin\Services\AnalyticsService;
+use Modules\Restaurant\Services\RestaurantDataScope;
 use Modules\Orders\Models\Transaction;
 
 class TransactionAnalyticsController extends Controller
@@ -20,6 +21,7 @@ class TransactionAnalyticsController extends Controller
      */
     public function show($transactionId)
     {
+        abort_unless(app(RestaurantDataScope::class)->canAccessTransaction($transactionId), 404);
         $transaction = Transaction::with(['order.customer', 'order.vendor', 'payment'])->findOrFail($transactionId);
         
         $analytics = $this->analyticsService->getTransactionAnalytics($transactionId);

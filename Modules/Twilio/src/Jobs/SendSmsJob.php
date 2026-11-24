@@ -16,7 +16,7 @@ use Modules\Twilio\Services\TwilioService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Modules\Activitylog\Exceptions\ApiExceptionHandler;
-use Modules\Activitylog\Services\ActivityLoggerService;
+use Modules\Activitylog\Services\SpatieAuditLogger;
 use Modules\Notifications\Services\NotificationService;
 
 class SendSmsJob implements ShouldQueue
@@ -41,7 +41,8 @@ class SendSmsJob implements ShouldQueue
     {
         $phoneNumber = PhoneNumber::find($this->phoneNumberId);
         if (!$phoneNumber) {
-            ActivityLoggerService::log(
+            app(SpatieAuditLogger::class)->log(
+                'twilio_phone_number_not_found',
                 'Twilio Phone Number Not Found',
                 Auth::guard('admin')->user(),
                 [
@@ -53,7 +54,7 @@ class SendSmsJob implements ShouldQueue
                     'event'      => 'twilio_phone_number_not_found',
                     'severity'   => 'critical',
                 ],
-                'admin'
+                Auth::guard('admin')->user()
             );
             return;
         }
@@ -81,7 +82,8 @@ class SendSmsJob implements ShouldQueue
         // Perform the external network call outside of any DB transaction
         try {
             $twilio = app(TwilioService::class);
-            ActivityLoggerService::log(
+            app(SpatieAuditLogger::class)->log(
+                'twilio_message_send',
                 'Twilio Message Send',
                 Auth::guard('admin')->user(),
                 [
@@ -93,7 +95,7 @@ class SendSmsJob implements ShouldQueue
                     'event'      => 'twilio_message_send',
                     'severity'   => 'critical',
                 ],
-                'admin'
+                Auth::guard('admin')->user()
             );
             $response = $twilio->sendMessage($phoneNumber->phone_number, $this->message);
 
@@ -132,7 +134,8 @@ class SendSmsJob implements ShouldQueue
 
 
 
-                ActivityLoggerService::log(
+                app(SpatieAuditLogger::class)->log(
+                    'twilio_message_sent',
                     'Twilio Message Sent',
                     Auth::guard('admin')->user(),
                     [
@@ -144,7 +147,7 @@ class SendSmsJob implements ShouldQueue
                         'event'      => 'twilio_message_sent',
                         'severity'   => 'info',
                     ],
-                    'admin'
+                    Auth::guard('admin')->user()
                 );
 
                 // Update phone number summary fields atomically
@@ -194,7 +197,8 @@ class SendSmsJob implements ShouldQueue
                         ]);
                     }
 
-                    ActivityLoggerService::log(
+                    app(SpatieAuditLogger::class)->log(
+                        'twilio_message_failed',
                         'Twilio Message Failed',
                         Auth::guard('admin')->user(),
                         [
@@ -206,7 +210,7 @@ class SendSmsJob implements ShouldQueue
                             'event'      => 'twilio_message_failed',
                             'severity'   => 'critical',
                         ],
-                        'admin'
+                        Auth::guard('admin')->user()
                     );
                     $phoneNumber->update(['status' => 'failed']);
 

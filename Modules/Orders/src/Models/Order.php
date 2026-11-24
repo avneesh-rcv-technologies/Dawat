@@ -3,16 +3,17 @@
 namespace Modules\Orders\Models;
 
 use App\Models\User;
-use Illuminate\Support\Facades\Log;
-use Modules\Acl\Models\Customer;
-use Modules\Orders\Enums\OrderStatus;
-use Modules\Orders\Models\OrderItem;
-use Modules\Payments\Enums\PaymentStatus;
-use Modules\Restaurant\Models\Restaurant;
-use Modules\Payments\Models\Payments;
-use Illuminate\Database\Eloquent\Model;
-use Modules\Orders\Enums\TransactionStatus;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Modules\Acl\Models\Admin;
+use Modules\Acl\Models\Customer;
+use Modules\Orders\Enums\TransactionStatus;
+use Modules\Payments\Enums\PaymentStatus;
+use Modules\Payments\Models\PaymentConfiguration;
+use Modules\Payments\Models\Payments;
+use Modules\Payments\Models\Refund;
+use Modules\Restaurant\Models\Restaurant;
 
 class Order extends Model
 {
@@ -21,6 +22,8 @@ class Order extends Model
     protected $table = 'orders';
 
     protected $fillable = [
+        'event_guest_count', 'delivery_distance_miles', 'estimated_delivery_minutes',
+        'is_tax_inclusive', 'tax_breakdown', 'discount_breakdown', 'delivery_policy_snapshot',
         'customer_type',
         'customer_id',
         'vendor_type',
@@ -44,6 +47,7 @@ class Order extends Model
         'payment_status',
         'delivery_address',
         'billing_address',
+        'preferred_delivery_date',
         'estimated_delivery_time',
         'actual_delivery_time',
         'delivery_instructions',
@@ -54,12 +58,15 @@ class Order extends Model
     ];
 
     protected $casts = [
+        'event_guest_count' => 'integer', 'delivery_distance_miles' => 'decimal:4',
+        'estimated_delivery_minutes' => 'integer', 'is_tax_inclusive' => 'boolean',
+        'tax_breakdown' => 'array', 'discount_breakdown' => 'array', 'delivery_policy_snapshot' => 'array',
         'delivery_address' => 'array',
         'billing_address' => 'array',
+        'preferred_delivery_date' => 'datetime',
         'estimated_delivery_time' => 'datetime',
         'actual_delivery_time' => 'datetime',
         'cancelled_at' => 'datetime',
-        'stock_restored_at' => 'datetime',
         'subtotal' => 'decimal:2',
         'discount' => 'decimal:2',
         'tax' => 'decimal:2',
@@ -73,36 +80,62 @@ class Order extends Model
     // Z = Ready, N = Out for Delivery, D = Delivered, C = Cancelled,
     // F = Failed, R = Refunded
     const STATUS_NEW = 'O';                  // Order Received
+
     const STATUS_PENDING = 'W';              // Pending
+
     const STATUS_ACCEPTED = 'P';             // Order Accepted
+
     const STATUS_PROCESSING = 'H';           // Preparing
+
     const STATUS_READY = 'Z';               // Ready
+
     const STATUS_OUT_FOR_DELIVERY = 'N';    // Out for Delivery
+
     const STATUS_DELIVERED = 'D';            // Delivered
+
     const STATUS_CANCELLED = 'C';            // Cancelled
+
     const STATUS_FAILED = 'F';               // Failed
+
     const STATUS_REFUNDED = 'R';             // Refunded
 
     // Backward compatibility aliases for older code references
     const STATUS_INCOMPLETE = 'O';          // Legacy alias for Order Received
+
     const STATUS_COMPLETED = 'D';            // Legacy alias for Delivered
 
     // Order Type Constants
     const TYPE_DELIVERY = 'delivery';
+
     const TYPE_TAKEAWAY = 'takeaway';
+
     const TYPE_DINE_IN = 'dine_in';
 
     // Payment Status Constants
     const PAYMENT_PENDING = 'pending';
+
     const PAYMENT_PAID = 'paid';
+
     const PAYMENT_FAILED = 'failed';
+
     const PAYMENT_REFUNDED = 'refunded';
 
     // Created By Constants
     const CREATED_BY_CUSTOMER = 'customer';
+
     const CREATED_BY_VENDOR = 'vendor';
 
     /* ================= Relationships ================= */
+
+    public function refunds()
+    {
+        return $this->hasMany(Refund::class);
+    }
+
+    public function commission()
+    {
+        return $this->hasOne(OrderCommission::class);
+    }
 
     /**
      * Polymorphic relationship to customer (can be User or Customer)
@@ -127,6 +160,7 @@ class Order extends Model
 
     /**
      * Legacy relationship for backward compatibility
+     *
      * @deprecated Use vendor() instead
      */
     public function restaurant()
@@ -141,7 +175,7 @@ class Order extends Model
 
     public function admin()
     {
-        return $this->belongsTo(\Modules\Acl\Models\Admin::class);
+        return $this->belongsTo(Admin::class);
     }
 
     public function statusRelation()
@@ -170,7 +204,6 @@ class Order extends Model
         return $this->hasMany(Transaction::class);
     }
 
-
     /* ================= Scopes ================= */
 
     public function scopeByStatus($query, $status)
@@ -190,6 +223,7 @@ class Order extends Model
 
     /**
      * Legacy scope for backward compatibility
+     *
      * @deprecated Use scopeByVendor() instead
      */
     public function scopeByRestaurant($query, $restaurantId)
@@ -212,6 +246,7 @@ class Order extends Model
     public function getFormattedStatusAttribute()
     {
         $status = fn_get_order_status($this->status, 'O');
+
         return $status ? $status->name : ucfirst($this->status);
     }
 
@@ -222,12 +257,26 @@ class Order extends Model
 
     public function isCashOnDelivery(): bool
     {
-        return in_array(strtolower($this->payment_method), ['cash_on_delivery', 'cod', 'cash']);
+        if (in_array(strtolower((string) $this->payment_method), ['cash_on_delivery', 'cod', 'cash'], true)) {
+            return true;
+        }
+        if (! is_numeric($this->payment_method)) {
+            return false;
+        }
+        $method = $this->paymentConfiguration?->method;
+
+        return in_array(strtolower((string) $method?->code), ['cash_on_delivery', 'cod', 'cash'], true)
+            || str_contains(strtolower((string) $method?->name), 'cash on delivery');
+    }
+
+    public function paymentConfiguration()
+    {
+        return $this->belongsTo(PaymentConfiguration::class, 'payment_method');
     }
 
     public function isOnlinePayment(): bool
     {
-        return !$this->isCashOnDelivery();
+        return ! $this->isCashOnDelivery();
     }
 
     public function getPaymentMethodTypeAttribute(): string
@@ -245,39 +294,38 @@ class Order extends Model
 
     public function getPaymentMethodNameAttribute()
     {
-        $methods = [
-            1 => 'Cash on Delivery',
-            2 => 'Online'
-        ];
+        if (is_numeric($this->payment_method)) {
+            return $this->paymentConfiguration?->merchant_name ?: ($this->paymentConfiguration?->method?->name ?: 'Unknown');
+        }
 
-        return $methods[$this->payment_method] ?? 'unknown';
+        return $this->isCashOnDelivery() ? 'Cash on Delivery' : ucwords(str_replace('_', ' ', (string) ($this->payment_method ?: 'Unknown')));
     }
 
     protected function formatAddress(array $address): string
     {
         $formatted = [];
 
-        if (!empty($address['customer']['name'])) {
+        if (! empty($address['customer']['name'])) {
             $formatted[] = $address['customer']['name'];
         }
 
-        if (!empty($address['address_line1'])) {
+        if (! empty($address['address_line1'])) {
             $formatted[] = $address['address_line1'];
         }
 
-        if (!empty($address['address_line2'])) {
+        if (! empty($address['address_line2'])) {
             $formatted[] = $address['address_line2'];
         }
 
-        if (!empty($address['city'])) {
+        if (! empty($address['city'])) {
             $formatted[] = $address['city'];
         }
 
-        if (!empty($address['state'])) {
+        if (! empty($address['state'])) {
             $formatted[] = $address['state'];
         }
 
-        if (!empty($address['postal_code'])) {
+        if (! empty($address['postal_code'])) {
             $formatted[] = $address['postal_code'];
         }
 
@@ -311,6 +359,7 @@ class Order extends Model
 
     /**
      * Legacy method for backward compatibility
+     *
      * @deprecated Use isCreatedByVendor() instead
      */
     public function isCreatedByRestaurant()
@@ -324,7 +373,7 @@ class Order extends Model
     public static function createForUser($userId, array $orderData)
     {
         return static::create(array_merge($orderData, [
-            'customer_type' => \App\Models\User::class,
+            'customer_type' => User::class,
             'customer_id' => $userId,
         ]));
     }
@@ -335,7 +384,7 @@ class Order extends Model
     public static function createForCustomer($customerId, array $orderData)
     {
         return static::create(array_merge($orderData, [
-            'customer_type' => \Modules\Acl\Models\Customer::class,
+            'customer_type' => Customer::class,
             'customer_id' => $customerId,
         ]));
     }
@@ -345,19 +394,17 @@ class Order extends Model
         return $this->payment_status === self::PAYMENT_PAID;
     }
 
-
-   
     public function canBeCancelled(): bool
     {
         $restaurant = $this->vendor;
 
         if ($restaurant && method_exists($restaurant, 'allowsOrderCancellation')) {
-            if (!$restaurant->allowsOrderCancellation()) {
+            if (! $restaurant->allowsOrderCancellation()) {
                 return false;
             }
 
             $allowedStatuses = $restaurant->getCancellableStatuses();
-            if (!empty($allowedStatuses) && is_array($allowedStatuses)) {
+            if (! empty($allowedStatuses) && is_array($allowedStatuses)) {
                 return in_array($this->status, $allowedStatuses, true);
             }
         }
@@ -378,6 +425,7 @@ class Order extends Model
     public function calculateTotal()
     {
         $itemsTotal = $this->items->sum('total_price');
+
         return $itemsTotal + $this->delivery_fee + $this->service_charge + $this->tax - $this->discount;
     }
 
@@ -401,17 +449,17 @@ class Order extends Model
     public function isCancellableByCustomer(): array
     {
         // Load restaurant if not loaded
-        if (!$this->relationLoaded('vendor')) {
+        if (! $this->relationLoaded('vendor')) {
             $this->load('vendor');
         }
 
         $restaurant = $this->vendor;
 
-        if (!$restaurant) {
+        if (! $restaurant) {
             return [
                 'can_cancel' => false,
                 'reason' => 'Restaurant not found',
-                'reason_code' => 'RESTAURANT_NOT_FOUND'
+                'reason_code' => 'RESTAURANT_NOT_FOUND',
             ];
         }
 
@@ -419,8 +467,8 @@ class Order extends Model
         if (in_array($this->status, [self::STATUS_CANCELLED, self::STATUS_DELIVERED])) {
             return [
                 'can_cancel' => false,
-                'reason' => 'Order is already ' . strtolower($this->formatted_status),
-                'reason_code' => 'ORDER_FINALIZED'
+                'reason' => 'Order is already '.strtolower($this->formatted_status),
+                'reason_code' => 'ORDER_FINALIZED',
             ];
         }
 
@@ -433,20 +481,20 @@ class Order extends Model
      */
     public function getMinutesUntilCancellationDeadline(): ?int
     {
-        if (!$this->relationLoaded('vendor')) {
+        if (! $this->relationLoaded('vendor')) {
             $this->load('vendor');
         }
 
         $restaurant = $this->vendor;
 
-        if (!$restaurant || !$restaurant->allowsOrderCancellation()) {
+        if (! $restaurant || ! $restaurant->allowsOrderCancellation()) {
             return null;
         }
 
         $timeLimit = $restaurant->getCancellationTimeLimit();
-        $orderCreatedAt = \Carbon\Carbon::parse($this->created_at);
+        $orderCreatedAt = Carbon::parse($this->created_at);
         $cancellationDeadline = $orderCreatedAt->copy()->addMinutes($timeLimit);
-        $now = \Carbon\Carbon::now();
+        $now = Carbon::now();
 
         if ($now->greaterThan($cancellationDeadline)) {
             return 0;
@@ -458,27 +506,29 @@ class Order extends Model
     /**
      * Get cancellation deadline timestamp
      */
-    public function getCancellationDeadline(): ?\Carbon\Carbon
+    public function getCancellationDeadline(): ?Carbon
     {
-        if (!$this->relationLoaded('vendor')) {
+        if (! $this->relationLoaded('vendor')) {
             $this->load('vendor');
         }
 
         $restaurant = $this->vendor;
 
-        if (!$restaurant || !$restaurant->allowsOrderCancellation()) {
+        if (! $restaurant || ! $restaurant->allowsOrderCancellation()) {
             return null;
         }
 
         $timeLimit = $restaurant->getCancellationTimeLimit();
-        return \Carbon\Carbon::parse($this->created_at)->addMinutes($timeLimit);
+
+        return Carbon::parse($this->created_at)->addMinutes($timeLimit);
     }
+
     public function canDelete(): bool
     {
         return in_array($this->status, [
             self::STATUS_PENDING,
             self::STATUS_CANCELLED,
-            self::STATUS_FAILED
+            self::STATUS_FAILED,
         ], true)
             && $this->payment_status === PaymentStatus::UNPAID->value;
     }

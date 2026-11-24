@@ -31,20 +31,19 @@ class CustomerGrid extends DataGrid
 
 
         // Filter by restaurant ownership (same pattern as FoodManagements)
-        $currentAdmin = auth('admin')->user();
+        // Restaurant owner: only customers who ordered from their restaurant
+        // (owner without a restaurant gets id 0 -> no rows). Platform admin (null): all customers.
+        $restaurantId = app(\Modules\Restaurant\Services\RestaurantDataScope::class)->restaurantId();
 
-        if ($currentAdmin) {
-            $restaurant = \Modules\Restaurant\Models\Restaurant::where('admin_id', $currentAdmin->id)->first();
-
-            if ($restaurant) {
-                // Restaurant admin: show only customers who ordered from their restaurant
-                $query->join('orders', 'customers.id', '=', 'orders.customer_id')
+        if ($restaurantId !== null) {
+            $query->whereExists(function ($orders) use ($restaurantId) {
+                $orders->select(DB::raw(1))
+                    ->from('orders')
+                    ->whereColumn('orders.customer_id', 'customers.id')
                     ->where('orders.customer_type', \Modules\Acl\Models\Customer::class)
                     ->where('orders.vendor_type', \Modules\Restaurant\Models\Restaurant::class)
-                    ->where('orders.vendor_id', $restaurant->id)
-                    ->distinct(); // Important: avoid duplicate rows if customer has multiple orders
-            }
-            // Super admin (no restaurant): show all customers
+                    ->where('orders.vendor_id', $restaurantId);
+            });
         }
 
         return $query;

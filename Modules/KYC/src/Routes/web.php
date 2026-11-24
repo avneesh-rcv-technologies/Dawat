@@ -37,14 +37,16 @@ Route::middleware(['web', 'auth:admin', 'admin.permission'])
         
         // KYC Submissions Management
         Route::prefix('kyc/submissions')->name('kyc.submissions.')
-            ->middleware(\Modules\KYC\Http\Middleware\EnsureKycSubmissionAccess::class)->group(function () {
+            ->middleware(['route.ids:submission,file,restaurant_id', \Modules\KYC\Http\Middleware\EnsureKycSubmissionAccess::class])->group(function () {
             Route::get('/', [KycSubmissionController::class, 'index'])->name('index');
             Route::get('/{submission}', [KycSubmissionController::class, 'show'])->name('show');
             Route::post('/bulk-review', [KycSubmissionController::class, 'bulkReview'])->name('bulk-review');
             Route::post('/{submission}/review', [KycSubmissionController::class, 'review'])->name('review');
             Route::get('/{submission}/file/{file}/preview', [KycSubmissionController::class, 'previewFile'])->name('preview-file');
             Route::get('/{submission}/file/{file}/download', [KycSubmissionController::class, 'downloadFile'])->name('download-file');
-            Route::post('/{submission}/message', [KycSubmissionController::class, 'addMessage'])->name('add-message');
+            Route::post('/{submission}/message', [KycSubmissionController::class, 'addMessage'])->middleware('throttle:kyc-messages')->name('add-message');
+            Route::post('/{submission}/reply', [KycSubmissionController::class, 'addMessage'])
+                ->withoutMiddleware('admin.permission')->middleware('throttle:kyc-messages')->name('reply');
         });
         
         // Compliance Records Management

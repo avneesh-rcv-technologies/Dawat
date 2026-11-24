@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Modules\Activitylog\Exceptions\ApiExceptionHandler;
 use Modules\Notifications\Services\NotificationService;
 use Modules\Restaurant\Models\RestaurantEmailOtp;
 
@@ -13,56 +14,202 @@ class RestaurantOnboardingOtpService
 {
     public const TYPE = 'onboarding_restaurant_email_verification';
 
-    public function __construct(private NotificationService $notifications) {}
-
-    public function send(string $email): array
+    public function __construct(private NotificationService $notifications)
     {
-        $email = strtolower(trim($email));
-        Validator::make(['email' => $email], [
-            'email' => ['bail', 'required', 'string', 'max:255', 'email:rfc,dns', 'unique:admins,email'],
-        ])->validate();
-
-        return Cache::lock($this->lockKey($email), 15)->block(5, function () use ($email) {
-            $record = $this->query($email)->first();
-            if ($record?->last_sent_at && $record->last_sent_at->diffInSeconds(now()) < 60) {
-                throw ValidationException::withMessages(['email' => ['Please wait 60 seconds before requesting another code.']]);
-            }
-            $withinWindow = $record?->last_sent_at && $record->last_sent_at->diffInHours(now()) < 24;
-            if ($withinWindow && $record->resend_count >= 3) {
-                throw ValidationException::withMessages(['email' => ['OTP request limit reached. Please try again later.']]);
-            }
-
-            $otp = (string) random_int(100000, 999999);
-            RestaurantEmailOtp::updateOrCreate(['email' => $email, 'type' => self::TYPE], [
-                'admin_id' => null,
-                'otp' => $otp,
-                'expires_at' => now()->addMinutes(2),
-                'last_sent_at' => now(),
-                'resend_count' => $withinWindow ? (int) $record->resend_count + 1 : 1,
-                'attempts' => 0,
-                'verified_at' => null,
-            ]);
-
-            try {
-                $sent = $this->notifications->trigger('Restaurant', 'OnboardingRestaurantEmailVerification', $email, [
-                    'email' => $email,
-                    'otp' => $otp,
-                    'restaurant_name' => 'Your Restaurant',
-                    'expires_minutes' => 2,
-                    'purpose' => self::TYPE,
-                ]);
-            } catch (\Throwable $e) {
-                report($e);
-                $sent = false;
-            }
-
-            if (!$sent) {
-                throw ValidationException::withMessages(['email' => ['Unable to send the verification email. Please try again later.']]);
-            }
-
-            return ['success' => true, 'message' => 'Verification code sent to your email.', 'expires_in' => 120, 'resend_after' => 60];
-        });
     }
+
+
+public function send(string $email): array
+{
+    $email = strtolower(trim($email));
+
+    Validator::make(['email' => $email], [
+        'email' => [
+            'bail',
+            'required',
+            'string',
+            'max:255',
+            'email:rfc,dns',
+            'unique:admins,email',
+        ],
+    ])->validate();
+
+    return Cache::lock($this->lockKey($email), 30)
+        ->block(5, function () use ($email) {
+
+            $now = now();
+            $maxRequests = 3;
+            $cooldownSeconds = 60;
+            $windowHours = 24;
+            $expiryMinutes = 2;
+
+            $record = $this->query($email)->first();
+
+            // 1. Check 60-second cooldown
+            if ($record?->last_sent_at) {
+                $cooldownEnds = $record->last_sent_at
+                    ->copy()
+                    ->addSeconds($cooldownSeconds);
+
+                if ($now->lt($cooldownEnds)) {
+                    $remaining = (int) ceil(
+                        $now->diffInSeconds($cooldownEnds)
+                    );
+
+                    throw ValidationException::withMessages([
+                        'email' => [
+                            "Please wait {$remaining} seconds before requesting another code."
+                        ],
+                    ]);
+                }
+            }
+
+            // 2. Check fixed 24-hour window
+            $windowStart = $record?->request_window_started_at;
+
+            $withinWindow = $windowStart !== null
+                && $now->lt(
+                    $windowStart->copy()->addHours($windowHours)
+                );
+
+            // 3. Check OTP request limit
+            if (
+                $withinWindow &&
+                (int) $record->resend_count >= $maxRequests
+            ) {
+                $retryAt = $windowStart
+                    ->copy()
+                    ->addHours($windowHours);
+
+                $remainingMinutes = (int) ceil(
+                    $now->diffInSeconds($retryAt) / 60
+                );
+
+                throw ValidationException::withMessages([
+                    'email' => [
+                        "OTP request limit reached. Please try again after {$remainingMinutes} minutes."
+                    ],
+                ]);
+            }
+
+            // 4. Generate OTP
+            $otp = (string) random_int(100000, 999999);
+
+            $newCount = $withinWindow
+                ? (int) $record->resend_count + 1
+                : 1;
+
+            $newWindowStart = $withinWindow
+                ? $windowStart
+                : $now;
+
+            // 5. Save OTP
+            RestaurantEmailOtp::updateOrCreate(
+                [
+                    'email' => $email,
+                    'type' => self::TYPE,
+                ],
+                [
+                    'admin_id' => null,
+                    'otp' => $otp,
+                    'expires_at' => $now->copy()
+                        ->addMinutes($expiryMinutes),
+                    'last_sent_at' => $now,
+                    'request_window_started_at' => $newWindowStart,
+                    'resend_count' => $newCount,
+                    'attempts' => 0,
+                    'verified_at' => null,
+                ]
+            );
+
+            // 6. Send notification
+            try {
+                $sent = $this->notifications->trigger(
+                    'Restaurant',
+                    'OnboardingRestaurantEmailVerification',
+                    $email,
+                    [
+                        'email' => $email,
+                        'otp' => $otp,
+                        'restaurant_name' => 'Your Restaurant',
+                        'expires_minutes' => $expiryMinutes,
+                        'purpose' => self::TYPE,
+                    ]
+                );
+
+                if (!$sent) {
+                    ApiExceptionHandler::handle(
+            new \RuntimeException(
+                'Failed to send restaurant onboarding email OTP.'
+            )
+        );
+                }
+
+            } catch (\Throwable $e) {
+               ApiExceptionHandler::handle($e);
+
+            }
+
+            // 7. Success response
+            return [
+                'success' => true,
+                'message' => 'Verification code sent to your email.',
+                'expires_in' => 120,
+                'resend_after' => 60,
+                'remaining_requests' => max(0, $maxRequests - $newCount),
+            ];
+        });
+}
+
+
+    // public function send(string $email): array
+    
+    // {
+    //     $email = strtolower(trim($email));
+    //     Validator::make(['email' => $email], [
+    //         'email' => ['bail', 'required', 'string', 'max:255', 'email:rfc,dns', 'unique:admins,email'],
+    //     ])->validate();
+
+    //     return Cache::lock($this->lockKey($email), 15)->block(5, function () use ($email) {
+    //         $record = $this->query($email)->first();
+    //         if ($record?->last_sent_at && $record->last_sent_at->diffInSeconds(now()) < 60) {
+    //             throw ValidationException::withMessages(['email' => ['Please wait 60 seconds before requesting another code.']]);
+    //         }
+    //         $withinWindow = $record?->last_sent_at && $record->last_sent_at->diffInHours(now()) < 24;
+    //         if ($withinWindow && $record->resend_count >= 3) {
+    //             throw ValidationException::withMessages(['email' => ['OTP request limit reached. Please try again later.']]);
+    //         }
+
+    //         $otp = (string) random_int(100000, 999999);
+    //         RestaurantEmailOtp::updateOrCreate(['email' => $email, 'type' => self::TYPE], [
+    //             'admin_id' => null,
+    //             'otp' => $otp,
+    //             'expires_at' => now()->addMinutes(2),
+    //             'last_sent_at' => now(),
+    //             'resend_count' => $withinWindow ? (int) $record->resend_count + 1 : 1,
+    //             'attempts' => 0,
+    //             'verified_at' => null,
+    //         ]);
+
+    //         try {
+    //             $sent = $this->notifications->trigger('Restaurant', 'OnboardingRestaurantEmailVerification', $email, [
+    //                 'email' => $email,
+    //                 'otp' => $otp,
+    //                 'restaurant_name' => 'Your Restaurant',
+    //                 'expires_minutes' => 2,
+    //                 'purpose' => self::TYPE,
+    //             ]);
+
+    //             if (!$sent) {
+    //                 throw new \RuntimeException('Restaurant onboarding email OTP notification failed.');
+    //             }
+    //         } catch (\Throwable $e) {
+    //             ApiExceptionHandler::handle($e);
+    //         }
+
+    //         return ['success' => true, 'message' => 'Verification code sent to your email.', 'expires_in' => 120, 'resend_after' => 60];
+    //     });
+    // }
 
     public function verify(string $email, string $otp): array
     {
@@ -86,7 +233,8 @@ class RestaurantOnboardingOtpService
             Cache::put($this->proofKey($token), $email, now()->addMinutes(30));
 
             return [
-                'success' => true, 'verified' => true,
+                'success' => true,
+                'verified' => true,
                 'message' => 'Email verified successfully.',
                 'verification_token' => $token,
             ];

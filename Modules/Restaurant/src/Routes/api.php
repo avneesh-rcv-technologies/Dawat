@@ -20,6 +20,31 @@ use Modules\Restaurant\Http\Controllers\Api\WorkingHoursApiController;
 |--------------------------------------------------------------------------
 */
 Route::prefix('api/restaurant')->name('api.restaurant.')->group(function () {
+    Route::get('dietary-certificates/status', [\Modules\Restaurant\Http\Controllers\Api\DietaryCertificateStatusController::class, 'show'])
+        ->middleware([\Modules\Restaurant\Http\Middleware\OnboardingApiSession::class, 'auth:admin,sanctum'])
+        ->name('dietary-certificates.status');
+    Route::prefix('transactions')->name('transactions.')
+        ->middleware([\Modules\Restaurant\Http\Middleware\RestaurantOrderApiResponse::class,
+            \Modules\Restaurant\Http\Middleware\OnboardingApiSession::class, 'auth:admin,sanctum'])
+        ->controller(\Modules\Restaurant\Http\Controllers\Api\RestaurantTransactionController::class)
+        ->group(function () {
+            Route::get('/', 'index')->name('index');
+            Route::get('kpis', 'kpis')->name('kpis');
+        });
+    Route::prefix('orders')->name('orders.')
+        ->middleware([\Modules\Restaurant\Http\Middleware\RestaurantOrderApiResponse::class,
+            \Modules\Restaurant\Http\Middleware\OnboardingApiSession::class, 'auth:admin,sanctum'])
+        ->controller(\Modules\Restaurant\Http\Controllers\Api\RestaurantOrderController::class)
+        ->group(function () {
+            Route::get('/', 'index')->name('index');
+            Route::get('kpis', 'kpis')->name('kpis');
+            Route::get('statuses', 'statuses')->name('statuses');
+            Route::get('{id}/next-statuses', 'nextStatuses')->whereNumber('id')->name('next-statuses');
+            Route::get('{id}', 'show')->whereNumber('id')->name('show');
+            Route::patch('{id}/status', 'updateStatus')->whereNumber('id')->name('status');
+            Route::post('{id}/collect-cash', 'collectCash')->whereNumber('id')->name('collect-cash');
+            Route::delete('{id}', 'destroy')->whereNumber('id')->name('destroy');
+        });
     Route::get('/me/onboarding-details', [\Modules\Restaurant\Http\Controllers\Api\OnboardingDetailsController::class, 'show'])
         ->middleware('auth:sanctum')->name('me.onboarding-details');
     Route::middleware([\Modules\Restaurant\Http\Middleware\OnboardingApiSession::class, 'auth:admin,sanctum'])
@@ -42,14 +67,17 @@ Route::prefix('api/restaurant')->name('api.restaurant.')->group(function () {
     });
 
     Route::prefix('/auth')->name('auth.')->group(function () {
-        Route::middleware('throttle:5,1')->group(function () {
-            Route::post('/send-otp', [RestaurantAuthApiController::class, 'sendOtp'])->name('send-otp');
-            Route::post('/resend-otp', [RestaurantAuthApiController::class, 'resendOtp'])->name('resend-otp');
-            Route::post('/verify-otp', [RestaurantAuthApiController::class, 'verifyOtp'])->name('verify-otp');
-        });
+        Route::post('/send-otp', [RestaurantAuthApiController::class, 'sendOtp'])
+            ->middleware('throttle:restaurant-auth-otp-send')->name('send-otp');
+        Route::post('/resend-otp', [RestaurantAuthApiController::class, 'resendOtp'])
+            ->middleware('throttle:restaurant-auth-otp-send')->name('resend-otp');
+        Route::post('/verify-otp', [RestaurantAuthApiController::class, 'verifyOtp'])
+            ->middleware('throttle:restaurant-auth-otp-verify')->name('verify-otp');
         Route::post('/reset-password', [RestaurantAuthApiController::class, 'resetPassword'])->name('reset-password');
     });
 
+
+    Route::get('/commission-percentage', [RestaurantController::class, 'getCommissionPercentage'])->name('commission-percentage');
 
     // Restaurant authentication and profile management routes
     Route::middleware(['auth:sanctum', 'restaurant.active'])->group(function () {
@@ -98,6 +126,8 @@ Route::prefix('api/restaurant')->name('api.restaurant.')->group(function () {
         Route::get('/categories/active-parent-categories', [FoodCategoryApiController::class, 'activeParentCategoryLists'])->name('categories.active-parent-categories');
         Route::get('/categories/{id}', [FoodCategoryApiController::class, 'show'])->name('categories.show');
         Route::match(['put', 'patch'], '/categories/{id}', [FoodCategoryApiController::class, 'update'])->name('categories.update');
+        // POST parses multipart file uploads on PHP versions without multipart PUT/PATCH parsing.
+        Route::post('/categories/{id}', [FoodCategoryApiController::class, 'update'])->whereNumber('id')->name('categories.update.post');
         Route::match(['put', 'patch'], '/categories/{id}/status', [FoodCategoryApiController::class, 'updateStatus'])->name('categories.status.update');
         Route::post('/categories/{id}/status', [FoodCategoryApiController::class, 'updateStatus'])->name('categories.status.update.post');
         Route::delete('/categories/{id}', [FoodCategoryApiController::class, 'destroy'])->name('categories.destroy');
@@ -143,6 +173,9 @@ Route::prefix('api/restaurant')->name('api.restaurant.')->group(function () {
         Route::post('/food-features', [FoodFeatureApiController::class, 'store'])->name('food-features.store');
         Route::post('/food-features/bulk-delete', [FoodFeatureApiController::class, 'bulkDelete'])->name('food-features.bulk-delete');
         Route::delete('/food-features/bulk-delete', [FoodFeatureApiController::class, 'bulkDelete'])->name('food-features.bulk-delete.delete');
+        Route::get('/food-features/active-lists', [FoodFeatureApiController::class, 'activeLists'])->name('food-features.active-lists');
+        Route::match(['put', 'patch'], '/food-features/{id}/status', [FoodFeatureApiController::class, 'updateStatus'])->name('food-features.status.update');
+        Route::post('/food-features/{id}/status', [FoodFeatureApiController::class, 'updateStatus'])->name('food-features.status.update.post');
         Route::get('/food-features/{id}', [FoodFeatureApiController::class, 'show'])->name('food-features.show');
         Route::match(['put', 'patch'], '/food-features/{id}', [FoodFeatureApiController::class, 'update'])->name('food-features.update');
         Route::delete('/food-features/{id}', [FoodFeatureApiController::class, 'destroy'])->name('food-features.destroy');
@@ -151,6 +184,9 @@ Route::prefix('api/restaurant')->name('api.restaurant.')->group(function () {
         Route::post('/features', [FoodFeatureApiController::class, 'store'])->name('features.store');
         Route::post('/features/bulk-delete', [FoodFeatureApiController::class, 'bulkDelete'])->name('features.bulk-delete');
         Route::delete('/features/bulk-delete', [FoodFeatureApiController::class, 'bulkDelete'])->name('features.bulk-delete.delete');
+        Route::get('/features/active-lists', [FoodFeatureApiController::class, 'activeLists'])->name('features.active-lists');
+        Route::match(['put', 'patch'], '/features/{id}/status', [FoodFeatureApiController::class, 'updateStatus'])->name('features.status.update');
+        Route::post('/features/{id}/status', [FoodFeatureApiController::class, 'updateStatus'])->name('features.status.update.post');
         Route::get('/features/{id}', [FoodFeatureApiController::class, 'show'])->name('features.show');
         Route::match(['put', 'patch'], '/features/{id}', [FoodFeatureApiController::class, 'update'])->name('features.update');
         Route::delete('/features/{id}', [FoodFeatureApiController::class, 'destroy'])->name('features.destroy');

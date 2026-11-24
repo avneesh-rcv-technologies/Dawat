@@ -11,6 +11,7 @@
 @endsection
 
 @section('content')
+    @if($mode !== 'view')
     <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
         @php
             $redirect_route = route('admin.orders.index');
@@ -74,11 +75,16 @@
         @endif --}}
     </div>
 
+    @endif
+
     <!-- Main Content Grid -->
     <div class="" id="order_datas">
         @include('orders::orders.components.order_detail')
     </div>
 
+@if($mode === 'view')
+    @include('orders::orders.components.status-confirmation')
+@endif
 @endsection
 @section('scripts')
     <script>
@@ -133,8 +139,14 @@
                         });
                     },
 
-                    removeItem(itemId, foodItemId, itemName) {
-                        if (!confirm(`Are you sure you want to remove "${itemName}" from this order?`)) return;
+                    async removeItem(itemId, foodItemId, itemName) {
+                        const confirmed = await appConfirm({
+                            title: `Remove "${itemName}"?`,
+                            message: 'This item will be removed from the order.',
+                            confirmText: 'Remove item',
+                            tone: 'danger',
+                        });
+                        if (!confirmed) return;
 
                         if (typeof ceAjax !== 'function') return console.error('ceAjax is not defined');
 
@@ -201,6 +213,17 @@
                     },
 
                     update_status(status) {
+                        let refundReference = '';
+                        if (['C', 'R'].includes(status)) {
+                            const message = status === 'R'
+                                ? 'Have you already refunded the captured payment manually? Confirm to cancel the order and record the completed refund.'
+                                : 'Cancel this order? A captured payment will create a pending refund request.';
+                            if (!window.confirm(message)) { loadOrder(); return; }
+                            if (status === 'R') {
+                                refundReference = window.prompt('Enter the completed gateway or bank refund reference:')?.trim() || '';
+                                if (!refundReference) { loadOrder(); return; }
+                            }
+                        }
                         if (typeof ceAjax !== 'function') return console.error('ceAjax is not defined');
 
                         ceAjax('POST', '{{ route("api.cart.order.update_status", $order_id ?? 0) }}', {
@@ -208,6 +231,9 @@
                             result_ids: 'payment-detail-action',
                             data: {
                                 status: status,
+                                confirmed: ['C', 'R'].includes(status) ? 1 : 0,
+                                stripe_refund_id: refundReference,
+                                _token: '{{ csrf_token() }}',
                             },
                              callback: function(response) {
                                  if (response.success) {

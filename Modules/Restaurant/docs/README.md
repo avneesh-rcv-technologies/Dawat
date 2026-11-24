@@ -1,5 +1,16 @@
 # Restaurant banking and tax APIs
 
+For simplified feature bodies using just name, type and option descriptions, see
+the [restaurant food features API](../../../docs/api/restaurant-food-features.md).
+
+For filtered transaction lists and transaction KPIs, see the
+[Restaurant transactions API README](../../../docs/api/restaurant-transactions.md).
+
+For restaurant order listing, details, status updates, COD collection, deletion
+and KPIs, see the [Restaurant orders API README](../../../docs/api/restaurant-orders.md).
+It includes authentication, every filter, request/response examples, payment
+restrictions and test commands.
+
 Endpoints below match the current routes in [`api.php`](../src/Routes/api.php).
 Use your application host as the base URL, for example `http://127.0.0.1:8000`.
 

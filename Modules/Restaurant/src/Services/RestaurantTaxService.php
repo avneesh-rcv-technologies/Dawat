@@ -64,7 +64,7 @@ class RestaurantTaxService
                 throw ValidationException::withMessages(['tax_type' => ucfirst($type).' tax information has not been submitted yet.']);
             }
             $restaurant->update(['tax_type' => $type]);
-            $restaurant->onboardingSteps()->updateOrCreate(
+            $step = $restaurant->onboardingSteps()->updateOrCreate(
                 ['step_key' => OnboardingStep::TAX->value],
                 [
                     'status' => 'submitted',
@@ -73,9 +73,10 @@ class RestaurantTaxService
                 ]
             );
 
-            DB::afterCommit(function () use ($restaurant, $type) {
+            $submittedAt = $step->submitted_at->format('M d, Y h:i A T');
+            DB::afterCommit(function () use ($restaurant, $type, $submittedAt) {
                 app(RestaurantTaxNotificationService::class)->send($restaurant, 'RestaurantTaxSubmitted', [
-                    'tax_type' => $type, 'updated_at' => now()->format('Y-m-d H:i:s'),
+                    'tax_type' => $type, 'updated_at' => $submittedAt, 'submitted_at' => $submittedAt,
                 ]);
             });
 
@@ -85,6 +86,9 @@ class RestaurantTaxService
 
     private function persist(Restaurant $restaurant, array $input, bool $creating, bool $adminEdit = false): TaxInformation
     {
+        if (!$adminEdit) {
+            RestaurantOnboardingAccessService::assertStepEditable($restaurant, OnboardingStep::TAX);
+        }
         $type = Validator::make($input, [
             'tax_type' => ['required', Rule::in(['individual', 'business'])],
         ])->validate()['tax_type'];
@@ -160,9 +164,10 @@ class RestaurantTaxService
             app(OnboardingHistoryService::class)->detailsUpdated($restaurant, OnboardingStep::TAX->value, 'resubmitted');
         }
 
-        DB::afterCommit(function () use ($restaurant, $type, $creating) {
+        $submittedAt = $step->submitted_at->format('M d, Y h:i A T');
+        DB::afterCommit(function () use ($restaurant, $type, $creating, $submittedAt) {
             app(RestaurantTaxNotificationService::class)->send($restaurant, $creating ? 'RestaurantTaxSubmitted' : 'RestaurantTaxResubmitted', [
-                'tax_type' => $type, 'updated_at' => now()->format('Y-m-d H:i:s'),
+                'tax_type' => $type, 'updated_at' => $submittedAt, 'submitted_at' => $submittedAt,
             ]);
         });
 
@@ -178,6 +183,8 @@ class RestaurantTaxService
             'company_legal_name.required' => 'Please enter the business legal entity name.',
             'ssn.regex' => 'Enter a 9-digit SSN, with or without hyphens (123-45-6789).',
             'ein.regex' => 'Enter a 9-digit EIN, with or without a hyphen (12-3456789).',
+            'zip_code.regex' => 'Please enter a valid 5-digit ZIP code.',
+            'mailing_zip_code.regex' => 'Please enter a valid 5-digit mailing ZIP code.',
             'country_id.exists' => 'Please select a valid country.',
             'state_id.exists' => 'Please select a state belonging to the selected country.',
             'city_id.exists' => 'Please select a city belonging to the selected state.',
@@ -221,12 +228,12 @@ class RestaurantTaxService
             'country_id' => ['required', 'integer', Rule::exists('countries', 'id')],
             'state_id' => ['required', 'integer', Rule::exists('country_states', 'id')->where('country_id', is_scalar($data['country_id'] ?? null) ? $data['country_id'] : null)],
             'city_id' => ['required', 'integer', Rule::exists('cities', 'id')->where('state_id', is_scalar($data['state_id'] ?? null) ? $data['state_id'] : null)->where('country_id', is_scalar($data['country_id'] ?? null) ? $data['country_id'] : null)],
-            'zip_code' => ['required', 'string', 'max:20'],
+            'zip_code' => ['required', 'string', 'regex:/^[0-9]{5}$/D'],
             'same_mailing_address' => ['required', 'boolean'],
             'mailing_address' => ['exclude_if:same_mailing_address,true', 'required', 'string', 'max:150'],
             'mailing_city' => ['exclude_if:same_mailing_address,true', 'required', 'string', 'max:100'],
             'mailing_state' => ['exclude_if:same_mailing_address,true', 'required', 'string', 'max:100'],
-            'mailing_zip_code' => ['exclude_if:same_mailing_address,true', 'required', 'string', 'max:20'],
+            'mailing_zip_code' => ['exclude_if:same_mailing_address,true', 'required', 'string', 'regex:/^[0-9]{5}$/D'],
             'receive_1099_electronically' => ['required', 'boolean'],
             'backup_tax_withholding' => $individual ? ['missing'] : ['required', 'boolean'],
             'tax_certification' => $individual ? ['missing'] : ['required', 'accepted'],
