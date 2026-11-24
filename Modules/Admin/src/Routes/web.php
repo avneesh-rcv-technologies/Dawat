@@ -48,7 +48,7 @@ Route::middleware('web')->group(function () {
         ->middleware(['auth:admin', 'throttle:20,1'])->name('profile.certificates.store');
 
     Route::middleware(['web','check.permission'])->group(function () {
-        Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard.index');
+        Route::get('/dashboard', [DashboardController::class, 'index'])->middleware('auth:admin')->name('dashboard.index');
         Route::resource('users', UserAdminController::class)->except(['destroy']);
         Route::post('/users/toggle-status', [UserAdminController::class, 'toggleStatus'])->name('users.toggle-status');
 

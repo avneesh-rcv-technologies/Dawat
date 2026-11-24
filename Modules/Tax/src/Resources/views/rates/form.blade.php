@@ -69,7 +69,7 @@
     <!-- Postcode Field -->
     <!-- <div class="mb-4">
         <label class="custom-label">Postal/Zip Code</label>
-        <input type="text" name="postcode" id="postcode"
+        <input type="text" name="postcode" minlength="5" maxlength="9" id="postcode"
             value="{{ $tax->postcode ?? old('postcode') }}"
             class="input-field @error('postcode') border-red-500 @enderror">
         <div class="error-message text-red-500 text-sm mt-1" id="postcode-error">

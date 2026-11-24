@@ -757,13 +757,12 @@
                         <div class="reg-row-2col">
                             <div class="reg-field-group">
                                 <label class="reg-label" for="correction-city_id">
-                                    City <span class="reg-req">*</span>
+                                    City
                                 </label>
                                 @if($stepEditable)
                                     <select name="city_id"
                                             id="correction-city_id"
-                                            class="reg-control-input reg-select"
-                                            required>
+                                            class="reg-control-input reg-select">
                                         <option value="">Select city</option>
                                         @foreach($cityList as $city)
                                             <option value="{{ $city->id }}" @selected((string)$currentCityId === (string)$city->id)>
@@ -782,7 +781,7 @@
                                 </label>
                                 <input type="text"
                                        id="reg-postal"
-                                       name="postal_code"
+                                       name="postal_code" minlength="5" maxlength="9"
                                        class="reg-control-input"
                                        value="{{ old('postal_code', $correctionRestaurant->postal_code) }}"
                                        placeholder="11201"

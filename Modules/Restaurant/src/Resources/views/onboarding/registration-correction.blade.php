@@ -6,12 +6,12 @@
     <div class="details-grid">
         @foreach(['name' => 'Restaurant name', 'phone' => 'Phone', 'address_line1' => 'Address line 1', 'address_line2' => 'Address line 2', 'postal_code' => 'Postal code'] as $field => $label)
             <label class="detail-field">{{ $label }}
-                <input name="{{ $field }}" value="{{ old($field, $correctionRestaurant->{$field}) }}" @required(in_array($field, ['name', 'phone'], true)) maxlength="{{ $field === 'name' || str_starts_with($field, 'address') ? 100 : ($field === 'phone' ? 20 : ($field === 'postal_code' ? 80 : 255)) }}" style="display:block;width:100%;padding:10px;margin-top:8px;border:1px solid #cbd5e1;border-radius:8px">
+                <input name="{{ $field }}" @if($field === 'postal_code') minlength="5" @endif value="{{ old($field, $correctionRestaurant->{$field}) }}" @required(in_array($field, ['name', 'phone'], true)) maxlength="{{ $field === 'name' || str_starts_with($field, 'address') ? 100 : ($field === 'phone' ? 20 : ($field === 'postal_code' ? 9 : 255)) }}" style="display:block;width:100%;padding:10px;margin-top:8px;border:1px solid #cbd5e1;border-radius:8px">
             </label>
         @endforeach
         @foreach(['country' => 'Country', 'state' => 'State', 'city' => 'City'] as $field => $label)
-            <label class="detail-field" for="correction-{{ $field }}_id">{{ $label }}
-                <select name="{{ $field }}_id" id="correction-{{ $field }}_id" required style="display:block;width:100%;padding:10px;margin-top:8px;border:1px solid #cbd5e1;border-radius:8px">
+            <label class="detail-field" for="correction-{{ $field }}_id">{{ $label }}{{ $field === 'city' ? ' (optional)' : '' }}
+                <select name="{{ $field }}_id" id="correction-{{ $field }}_id" @required($field !== 'city') style="display:block;width:100%;padding:10px;margin-top:8px;border:1px solid #cbd5e1;border-radius:8px">
                     <option value="">Select {{ strtolower($label) }}</option>
                     @foreach($correctionData[$field === 'country' ? 'countries' : ($field === 'city' ? 'cities' : 'states')] as $location)
                         <option value="{{ $location->id }}" @selected((string) $correctionData[$field.'Id'] === (string) $location->id)>{{ $location->name }}</option>

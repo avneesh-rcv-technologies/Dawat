@@ -178,11 +178,11 @@ class RestaurantAuthService
             'phone_country_id' => ['nullable', 'integer', Rule::exists('countries', 'id')->whereNotNull('phonecode')],
             'state_id' => ['required', 'integer', Rule::exists('country_states', 'id')
                 ->where('country_id', is_scalar($data['country_id'] ?? null) ? $data['country_id'] : null)],
-            'city_id' => ['required', 'integer', Rule::exists('cities', 'id')
+            'city_id' => ['nullable', 'integer', Rule::exists('cities', 'id')
                 ->where('country_id', is_scalar($data['country_id'] ?? null) ? $data['country_id'] : null)
                 ->where('state_id', is_scalar($data['state_id'] ?? null) ? $data['state_id'] : null)],
             'address_line1' => ['required', 'string', 'max:100'],
-            'postal_code' => ['required', 'string', 'max:20'],
+            'postal_code' => ['required', 'string', 'min:5', 'max:9'],
             'restaurant_name' => [
                 'required',
                 'string',
@@ -216,8 +216,9 @@ class RestaurantAuthService
             'phone' => [
                 'required',
                 'string',
-                'max:20',
-                'regex:/^[0-9]+$/D',
+                'min:7',
+                'max:16',
+                'regex:/^[0-9]{7,16}$/D',
             ],
 
             'terms_accepted' => [
@@ -242,7 +243,9 @@ class RestaurantAuthService
             'password.confirmed' => 'Password confirmation does not match.',
 
             'phone.required' => 'Phone number is required.',
-            'phone.regex' => 'Enter a phone number using digits only.',
+            'phone.min' => 'Enter a phone number with 7 to 16 digits.',
+            'phone.max' => 'Enter a phone number with 7 to 16 digits.',
+            'phone.regex' => 'Enter a phone number with 7 to 16 digits.',
 
             'terms_accepted.required' => 'You must accept the terms and conditions.',
             'terms_accepted.accepted' => 'You must accept the terms and conditions.',
@@ -269,10 +272,10 @@ class RestaurantAuthService
             // Keep the selected location IDs alongside their display names.
             $country = Country::findOrFail($validated['country_id']);
             $state = CountryState::findOrFail($validated['state_id']);
-            $city = City::findOrFail($validated['city_id']);
+            $city = City::find($validated['city_id'] ?? null);
             $coordinates = app(GeocodingService::class)->geocodeAddress([
                 'address_line1' => $validated['address_line1'],
-                'city_name' => $city->name,
+                'city_name' => $city?->name,
                 'state_name' => $state->name,
                 'country_name' => $country->name,
                 'postal_code' => trim($validated['postal_code']),
@@ -297,10 +300,10 @@ class RestaurantAuthService
                 'phone' => trim($validated['phone']),
                 'country_id' => $validated['country_id'],
                 'state_id' => $validated['state_id'],
-                'city_id' => $validated['city_id'],
+                'city_id' => $validated['city_id'] ?? null,
                 'country' => $country->name,
                 'state' => $state->name,
-                'city' => $city->name,
+                'city' => $city?->name,
                 'address_line1' => $validated['address_line1'],
                 'postal_code' => trim($validated['postal_code']),
                 'latitude' => $coordinates['latitude'] ?? null,

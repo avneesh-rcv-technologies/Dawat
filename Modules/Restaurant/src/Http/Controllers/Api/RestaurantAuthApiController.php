@@ -559,8 +559,8 @@ class RestaurantAuthApiController extends Controller
                 'address_line2' => ['nullable', 'string', 'max:255'],
                 'country_id' => ['required', 'integer', 'exists:countries,id'],
                 'state_id' => ['required', 'integer', 'exists:country_states,id'],
-                'city_id' => ['required', 'integer', 'exists:cities,id'],
-                'postal_code' => ['required', 'string', 'max:20'],
+                'city_id' => ['nullable', 'integer', 'exists:cities,id'],
+                'postal_code' => ['required', 'string', 'min:5', 'max:9'],
                 'latitude' => ['nullable', 'numeric', 'between:-90,90'],
                 'longitude' => ['nullable', 'numeric', 'between:-180,180'],
             ]);
@@ -577,7 +577,7 @@ class RestaurantAuthApiController extends Controller
 
             $country = Country::find($validated['country_id']);
             $state = CountryState::find($validated['state_id']);
-            $city = City::find($validated['city_id']);
+            $city = City::find($validated['city_id'] ?? null);
 
             $data = array_merge($validated, [
                 'country_name' => $country?->name,

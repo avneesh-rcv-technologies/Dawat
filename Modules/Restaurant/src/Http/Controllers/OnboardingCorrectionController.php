@@ -17,11 +17,12 @@ class OnboardingCorrectionController
             [$restaurant, $step] = $this->editableStep($request, OnboardingStep::REGISTRATION);
             $data = $request->validated();
             unset($data['step_key']);
-            $location = array_intersect_key($data, array_flip(['country_id', 'state_id', 'city_id']));
+            $location = array_intersect_key($data, array_flip(['country_id', 'state_id', 'city_id'])) + ['city_id' => null];
             unset($data['country_id'], $data['state_id'], $data['city_id']);
             $data['country'] = \Modules\Countries\Models\Country::findOrFail($location['country_id'])->name;
             $data['state'] = \Modules\Countries\Models\CountryState::findOrFail($location['state_id'])->name;
-            $data['city'] = \Modules\Countries\Models\City::findOrFail($location['city_id'])->name;
+            $data['city'] = \Modules\Countries\Models\City::find($location['city_id'] ?? null)?->name;
+            $data += $location;
             $changes = OnboardingChanges::changedValues($restaurant, $data);
             if (!$changes && $step->status !== 'draft') OnboardingChanges::reject('registration');
             $restaurant->update($changes);

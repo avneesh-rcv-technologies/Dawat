@@ -90,11 +90,11 @@ class RestaurantOnboardingController
             'country_id' => ['required', 'integer', Rule::exists('countries', 'id')],
             'state_id' => ['required', 'integer', Rule::exists('country_states', 'id')
                 ->where('country_id', is_scalar($request->input('country_id')) ? $request->input('country_id') : null)],
-            'city_id' => ['required', 'integer', Rule::exists('cities', 'id')
+            'city_id' => ['nullable', 'integer', Rule::exists('cities', 'id')
                 ->where('country_id', is_scalar($request->input('country_id')) ? $request->input('country_id') : null)
                 ->where('state_id', is_scalar($request->input('state_id')) ? $request->input('state_id') : null)],
             'address_line1' => 'required|string|max:100',
-            'postal_code' => 'required|string|max:20',
+            'postal_code' => 'required|string|min:5|max:9',
             'password' => ['required', 'string', 'confirmed', new StrongPassword()],
             'email_verification_token' => ['nullable', 'string', 'size:64'],
         ], [
@@ -114,7 +114,7 @@ class RestaurantOnboardingController
             // Store the validated location IDs alongside their display names.
             $validated['country'] = Country::findOrFail($validated['country_id'])->name;
             $validated['state'] = CountryState::findOrFail($validated['state_id'])->name;
-            $validated['city'] = City::findOrFail($validated['city_id'])->name;
+            $validated['city'] = City::find($validated['city_id'] ?? null)?->name;
             $coordinates = app(GeocodingService::class)->geocodeAddress([
                 'address_line1' => $validated['address_line1'],
                 'city_name' => $validated['city'],
@@ -146,7 +146,7 @@ class RestaurantOnboardingController
                 'city' => $validated['city'],
                 'country_id' => $validated['country_id'],
                 'state_id' => $validated['state_id'],
-                'city_id' => $validated['city_id'],
+                'city_id' => $validated['city_id'] ?? null,
                 'state' => $validated['state'],
                 'country' => $validated['country'],
                 'address_line1' => $validated['address_line1'],

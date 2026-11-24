@@ -24,7 +24,7 @@ class BillingAddressService
                 'address_type' => 'billing',
                 'address_line_1' => $addressData['address_line_1'],
                 'address_line_2' => $addressData['address_line_2'] ?? null,
-                'city_id' => $addressData['city_id'],
+                'city_id' => $addressData['city_id'] ?? null,
                 'state_id' => $addressData['state_id'],
                 'country_id' => $addressData['country_id'],
                 'zip_code' => $addressData['zip_code'],
@@ -65,7 +65,7 @@ class BillingAddressService
             $address->update([
                 'address_line_1' => $addressData['address_line_1'],
                 'address_line_2' => $addressData['address_line_2'] ?? null,
-                'city_id' => $addressData['city_id'],
+                'city_id' => $addressData['city_id'] ?? null,
                 'state_id' => $addressData['state_id'],
                 'country_id' => $addressData['country_id'],
                 'zip_code' => $addressData['zip_code'],

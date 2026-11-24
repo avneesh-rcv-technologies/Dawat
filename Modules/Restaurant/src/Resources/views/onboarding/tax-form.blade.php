@@ -823,8 +823,8 @@
                         </div>
 
                         <div class="tax-field-wrap" data-tax-entity="individual" style="display: none;">
-                            <label for="tax-company_legal_name_ind">Business / Trade name *</label>
-                            <input class="tax-control-input" id="tax-company_legal_name_ind" name="company_legal_name_ind" maxlength="150" placeholder="Business name" required>
+                            <label for="tax-company_legal_name_ind">Business / Trade name (optional)</label>
+                            <input class="tax-control-input" id="tax-company_legal_name_ind" name="company_legal_name_ind" maxlength="150" placeholder="Business name">
                             <p class="tax-field-hint">Business or trade name for sole proprietorship.</p>
                             <p class="tax-field-error-msg" id="tax-error-company_legal_name_ind" style="display: none;"></p>
                         </div>
@@ -881,8 +881,8 @@
                         </div>
 
                         <div class="tax-field-wrap">
-                            <label for="tax-city_id">City *</label>
-                            <select class="tax-control-input" id="tax-city_id" name="city_id" autocomplete="address-level2" required disabled>
+                            <label for="tax-city_id">City (optional)</label>
+                            <select class="tax-control-input" id="tax-city_id" name="city_id" autocomplete="address-level2" disabled>
                                 <option value="">Select city</option>
                             </select>
                             <p class="tax-field-error-msg" id="tax-error-city_id" style="display: none;"></p>
@@ -890,7 +890,7 @@
 
                         <div class="tax-field-wrap">
                             <label for="tax-zip_code">ZIP code *</label>
-                            <input class="tax-control-input" id="tax-zip_code" name="zip_code" inputmode="numeric" pattern="[0-9]{5}" maxlength="5" autocomplete="postal-code" placeholder="e.g. 11201" required>
+                            <input class="tax-control-input" id="tax-zip_code" name="zip_code" minlength="5" maxlength="9" inputmode="numeric" pattern="[0-9]{5,9}" autocomplete="postal-code" placeholder="e.g. 11201" required>
                             <p class="tax-field-error-msg" id="tax-error-zip_code" style="display: none;"></p>
                         </div>
                     </fieldset>
@@ -905,7 +905,7 @@
                                 <p class="tax-field-error-msg" id="tax-error-mailing_address" style="display: none;"></p>
                             </div>
                             <div class="tax-field-wrap">
-                                <label for="tax-mailing_city">Mailing City *</label>
+                                <label for="tax-mailing_city">Mailing City (optional)</label>
                                 <input class="tax-control-input" id="tax-mailing_city" name="mailing_city" maxlength="100">
                                 <p class="tax-field-error-msg" id="tax-error-mailing_city" style="display: none;"></p>
                             </div>
@@ -916,7 +916,7 @@
                             </div>
                             <div class="tax-field-wrap">
                                 <label for="tax-mailing_zip_code">Mailing ZIP code *</label>
-                                <input class="tax-control-input" id="tax-mailing_zip_code" name="mailing_zip_code" inputmode="numeric" pattern="[0-9]{5}" maxlength="5" autocomplete="postal-code">
+                                <input class="tax-control-input" id="tax-mailing_zip_code" name="mailing_zip_code" minlength="5" maxlength="9" inputmode="numeric" pattern="[0-9]{5,9}" autocomplete="postal-code">
                                 <p class="tax-field-error-msg" id="tax-error-mailing_zip_code" style="display: none;"></p>
                             </div>
                         </div>
@@ -1064,14 +1064,13 @@
         const required = [
             [isBusiness ? 'company_legal_name' : 'full_name', isBusiness ? payload.company_legal_name : payload.full_name,
                 isBusiness ? 'Please enter the business legal entity name.' : 'Please enter your full name.'],
-            [isBusiness ? 'ein' : 'company_legal_name', isBusiness ? identifierValue : payload.company_legal_name,
-                isBusiness ? 'Please enter your EIN.' : 'Please enter the business legal entity name.'],
+            [isBusiness ? 'ein' : null, isBusiness ? identifierValue : null,
+                'Please enter your EIN.'],
             [isBusiness ? null : 'ssn', isBusiness ? null : identifierValue,
                 'Please enter your SSN.'],
             ['address', payload.address, 'Please enter your mailing address.'],
             ['country_id', payload.country_id, 'Please select a country.'],
             ['state_id', payload.state_id, 'Please select a state.'],
-            ['city_id', payload.city_id, 'Please select a city.'],
             ['zip_code', payload.zip_code, 'Please enter your zip or postal code.'],
         ];
 
@@ -1088,8 +1087,8 @@
             .filter(([field, value]) => field && !value)
             .map(([field, , message]) => ({ field, message }));
         for (const field of ['zip_code', ...(!payload.same_mailing_address ? ['mailing_zip_code'] : [])]) {
-            if (payload[field] && !/^[0-9]{5}$/.test(payload[field])) {
-                errors.push({ field, message: 'Please enter a valid 5-digit ZIP code.' });
+            if (payload[field] && !/^[0-9]{5,9}$/.test(payload[field])) {
+                errors.push({ field, message: 'Please enter a ZIP code with 5 to 9 digits.' });
             }
         }
         if (Object.hasOwn(payload, identifier) && payload[identifier] && !identifierPattern.test(payload[identifier])) {
@@ -1116,7 +1115,7 @@
         const field = control.id.replace(/^tax-/, '');
         control.addEventListener('input', () => {
             if (['zip_code', 'mailing_zip_code'].includes(field)) {
-                control.value = control.value.replace(/[^0-9]/g, '').slice(0, 5);
+                control.value = control.value.replace(/[^0-9]/g, '').slice(0, 9);
             } else if (field === 'ssn') {
                 const caret = control.selectionStart;
                 const digitsBeforeCaret = control.value.slice(0, caret ?? control.value.length).replace(/[^0-9]/g, '').length;
@@ -1252,7 +1251,7 @@
         populateOptions(stateSelect, [], 'Select state');
         populateOptions(citySelect, [], 'Select city');
 
-        if (!restaurantAddress?.address || !restaurantAddress?.country_id || !restaurantAddress?.state_id || !restaurantAddress?.city_id || !restaurantAddress?.zip_code) {
+        if (!restaurantAddress?.address || !restaurantAddress?.country_id || !restaurantAddress?.state_id || !restaurantAddress?.zip_code) {
             showAlert('Your restaurant address is incomplete. Please update it in your restaurant details before saving tax information.', 'error');
             return;
         }

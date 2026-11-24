@@ -302,7 +302,7 @@
 
                     <div class="form-group">
                         <label for="gi-postal" class="form-label">Postal code <span class="req">*</span></label>
-                        <input id="gi-postal" name="postal_code" type="text"
+                        <input id="gi-postal" name="postal_code" minlength="5" maxlength="9" type="text"
                             class="input-field @error('postal_code') input-error @enderror"
                             value="{{ old('postal_code', $restaurantAddress->zip_code ?? $restaurant->postal_code ?? '') }}"
                             placeholder="ZIP / postal code" required autocomplete="postal-code">
@@ -349,9 +349,9 @@
                     </div>
 
                     <div class="form-group">
-                        <label for="city_id" class="form-label">City <span class="req">*</span></label>
+                        <label for="city_id" class="form-label">City</label>
                         <select name="city_id" id="city_id"
-                            class="input-field @error('city_id') input-error @enderror" required>
+                            class="input-field @error('city_id') input-error @enderror">
                             <option value="">Select city</option>
                             @if($selectedStateId)
                                 @foreach(\Modules\Countries\Models\City::where('state_id', $selectedStateId)->where('country_id', $selectedCountryId)->orderBy('name')->get() as $city)

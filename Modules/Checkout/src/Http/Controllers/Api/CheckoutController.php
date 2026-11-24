@@ -44,7 +44,7 @@ class CheckoutController extends Controller
                 'city_id'                 => 'nullable|integer|exists:cities,id',
                 'state_id'                => 'nullable|integer|exists:country_states,id',
                 'country_id'              => 'nullable|integer|exists:countries,id',
-                'zip_code'                => 'required_without:saved_address_id|string|max:20',
+                'zip_code'                => 'required_without:saved_address_id|string|min:5|max:9',
                 'latitude'                => 'nullable|numeric|between:-90,90',
                 'longitude'               => 'nullable|numeric|between:-180,180',
                 'city_name'               => 'nullable|string|max:50',

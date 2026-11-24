@@ -302,11 +302,6 @@
                 return; // Autocomplete already supplied precise coordinates.
             }
 
-            if (!citySelect || !citySelect.value) {
-                setGeoStatus('Select a city to update the map location.', 'warning');
-                return;
-            }
-
             const selectedText = select => select && select.value && select.selectedOptions[0]
                 ? select.selectedOptions[0].text.trim() : '';
             const addressParts = [
