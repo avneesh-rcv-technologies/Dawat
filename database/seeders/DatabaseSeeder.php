@@ -12,15 +12,15 @@ class DatabaseSeeder extends Seeder
   public function run(): void
   {
     $this->call([
-      \Modules\Core\Database\Seeders\Files::class,
-      \Modules\Core\Database\Seeders\Settings::class,
-      \Modules\Countries\Database\Seeders\CountriesTableSeeder::class,
-      \Modules\Currencies\Database\Seeders\CurrencySeeder::class,
-      \Modules\Acl\Database\Seeders\AdminSeeder::class,
-      FoodManagementSeeder::class,
-      ComprehensiveFoodSeeder::class,
+      // \Modules\Core\Database\Seeders\Files::class,
+      // \Modules\Core\Database\Seeders\Settings::class,
+      // \Modules\Countries\Database\Seeders\CountriesTableSeeder::class,
+      // \Modules\Currencies\Database\Seeders\CurrencySeeder::class,
+      // \Modules\Acl\Database\Seeders\AdminSeeder::class,
+      // // FoodManagementSeeder::class,
+      // // ComprehensiveFoodSeeder::class,
       \Modules\Restaurant\Database\Seeders\RestaurantCancellationPolicySeeder::class,
-      \Modules\Tax\Database\Seeders\TaxSeeder::class,
+      // \Modules\Tax\Database\Seeders\TaxSeeder::class,
       \Modules\Orders\Database\Seeders\StatusesTableSeeder::class,
 
 
