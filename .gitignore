@@ -13,8 +13,6 @@
 /.zed
 /auth.json
 /node_modules
-/public/build
-/public/build-website
 /public/hot
 /public/website.hot
 /public/storage

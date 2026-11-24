@@ -1,0 +1,61 @@
+{
+  "resources/css/public-forms.css": {
+    "file": "assets/public-forms-CgPUuaeo.css",
+    "src": "resources/css/public-forms.css",
+    "isEntry": true,
+    "names": [
+      "public-forms.css"
+    ]
+  },
+  "resources/css/website.css": {
+    "file": "assets/website-CmY8Fk1q.css",
+    "src": "resources/css/website.css",
+    "isEntry": true,
+    "names": [
+      "website.css"
+    ]
+  },
+  "resources/css/website/pages/about.css": {
+    "file": "assets/about-y6Hb7TXO.css",
+    "src": "resources/css/website/pages/about.css",
+    "isEntry": true,
+    "names": [
+      "about.css"
+    ]
+  },
+  "resources/css/website/pages/home.css": {
+    "file": "assets/home-B-SblLXo.css",
+    "src": "resources/css/website/pages/home.css",
+    "isEntry": true,
+    "names": [
+      "home.css"
+    ]
+  },
+  "resources/css/website/pages/how-it-works.css": {
+    "file": "assets/how-it-works-KBNl2JZf.css",
+    "src": "resources/css/website/pages/how-it-works.css",
+    "isEntry": true,
+    "names": [
+      "how-it-works.css"
+    ]
+  },
+  "resources/fonts/NewYork.otf": {
+    "file": "assets/NewYork-C73vD2wW.otf",
+    "src": "resources/fonts/NewYork.otf"
+  },
+  "resources/js/public-forms.js": {
+    "file": "assets/public-forms-CSLwpMNj.js",
+    "name": "public-forms",
+    "src": "resources/js/public-forms.js",
+    "isEntry": true
+  },
+  "resources/js/website.js": {
+    "file": "assets/website-Bo3qFCj6.js",
+    "name": "website",
+    "src": "resources/js/website.js",
+    "isEntry": true,
+    "css": [
+      "assets/website-DvB2Xm2x.css"
+    ]
+  }
+}
