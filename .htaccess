@@ -1,0 +1,27 @@
+# Root .htaccess for shared hosting (Hostinger), where the document root is
+# the project root (public_html) instead of public/.
+
+Options -Indexes
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Public uploads: /storage/* -> public/storage/* (the storage:link symlink).
+    # Must come before the block rules below. Only files that exist there are
+    # served, so the private storage/ folder (logs, sessions, cache) stays blocked.
+    RewriteCond %{DOCUMENT_ROOT}/public/storage/$1 -f
+    RewriteRule ^storage/(.+)$ public/storage/$1 [L]
+
+    # Block sensitive Laravel project files and directories
+    RewriteRule ^(\.env|\.git|composer\.(json|lock)|artisan|phpunit\.xml|README\.md)(/|$) - [F,L,NC]
+    RewriteRule ^(app|bootstrap|config|database|Modules|resources|routes|storage|tests|vendor)(/|$) - [F,L,NC]
+
+    # Allow existing public files and directories to be served
+    RewriteCond %{REQUEST_URI} !^/public/
+    RewriteCond %{DOCUMENT_ROOT}/public%{REQUEST_URI} -f [OR]
+    RewriteCond %{DOCUMENT_ROOT}/public%{REQUEST_URI} -d
+    RewriteRule ^(.*)$ public/$1 [L]
+
+    # Send all remaining requests to Laravel's front controller
+    RewriteRule ^ public/index.php [L]
+</IfModule>
