@@ -13,15 +13,16 @@
     <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
         @php
             $editFields = $taxType === 'individual'
-                ? ['full_name' => ['Full name', 100], 'company_legal_name' => ['Business legal entity name', 150]]
+                ? ['full_name' => ['Full name', 100], 'company_legal_name' => ['Business / Trade name (optional)', 150]]
                 : ['company_legal_name' => ['Company legal name', 150], 'doing_business_as' => ['Doing business as', 150]];
-            $editFields += ['address' => ['Address', 150], 'zip_code' => ['ZIP code', 20]];
+            $editFields += ['address' => ['Address', 150], 'zip_code' => ['ZIP code', 9]];
             $identifier = $taxType === 'individual' ? 'ssn' : 'ein';
         @endphp
         @foreach($editFields as $field => [$label, $maxLength])
+            @php $fieldRequired = $field !== 'doing_business_as' && !($taxType === 'individual' && $field === 'company_legal_name'); @endphp
             <div>
-                <label for="tax-{{ $field }}" class="mb-1 block text-sm font-medium">{{ $label }}{{ $field !== 'doing_business_as' ? ' *' : '' }}</label>
-                <input id="tax-{{ $field }}" name="{{ $field }}" type="text" value="{{ old($field, $tax->{$field}) }}" maxlength="{{ $maxLength }}" @required($field !== 'doing_business_as') class="w-full rounded-lg border border-gray-300 px-3 py-2">
+                <label for="tax-{{ $field }}" class="mb-1 block text-sm font-medium">{{ $label }}{{ $fieldRequired ? ' *' : '' }}</label>
+                <input id="tax-{{ $field }}" name="{{ $field }}" type="text" value="{{ old($field, $tax->{$field}) }}" maxlength="{{ $maxLength }}" @if(in_array($field, ['zip_code', 'mailing_zip_code'], true)) minlength="5" pattern="[0-9]{5,9}" inputmode="numeric" @endif @required($fieldRequired) class="w-full rounded-lg border border-gray-300 px-3 py-2">
             </div>
         @endforeach
         <div>
@@ -31,8 +32,8 @@
         </div>
         @foreach(['country_id' => ['Country', $taxCountries], 'state_id' => ['State', $taxStates], 'city_id' => ['City', $taxCities]] as $field => [$label, $options])
             <div>
-                <label for="tax-{{ $field }}" class="mb-1 block text-sm font-medium">{{ $label }} *</label>
-                <select id="tax-{{ $field }}" name="{{ $field }}" required class="w-full rounded-lg border border-gray-300 px-3 py-2">
+                <label for="tax-{{ $field }}" class="mb-1 block text-sm font-medium">{{ $label }}{{ $field === 'city_id' ? ' (optional)' : ' *' }}</label>
+                <select id="tax-{{ $field }}" name="{{ $field }}" @required($field !== 'city_id') class="w-full rounded-lg border border-gray-300 px-3 py-2">
                     <option value="">Select {{ strtolower($label) }}</option>
                     @foreach($options as $option)
                         <option value="{{ $option->id }}" @selected((string) old($field, $tax->{$field}) === (string) $option->id)>{{ $option->name }}</option>
@@ -52,10 +53,10 @@
     </div>
     <fieldset id="tax-mailing-fields" class="grid grid-cols-1 gap-4 md:grid-cols-2">
         <legend>Mailing address</legend>
-        @foreach(['mailing_address' => ['Address', 150], 'mailing_city' => ['City', 100], 'mailing_state' => ['State', 100], 'mailing_zip_code' => ['ZIP code', 20]] as $field => [$label, $maxLength])
+        @foreach(['mailing_address' => ['Address', 150], 'mailing_city' => ['City', 100], 'mailing_state' => ['State', 100], 'mailing_zip_code' => ['ZIP code', 9]] as $field => [$label, $maxLength])
             <div>
                 <label for="tax-{{ $field }}" class="mb-1 block text-sm font-medium">{{ $label }} *</label>
-                <input id="tax-{{ $field }}" name="{{ $field }}" value="{{ old($field, $tax->{$field}) }}" maxlength="{{ $maxLength }}" class="w-full rounded-lg border border-gray-300 px-3 py-2">
+                <input id="tax-{{ $field }}" name="{{ $field }}" value="{{ old($field, $tax->{$field}) }}" maxlength="{{ $maxLength }}" @if(in_array($field, ['zip_code', 'mailing_zip_code'], true)) minlength="5" pattern="[0-9]{5,9}" inputmode="numeric" @endif class="w-full rounded-lg border border-gray-300 px-3 py-2">
             </div>
         @endforeach
     </fieldset>

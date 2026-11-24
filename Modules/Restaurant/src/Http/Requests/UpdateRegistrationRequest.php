@@ -49,7 +49,7 @@ class UpdateRegistrationRequest extends FormRequest
             'address_line1' => ['nullable', 'string', 'max:100'],
             'address_line2' => ['nullable', 'string', 'max:100'],
             ...RestaurantBankingService::locationRules($this->only(['country_id', 'state_id', 'city_id'])),
-            'postal_code' => ['nullable', 'string', 'max:80'],
+            'postal_code' => ['nullable', 'string', 'min:5', 'max:9'],
         ];
     }
 

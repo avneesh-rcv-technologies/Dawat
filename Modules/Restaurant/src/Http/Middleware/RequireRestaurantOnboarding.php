@@ -24,6 +24,12 @@ class RequireRestaurantOnboarding
             return $next($request);
         }
 
+        // Initial application approval grants dashboard access; ordering still requires full onboarding.
+        if ($request->routeIs('dashboard.index')
+            && \Modules\Restaurant\Models\Restaurant::where('admin_id', $admin->id)->where('approval_status', 'approved')->exists()) {
+            return $next($request);
+        }
+
         $url = route('restaurant.onboarding.kyc');
 
         if ($request->expectsJson()) {

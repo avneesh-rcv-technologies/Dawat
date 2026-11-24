@@ -117,7 +117,7 @@
             type="text"
             id="{{ $fieldPrefix }}_zip"
             class="input-field"
-            name="{{ $fieldPrefix }}[zip_code]"
+            name="{{ $fieldPrefix }}[zip_code]" minlength="5" maxlength="9"
             value="{{ old($fieldPrefix.'.zip_code', $addressData['zip_code']) }}"
         >
     </div>

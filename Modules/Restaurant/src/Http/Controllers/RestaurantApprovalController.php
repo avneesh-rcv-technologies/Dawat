@@ -538,18 +538,18 @@ class RestaurantApprovalController
             abort_unless($restaurant->onboardingSteps()->where('step_key', OnboardingStep::REGISTRATION->value)->exists(), 422, 'No registration step exists for this restaurant.');
             $country = Country::findOrFail($validated['country_id']);
             $state = CountryState::findOrFail($validated['state_id']);
-            $city = City::findOrFail($validated['city_id']);
-            $location = array_intersect_key($validated, array_flip(['country_id', 'state_id', 'city_id']));
+            $city = City::find($validated['city_id'] ?? null);
+            $location = array_intersect_key($validated, array_flip(['country_id', 'state_id', 'city_id'])) + ['city_id' => null];
             unset($validated['country_id'], $validated['state_id'], $validated['city_id']);
             $validated['country'] = $country->name;
             $validated['state'] = $state->name;
-            $validated['city'] = $city->name;
-            $restaurant->update($validated);
+            $validated['city'] = $city?->name;
+            $restaurant->update($validated + $location);
             $addressData = $location + [
                 'address_line_1' => $validated['address_line1'] ?? '',
                 'address_line_2' => $validated['address_line2'] ?? null,
                 'zip_code' => $validated['postal_code'] ?? null,
-                'city_name' => $city->name,
+                'city_name' => $city?->name,
             ];
             $address = $restaurant->addresses()->orderByDesc('is_default')->orderBy('id')->first();
             if ($address) {

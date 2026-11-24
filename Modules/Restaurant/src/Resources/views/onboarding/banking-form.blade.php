@@ -840,13 +840,12 @@
                         <div class="bank-row-2col">
                             <div class="bank-field">
                                 <label for="bank-city_id">
-                                    City <span class="bank-req">*</span>
+                                    City
                                 </label>
                                 <select id="bank-city_id"
                                         name="city_id"
                                         class="bank-control-input bank-select"
                                         autocomplete="address-level2"
-                                        required
                                         disabled>
                                     <option value="">Select city</option>
                                 </select>
@@ -857,16 +856,15 @@
         ZIP code <span class="bank-req">*</span>
     </label>
     <input id="bank-postal_code"
-           name="postal_code"
+           name="postal_code" minlength="5" maxlength="9"
            type="text"
            class="bank-control-input"
-           maxlength="5"
-           pattern="[0-9]{5}"
+           pattern="[0-9]{5,9}"
            inputmode="numeric"
            oninput="this.value = this.value.replace(/[^0-9]/g, '')"
            autocomplete="postal-code"
            placeholder="11201"
-           title="Please enter a valid 5-digit US ZIP code"
+           title="Please enter a valid ZIP code with 5 to 9 digits"
            required>
 </div>
                         </div>
@@ -1139,6 +1137,7 @@
             postal_code: 'Please enter your zip or postal code.',
         };
         if (control.required && !value) return requiredMessages[control.name] || 'Please complete this field.';
+        if (control.name === 'postal_code' && value && !/^[0-9]{5,9}$/.test(value)) return 'Please enter a ZIP code with 5 to 9 digits.';
         if (control.name === 'routing_number' && value && !/^[0-9]{9}$/.test(value)) return 'The routing number must contain exactly 9 digits.';
         if (control.name === 'account_number' && value && !/^[0-9]{4,17}$/.test(value)) return 'The account number must contain 4 to 17 digits.';
         if (control.name === 'account_number_confirmation' && value && value !== input('account_number').value.trim()) return 'The account numbers do not match. Please re-enter the same account number.';
@@ -1295,6 +1294,7 @@
         }
         const payload = Object.fromEntries(new FormData(form));
         delete payload._token;
+        payload.city_id = city.value || null;
         if (commission?.is_required) payload.accept_platform_commission = commissionInput.checked;
         else delete payload.accept_platform_commission;
         if (existing && !payload.account_number && !payload.account_number_confirmation) {

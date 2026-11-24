@@ -296,8 +296,7 @@ $activeTab = session('tab', 'general');
 
                     <div class="form-group">
                         <label class="form-label">City <span class="text-red-500">*</span></label>
-                        <select name="city_id" id="city_id" class="input-field @error('city_id') input-error @enderror"
-                            required>
+                        <select name="city_id" id="city_id" class="input-field @error('city_id') input-error @enderror">
                             <option value="">Select City</option>
                             @if(old('state_id', $restaurantAddress->state_id ?? ''))
                             @foreach(\Modules\Countries\Models\City::where('state_id', old('state_id',
@@ -316,7 +315,7 @@ $activeTab = session('tab', 'general');
 
                     <div class="form-group">
                         <label class="form-label">Postal Code <span class="text-red-500">*</span></label>
-                        <input name="postal_code" type="text"
+                        <input name="postal_code" minlength="5" maxlength="9" type="text"
                             class="input-field @error('postal_code') input-error @enderror"
                             value="{{ old('postal_code', $restaurantAddress->zip_code ?? $restaurant->postal_code ?? '') }}"
                             placeholder="ZIP/Postal code" required>

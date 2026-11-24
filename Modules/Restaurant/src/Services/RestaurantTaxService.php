@@ -113,6 +113,10 @@ class RestaurantTaxService
             'same_mailing_address' => true,
             'receive_1099_electronically' => false,
         ], $type === 'business' ? ['backup_tax_withholding' => false] : []) : $existing, $input);
+        if (!array_key_exists('city_id', $input)
+            && ($newEntityRecord || (string) ($data['state_id'] ?? '') !== (string) $tax->state_id)) {
+            $data['city_id'] = null;
+        }
         $validated = Validator::make($data, self::rules($data), self::messages(), self::attributes())->validate();
         foreach (($validated['tax_type'] === 'individual'
             ? ['doing_business_as', 'ein'] : ['full_name', 'ssn']) as $field) {
@@ -183,8 +187,8 @@ class RestaurantTaxService
             'company_legal_name.required' => 'Please enter the business legal entity name.',
             'ssn.regex' => 'Enter a 9-digit SSN, with or without hyphens (123-45-6789).',
             'ein.regex' => 'Enter a 9-digit EIN, with or without a hyphen (12-3456789).',
-            'zip_code.regex' => 'Please enter a valid 5-digit ZIP code.',
-            'mailing_zip_code.regex' => 'Please enter a valid 5-digit mailing ZIP code.',
+            'zip_code.regex' => 'Please enter a ZIP code with 5 to 9 digits.',
+            'mailing_zip_code.regex' => 'Please enter a mailing ZIP code with 5 to 9 digits.',
             'country_id.exists' => 'Please select a valid country.',
             'state_id.exists' => 'Please select a state belonging to the selected country.',
             'city_id.exists' => 'Please select a city belonging to the selected state.',
@@ -221,19 +225,19 @@ class RestaurantTaxService
             'tax_type' => ['required', Rule::in(['individual', 'business'])],
             'full_name' => $individual ? ['required', 'string', 'max:100'] : ['missing'],
             'ssn' => $individual ? ['required', 'string', 'regex:/^(?:[0-9]{9}|[0-9]{3}-[0-9]{2}-[0-9]{4})$/D'] : ['missing'],
-            'company_legal_name' => ['required', 'string', 'max:150'],
+            'company_legal_name' => [$individual ? 'nullable' : 'required', 'string', 'max:150'],
             'doing_business_as' => $individual ? ['missing'] : ['nullable', 'string', 'max:150'],
             'ein' => $individual ? ['missing'] : ['required', 'string', 'regex:/^(?:[0-9]{9}|[0-9]{2}-[0-9]{7})$/D'],
             'address' => ['required', 'string', 'max:150'],
             'country_id' => ['required', 'integer', Rule::exists('countries', 'id')],
             'state_id' => ['required', 'integer', Rule::exists('country_states', 'id')->where('country_id', is_scalar($data['country_id'] ?? null) ? $data['country_id'] : null)],
-            'city_id' => ['required', 'integer', Rule::exists('cities', 'id')->where('state_id', is_scalar($data['state_id'] ?? null) ? $data['state_id'] : null)->where('country_id', is_scalar($data['country_id'] ?? null) ? $data['country_id'] : null)],
-            'zip_code' => ['required', 'string', 'regex:/^[0-9]{5}$/D'],
+            'city_id' => ['nullable', 'integer', Rule::exists('cities', 'id')->where('state_id', is_scalar($data['state_id'] ?? null) ? $data['state_id'] : null)->where('country_id', is_scalar($data['country_id'] ?? null) ? $data['country_id'] : null)],
+            'zip_code' => ['required', 'string', 'regex:/^[0-9]{5,9}$/D'],
             'same_mailing_address' => ['required', 'boolean'],
             'mailing_address' => ['exclude_if:same_mailing_address,true', 'required', 'string', 'max:150'],
             'mailing_city' => ['exclude_if:same_mailing_address,true', 'required', 'string', 'max:100'],
             'mailing_state' => ['exclude_if:same_mailing_address,true', 'required', 'string', 'max:100'],
-            'mailing_zip_code' => ['exclude_if:same_mailing_address,true', 'required', 'string', 'regex:/^[0-9]{5}$/D'],
+            'mailing_zip_code' => ['exclude_if:same_mailing_address,true', 'required', 'string', 'regex:/^[0-9]{5,9}$/D'],
             'receive_1099_electronically' => ['required', 'boolean'],
             'backup_tax_withholding' => $individual ? ['missing'] : ['required', 'boolean'],
             'tax_certification' => $individual ? ['missing'] : ['required', 'accepted'],

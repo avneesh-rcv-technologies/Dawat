@@ -23,7 +23,7 @@ class TaxRateRequest extends FormRequest
             'type' => ['required', Rule::in(array_column(TaxType::cases(), 'value'))],
             'country_id' => 'required|exists:countries,id',
             'state' => 'nullable|string|max:255',
-            'postcode' => 'nullable|string|max:255',
+            'postcode' => 'nullable|string|min:5|max:9',
             'city' => 'nullable|string|max:255',
             'is_active' => 'boolean',
             'priority' => 'integer|min:0'

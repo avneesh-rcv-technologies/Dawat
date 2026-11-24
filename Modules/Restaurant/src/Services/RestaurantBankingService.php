@@ -76,6 +76,10 @@ class RestaurantBankingService
             $commissionChanged = $acceptsCommission && !PlatformCommission::acceptedCurrent($restaurant);
         }
         $banking ??= $restaurant->bankingDetail()->make();
+        if (!array_key_exists('city_id', $data) && array_key_exists('state_id', $data)
+            && (string) $data['state_id'] !== (string) $banking->state_id) {
+            $data['city_id'] = null;
+        }
         $location = array_replace([
             'country_id' => $banking->country_id,
             'state_id' => $banking->state_id,
@@ -86,7 +90,6 @@ class RestaurantBankingService
             'country_id.exists' => 'Please select a valid country.',
             'state_id.required' => 'Please select a state.',
             'state_id.exists' => 'Please select a state belonging to the selected country.',
-            'city_id.required' => 'Please select a city.',
             'city_id.exists' => 'Please select a city belonging to the selected state.',
         ])->validate();
         if (!$creating && $ownerSubmission) {
@@ -98,7 +101,8 @@ class RestaurantBankingService
         // Older installations also require the location names alongside the IDs.
         foreach (['city' => 'cities', 'state' => 'country_states'] as $column => $table) {
             if (Schema::hasColumn($banking->getTable(), $column)) {
-                $banking->setAttribute($column, DB::table($table)->where('id', $location[$column.'_id'])->value('name'));
+                $name = DB::table($table)->where('id', $location[$column.'_id'])->value('name');
+                $banking->setAttribute($column, $column === 'city' ? ($name ?? '') : $name);
             }
         }
         if (!$creating && !$ownerSubmission && !$banking->isDirty()) return $banking;
@@ -162,7 +166,7 @@ class RestaurantBankingService
         return [
             'country_id' => ['required', 'integer', Rule::exists('countries', 'id')],
             'state_id' => ['required', 'integer', Rule::exists('country_states', 'id')->where('country_id', $country)],
-            'city_id' => ['required', 'integer', Rule::exists('cities', 'id')->where('country_id', $country)->where('state_id', $state)],
+            'city_id' => ['nullable', 'integer', Rule::exists('cities', 'id')->where('country_id', $country)->where('state_id', $state)],
         ];
     }
 }

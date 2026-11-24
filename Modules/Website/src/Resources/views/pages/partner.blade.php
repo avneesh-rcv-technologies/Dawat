@@ -98,7 +98,7 @@ they share.</p></div>
                             <select id="restaurant-interest-phone-country" name="phone_country_id" required disabled aria-label="Phone country code" autocomplete="tel-country-code" class="partner-input h-11 rounded-lg bg-white px-2 text-sm text-black" style="width: 100px; flex-shrink: 0;">
                                 <option value="">Code</option>
                             </select>
-                            <input id="restaurant-interest-phone" required type="tel" name="phone" inputmode="numeric" pattern="[0-9]+" autocomplete="tel-national" maxlength="20" placeholder="Phone number" class="partner-input h-11 w-full rounded-lg px-3 text-sm text-black placeholder:text-black/35" style="min-width: 0;">
+                            <input id="restaurant-interest-phone" required type="tel" name="phone" inputmode="numeric" pattern="[0-9]{7,16}" autocomplete="tel-national" minlength="7" maxlength="16" title="Enter a phone number with 7 to 16 digits." placeholder="Phone number" class="partner-input h-11 w-full rounded-lg px-3 text-sm text-black placeholder:text-black/35" style="min-width: 0;">
                         </div>
                         <span data-phone-errors></span>
                     </div>
@@ -112,8 +112,8 @@ they share.</p></div>
                             <option value="">Choose country first</option>
                         </select>
                     </label>
-                    <label for="restaurant-interest-city_id" class="text-[11px] font-medium tracking-wide text-black/45">CITY <span aria-hidden="true">*</span>
-                        <select id="restaurant-interest-city_id" disabled required name="city_id" autocomplete="address-level2" class="partner-input mt-2 h-11 w-full rounded-lg bg-white px-3 text-sm text-black">
+                    <label for="restaurant-interest-city_id" class="text-[11px] font-medium tracking-wide text-black/45">CITY (OPTIONAL)
+                        <select id="restaurant-interest-city_id" disabled name="city_id" autocomplete="address-level2" class="partner-input mt-2 h-11 w-full rounded-lg bg-white px-3 text-sm text-black">
                             <option value="">Choose state first</option>
                         </select>
                     </label>
@@ -125,14 +125,13 @@ they share.</p></div>
             id="restaurant-interest-postal_code"
             required
             type="text"
-            name="postal_code"
+            name="postal_code" minlength="5" maxlength="9"
             autocomplete="postal-code"
-            maxlength="5"
-            pattern="[0-9]{5}"
+            pattern="[0-9]{5,9}"
             inputmode="numeric"
             oninput="this.value = this.value.replace(/[^0-9]/g, '')"
-            placeholder="Enter 5-digit ZIP code"
-            title="Please enter a valid 5-digit US ZIP code"
+            placeholder="Enter 5 to 9 digit ZIP code"
+            title="Please enter a valid ZIP code with 5 to 9 digits"
             class="partner-input mt-2 h-11 w-full rounded-lg px-3 text-sm text-black placeholder:text-black/35">
     </label>
                     <label for="restaurant-interest-address" class="text-[11px] font-medium tracking-wide text-black/45 sm:col-span-2">FULL ADDRESS <span aria-hidden="true">*</span>

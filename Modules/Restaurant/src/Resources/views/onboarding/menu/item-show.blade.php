@@ -14,6 +14,10 @@
         $foodTypes = ['veg' => 'Vegetarian', 'non_veg' => 'Non-vegetarian', 'vegan' => 'Vegan', 'all' => 'All food types'];
         $prices = $item->servingOptions->map(fn ($option) => $option->discount_price ?? $option->price)->filter(fn ($price) => $price !== null);
         $fromPrice = $prices->isNotEmpty() ? $prices->min() : $item->sale_price;
+        $currencyCode = fn_get_setting('general.currency') ?: 'USD';
+        $currency = fn_get_currency_by_code($currencyCode);
+        $formatPrice = fn ($amount) => ($currency?->symbol ?: $currencyCode) . ' '
+            . number_format((float) $amount, (int) ($currency?->decimal ?? 2), '.', ',');
     @endphp
 
     <section class="menu-panel food-detail-hero" aria-labelledby="food-item-title">
@@ -42,7 +46,7 @@
         </div>
         <div class="food-detail-price-card">
             <span class="food-detail-label">{{ $prices->isNotEmpty() ? 'Serving price from' : 'Sale price' }}</span>
-            <strong class="food-detail-price">{{ $fromPrice !== null ? number_format((float) $fromPrice, 2) : 'Not set' }}</strong>
+            <strong class="food-detail-price">{{ $fromPrice !== null ? $formatPrice($fromPrice) : 'Not set' }}</strong>
             <span class="food-detail-tax">Item tax · {{ number_format((float) $item->tax_percentage, 2) }}%</span>
             <a href="{{ $menu->route('items.edit', ['id' => $item->id]) }}" class="menu-btn food-detail-edit">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
@@ -105,8 +109,8 @@
                                         <td><strong>{{ $option->serving_name }}</strong><small>{{ \Modules\FoodManagements\Models\FoodItemServingOption::SERVE_TYPES[$option->serve_type] ?? $option->serve_type }}</small></td>
                                         <td>{{ $option->quantity !== null ? number_format((float) $option->quantity, 2) . ' ' . $option->unit : '—' }}</td>
                                         <td>@if ($option->min_guests !== null || $option->max_guests !== null){{ $option->min_guests ?? '—' }} – {{ $option->max_guests ?? 'No limit' }} guests @elseif ($option->serves !== null){{ $option->serves }} people @else — @endif</td>
-                                        <td>{{ number_format((float) $option->price, 2) }}</td>
-                                        <td>{{ $option->discount_price !== null ? number_format((float) $option->discount_price, 2) : '—' }}</td>
+                                        <td>{{ $formatPrice($option->price) }}</td>
+                                        <td>{{ $option->discount_price !== null ? $formatPrice($option->discount_price) : '—' }}</td>
                                         <td><span class="menu-chip {{ $option->is_available ? 'is-on' : 'is-off' }}">{{ $option->is_available ? 'Available' : 'Unavailable' }}</span></td>
                                     </tr>
                                 @endforeach
@@ -163,9 +167,9 @@
             <section class="menu-panel food-detail-section">
                 <div class="menu-toolbar"><div><h2>Pricing & stock</h2></div></div>
                 <dl class="food-detail-facts">
-                    <div><dt>Sale price</dt><dd>{{ $item->sale_price !== null ? number_format((float) $item->sale_price, 2) : '—' }}</dd></div>
-                    <div><dt>List price</dt><dd>{{ $item->list_price !== null ? number_format((float) $item->list_price, 2) : '—' }}</dd></div>
-                    <div><dt>Cost price</dt><dd>{{ $item->cost_price !== null ? number_format((float) $item->cost_price, 2) : '—' }}</dd></div>
+                    <div><dt>Sale price</dt><dd>{{ $item->sale_price !== null ? $formatPrice($item->sale_price) : '—' }}</dd></div>
+                    <div><dt>List price</dt><dd>{{ $item->list_price !== null ? $formatPrice($item->list_price) : '—' }}</dd></div>
+                    <div><dt>Cost price</dt><dd>{{ $item->cost_price !== null ? $formatPrice($item->cost_price) : '—' }}</dd></div>
                     <div><dt>Tax</dt><dd>{{ number_format((float) $item->tax_percentage, 2) }}%</dd></div>
                     <div><dt>Quantity type</dt><dd>{{ $item->quantity_type ? ucfirst($item->quantity_type) : '—' }}</dd></div>
                     <div><dt>{{ $item->quantity_label }}</dt><dd>{{ $item->quantity ?? '—' }}</dd></div>

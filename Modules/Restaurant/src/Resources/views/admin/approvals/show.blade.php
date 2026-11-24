@@ -224,7 +224,7 @@
                             @foreach(array_diff_key($fields, array_flip(['country', 'state', 'city'])) as $field => $label)
                                 <div>
                                     <label for="edit-{{ $field }}" class="mb-1 block text-sm font-medium">{{ $label }}@if(in_array($field, ['name', 'phone'])) <span aria-hidden="true">*</span>@endif</label>
-                                    <input id="edit-{{ $field }}" name="{{ $field }}" type="{{ $field === 'phone' ? 'tel' : 'text' }}" value="{{ old($field, $restaurant->{$field}) }}" maxlength="{{ $field === 'name' ? 150 : ($field === 'phone' ? 20 : 255) }}" @if($field === 'name') minlength="5" @endif @if(in_array($field, ['name', 'phone'])) required @endif aria-invalid="{{ $errors->has($field) ? 'true' : 'false' }}" class="w-full rounded-lg border border-gray-300 px-3 py-2">
+                                    <input id="edit-{{ $field }}" name="{{ $field }}" type="{{ $field === 'phone' ? 'tel' : 'text' }}" value="{{ old($field, $restaurant->{$field}) }}" maxlength="{{ $field === 'name' ? 150 : ($field === 'phone' ? 20 : ($field === 'postal_code' ? 9 : 255)) }}" @if(in_array($field, ['name', 'postal_code'], true)) minlength="5" @endif @if(in_array($field, ['name', 'phone'])) required @endif aria-invalid="{{ $errors->has($field) ? 'true' : 'false' }}" class="w-full rounded-lg border border-gray-300 px-3 py-2">
                                 </div>
                             @endforeach
                         </div>

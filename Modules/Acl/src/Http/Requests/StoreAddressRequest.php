@@ -20,7 +20,7 @@ class StoreAddressRequest extends FormRequest
             'city_id' => 'nullable|integer|exists:cities,id',
             'state_id' => 'nullable|integer|exists:country_states,id',
             'country_id' => 'nullable|integer|exists:countries,id',
-            'zip_code' => 'required|string|max:20',
+            'zip_code' => 'required|string|min:5|max:9',
             'latitude' => 'nullable|required_with:longitude|numeric|between:-90,90',
             'longitude' => 'nullable|required_with:latitude|numeric|between:-180,180',
             'is_default' => 'nullable|boolean',

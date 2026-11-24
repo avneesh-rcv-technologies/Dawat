@@ -68,14 +68,14 @@ class RestaurantGeneralInformationController extends Controller
             'address_line2' => ['nullable', 'string', 'max:255'],
             'country_id' => ['required', 'integer', 'exists:countries,id'],
             'state_id' => ['required', 'integer', Rule::exists('country_states', 'id')->where('country_id', $request->input('country_id'))],
-            'city_id' => ['required', 'integer', Rule::exists('cities', 'id')->where('country_id', $request->input('country_id'))->where('state_id', $request->input('state_id'))],
-            'postal_code' => ['required', 'string', 'max:20'],
+            'city_id' => ['nullable', 'integer', Rule::exists('cities', 'id')->where('country_id', $request->input('country_id'))->where('state_id', $request->input('state_id'))],
+            'postal_code' => ['required', 'string', 'min:5', 'max:9'],
             'latitude' => ['nullable', 'numeric', 'between:-90,90'],
             'longitude' => ['nullable', 'numeric', 'between:-180,180'],
         ]);
         $data['country_name'] = Country::findOrFail($data['country_id'])->name;
         $data['state_name'] = CountryState::findOrFail($data['state_id'])->name;
-        $data['city_name'] = City::findOrFail($data['city_id'])->name;
+        $data['city_name'] = City::find($data['city_id'] ?? null)?->name;
         $this->service->updateAddress($restaurant->id, $data);
 
         return back()->with('success', 'Address saved successfully');

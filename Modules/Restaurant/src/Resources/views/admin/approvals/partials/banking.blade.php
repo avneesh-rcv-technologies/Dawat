@@ -7,7 +7,7 @@
         'routing_number' => ['Routing Number', 9],
         'business_legal_name' => ['Business Legal Entity Name', 150],
         'doing_business_as' => ['DBA / Doing Business As', 150],
-        'address' => ['Address', 255], 'postal_code' => ['Zip / Postal Code', 20],
+        'address' => ['Address', 255], 'postal_code' => ['Zip / Postal Code', 9],
     ];
 @endphp
 <div id="banking-panel">
@@ -76,14 +76,14 @@
                     @foreach($bankingFields as $field => [$label, $maxLength])
                         <div>
                             <label for="banking-{{ $field }}" class="mb-1 block text-sm font-medium">{{ $label }}@if($field !== 'doing_business_as') <span aria-hidden="true">*</span>@endif</label>
-                            <input id="banking-{{ $field }}" name="{{ $field }}" type="text" value="{{ old($field, $banking->{$field}) }}" maxlength="{{ $maxLength }}" @if($field !== 'doing_business_as') required @endif @if($field === 'routing_number') inputmode="numeric" pattern="[0-9]{9}" @endif aria-invalid="{{ $errors->has($field) ? 'true' : 'false' }}" class="w-full rounded-lg border border-gray-300 px-3 py-2">
+                            <input id="banking-{{ $field }}" name="{{ $field }}" type="text" value="{{ old($field, $banking->{$field}) }}" maxlength="{{ $maxLength }}" @if($field === 'postal_code') minlength="5" @endif @if($field !== 'doing_business_as') required @endif @if($field === 'routing_number') inputmode="numeric" pattern="[0-9]{9}" @endif aria-invalid="{{ $errors->has($field) ? 'true' : 'false' }}" class="w-full rounded-lg border border-gray-300 px-3 py-2">
                             @error($field)<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
                         </div>
                     @endforeach
                     @foreach(['country_id' => ['Country', $bankingCountries], 'state_id' => ['State', $bankingStates], 'city_id' => ['City', $bankingCities]] as $field => [$label, $locations])
                         <div>
-                            <label for="banking-{{ $field }}" class="mb-1 block text-sm font-medium">{{ $label }} <span aria-hidden="true">*</span></label>
-                            <select id="banking-{{ $field }}" name="{{ $field }}" required class="w-full rounded-lg border border-gray-300 px-3 py-2" aria-invalid="{{ $errors->has($field) ? 'true' : 'false' }}">
+                            <label for="banking-{{ $field }}" class="mb-1 block text-sm font-medium">{{ $label }} @if($field !== 'city_id')<span aria-hidden="true">*</span>@else (optional) @endif</label>
+                            <select id="banking-{{ $field }}" name="{{ $field }}" @required($field !== 'city_id') class="w-full rounded-lg border border-gray-300 px-3 py-2" aria-invalid="{{ $errors->has($field) ? 'true' : 'false' }}">
                                 <option value="">Select {{ strtolower($label) }}</option>
                                 @foreach($locations as $location)
                                     <option value="{{ $location->id }}" @selected(is_scalar(old($field, $banking->{$field})) && (string) old($field, $banking->{$field}) === (string) $location->id)>{{ $location->name }}</option>
