@@ -257,6 +257,13 @@ class AdvanceLoggingController extends Controller
         }
     }
 
+    public function blockIpAction(Request $request, int $id)
+    {
+        return $request->isMethod('post')
+            ? $this->blockIp($request, $id)
+            : $this->blockIpForm($request, $id);
+    }
+
     public function blockIpForm(Request $request, int $id)
     {
         $log = RequestActivityLog::findOrFail($id);

@@ -15,9 +15,17 @@ use Modules\Activitylog\Http\Controllers\AdvanceLoggingController;
 */
 
 Route::middleware('web')->group(function () {
-    foreach (array_column(config('acl::guards.guards'), 'prefix') as $prefix) {
+    foreach (config('acl::guards.guards') as $guard => $guardConfig) {
+        $prefix = $guardConfig['prefix'];
+        // Keep existing admin route names and distinguish other guards.
+        $namePrefix = $guard === 'admin' ? '' : $guard . '.';
 
-        Route::middleware(['check.permission'])->prefix($prefix)->group(function () {
+        Route::group([
+            'middleware' => ['check.permission'],
+            'prefix' => $prefix,
+            'as' => $namePrefix,
+            'permission_name_prefix' => $namePrefix,
+        ], function () {
             Route::prefix('activity-log')->name('activity-log.')->group(function () {
                 // New routes for advanced logging and blocked IPs
                 Route::get('/advance-logging', [AdvanceLoggingController::class, 'index'])->name('advance-logging');
@@ -39,8 +47,8 @@ Route::middleware('web')->group(function () {
                 // Advance logging CRUD & IP actions
                 Route::prefix('advance-logging')->name('advance-logging.')->group(function () {
                     Route::get('/{id}', [AdvanceLoggingController::class, 'show'])->name('show');
-                    Route::get('/{id}/block-ip', [AdvanceLoggingController::class, 'blockIpForm'])->name('block-ip');
-                    Route::post('/{id}/block-ip', [AdvanceLoggingController::class, 'blockIp'])->name('block-ip');
+                    // GET shows the form, POST blocks the IP; one route keeps a single name/permission.
+                    Route::match(['get', 'post'], '/{id}/block-ip', [AdvanceLoggingController::class, 'blockIpAction'])->name('block-ip');
                 });
 
             });
