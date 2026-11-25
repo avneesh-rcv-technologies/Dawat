@@ -93,75 +93,156 @@ All admin routes are protected with `auth:admin` middleware:
 - `POST /admin/ratings/{id}/toggle-status` - Toggle status
 - `POST /admin/ratings/bulk-delete` - Bulk delete ratings
 
-### API Routes
+### Customer Mobile API
 
-Public API routes for frontend integration:
+Customer rating submission is authenticated with Laravel Sanctum and tied to a delivered restaurant order. A customer can submit one restaurant review and ratings for eligible food items in that order.
 
-#### List Reviews
+#### Authentication
+
+Send the customer's Sanctum token on the order form and submit requests:
+
 ```http
-GET /api/v1/ratings?ratable_type=App\Models\Product&ratable_id=1&per_page=10
-```
-
-Response:
-```json
-{
-  "success": true,
-  "data": {
-    "current_page": 1,
-    "data": [...],
-    "total": 50
-  },
-  "stats": {
-    "average": 4.5,
-    "count": 50
-  }
-}
-```
-
-#### Add Review
-```http
-POST /api/v1/ratings
+Authorization: Bearer <customer-token>
+Accept: application/json
 Content-Type: application/json
-
-{
-  "ratable_type": "App\\Models\\Product",
-  "ratable_id": 1,
-  "rating": 5,
-  "review": "Great product!",
-  "guest_name": "John Doe",
-  "guest_email": "john@example.com"
-}
 ```
 
-Response:
-```json
-{
-  "success": true,
-  "message": "Thank you! Your review has been submitted and is pending approval.",
-  "data": {...}
-}
-```
+#### Get the order rating form
 
-#### Get Rating Statistics
 ```http
-GET /api/v1/ratings/stats?ratable_type=App\Models\Product&ratable_id=1
+GET /api/v1/ratings/orders/{orderId}/form
 ```
 
-Response:
+Example response:
+
 ```json
 {
   "success": true,
   "data": {
-    "average": 4.5,
-    "count": 50
+    "order_id": 123,
+    "restaurant": { "id": 7, "name": "Dawat Kitchen" },
+    "restaurant_already_rated": false,
+    "food_items": [
+      { "order_item_id": 456, "name": "Paneer Tikka", "already_rated": false }
+    ]
   }
 }
 ```
 
-#### Get Single Rating
+Use each returned `order_item_id` as the key in `food_ratings`. The API checks the authenticated customer owns the order, that it is delivered, and that each food item belongs to that order's restaurant.
+
+#### Submit restaurant and food-item ratings
+
+```http
+POST /api/v1/ratings/orders/submit
+```
+
+Request body:
+
+```json
+{
+  "order_id": 123,
+  "restaurant_rating": 5,
+  "restaurant_review": "Great meal and friendly service.",
+  "food_ratings": {
+    "456": {
+      "rating": 5,
+      "review": "The dish was delicious."
+    },
+    "457": {
+      "rating": 4,
+      "review": "Good flavor."
+    }
+  }
+}
+```
+
+`restaurant_rating` is required and must be 1–5. `restaurant_review` is optional and limited to 2,000 characters. `food_ratings` is optional; each submitted item's rating must be 1–5 and its review is optional (up to 2,000 characters). Do not send food item IDs as keys: the keys are order item IDs from the form response.
+
+Successful response (`201`):
+
+```json
+{
+  "success": true,
+  "message": "Your ratings were submitted for review.",
+  "data": [
+    {
+      "id": 9001,
+      "type": "restaurant",
+      "ratable_id": 7,
+      "order_id": 123,
+      "order_item_id": null,
+      "rating": 5,
+      "review": "Great meal and friendly service.",
+      "status": "pending"
+    }
+  ]
+}
+```
+
+If the order has not been delivered yet, the API returns a readable `422` response without a debug trace:
+
+```json
+{
+  "success": false,
+  "code": "ORDER_NOT_DELIVERED",
+  "message": "You can rate this order after it has been delivered or pickup is complete.",
+  "errors": {
+    "order_id": ["You can rate this order after it has been delivered or pickup is complete."]
+  }
+}
+```
+
+If a submitted `food_ratings` key is not an `order_item_id` from that order, the API returns a field-specific message:
+
+```json
+{
+  "success": false,
+  "code": "FOOD_ITEM_NOT_IN_ORDER",
+  "message": "This item is not part of the order. Refresh the order details and select one of its food items.",
+  "errors": {
+    "food_ratings.999": [
+      "This item is not part of the order. Refresh the order details and select one of its food items."
+    ]
+  }
+}
+```
+
+Ratings start pending moderation. In-app notifications are attempted for the admin team and restaurant owner; notification failures are logged and do not fail the rating submission.
+
+#### List public reviews
+
+Only approved and active reviews are returned. Use the stable `restaurant` or `food_item` type aliases:
+
+```http
+GET /api/v1/ratings?ratable_type=restaurant&ratable_id=7&per_page=10
+GET /api/v1/ratings?ratable_type=food_item&ratable_id=42&per_page=10
+```
+
+`per_page` is optional and accepts 1–50 (default 10). The response includes the paginator under `data` and the selected entity's average and count under `stats`.
+
+#### Get rating statistics
+
+```http
+GET /api/v1/ratings/stats?ratable_type=restaurant&ratable_id=7
+```
+
+Example response:
+
+```json
+{
+  "success": true,
+  "data": { "average": 4.5, "count": 24 }
+}
+```
+
+#### Get a public review by ID
+
 ```http
 GET /api/v1/ratings/{id}
 ```
+
+This returns `404` for a review that is not approved and active. `POST /api/v1/ratings` is not the customer submission endpoint; use the authenticated order submission route above.
 
 ## Using in Your Models
 
@@ -310,45 +391,42 @@ The module provides hooks for General Settings integration:
 - `generalsetting/tabs.post.blade.php` - Adds rating tab
 - `generalsetting/tab_content.post.blade.php` - Adds rating configuration form
 
-## Frontend Integration Example
+## Mobile Integration Example
 
 ```javascript
-// Fetch ratings for a product
-async function fetchRatings(productId, page = 1) {
-  const response = await fetch(
-    `/api/v1/ratings?ratable_type=App\\Models\\Product&ratable_id=${productId}&per_page=10&page=${page}`
-  );
-  const data = await response.json();
-  return data;
+// Load the order and its eligible restaurant/food items before showing the rating form.
+async function getOrderRatingForm(orderId, token) {
+  const response = await fetch(`/api/v1/ratings/orders/${orderId}/form`, {
+    headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
+  });
+  return response.json();
 }
 
-// Submit a rating
-async function submitRating(productId, ratingData) {
-  const response = await fetch('/api/v1/ratings', {
+// Submit the restaurant review plus any food-item reviews for this delivered order.
+async function submitOrderRatings(orderId, token, restaurantRating, restaurantReview, foodRatings) {
+  const response = await fetch('/api/v1/ratings/orders/submit', {
     method: 'POST',
     headers: {
+      Accept: 'application/json',
       'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify({
-      ratable_type: 'App\\Models\\Product',
-      ratable_id: productId,
-      rating: ratingData.rating,
-      review: ratingData.review,
-      guest_name: ratingData.name,
-      guest_email: ratingData.email,
+      order_id: orderId,
+      restaurant_rating: restaurantRating,
+      restaurant_review: restaurantReview,
+      food_ratings: foodRatings, // Keys are order_item_id values from getOrderRatingForm().
     }),
   });
-  const data = await response.json();
-  return data;
+  return { status: response.status, body: await response.json() };
 }
 
-// Get rating statistics
-async function getRatingStats(productId) {
+// Read public ratings and summary statistics for a restaurant or food item.
+async function getPublicRatings(type, id) {
   const response = await fetch(
-    `/api/v1/ratings/stats?ratable_type=App\\Models\\Product&ratable_id=${productId}`
+    `/api/v1/ratings?ratable_type=${encodeURIComponent(type)}&ratable_id=${id}&per_page=10`
   );
-  const data = await response.json();
-  return data;
+  return response.json();
 }
 ```
 

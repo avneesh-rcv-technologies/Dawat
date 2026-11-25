@@ -16,6 +16,7 @@
         $fromPrice = $prices->isNotEmpty() ? $prices->min() : $item->sale_price;
         $currencyCode = fn_get_setting('general.currency') ?: 'USD';
         $currency = fn_get_currency_by_code($currencyCode);
+        $filledRatingStars = (int) round($averageRating ?? 0);
         $formatPrice = fn ($amount) => ($currency?->symbol ?: $currencyCode) . ' '
             . number_format((float) $amount, (int) ($currency?->decimal ?? 2), '.', ',');
     @endphp
@@ -36,6 +37,16 @@
                 <span class="menu-chip {{ $item->is_available ? 'is-on' : 'is-off' }}">{{ $item->is_available ? 'Available' : 'Unavailable' }}</span>
                 <span class="menu-chip {{ $item->in_stock ? 'is-on' : 'is-off' }}">{{ $item->in_stock ? 'In stock' : 'Out of stock' }}</span>
                 @if ($item->food_type)<span class="menu-chip">{{ $foodTypes[$item->food_type] ?? $item->food_type }}</span>@endif
+            </div>
+            <div class="food-detail-rating" aria-label="Food item customer rating">
+                <span class="food-detail-rating-stars" aria-label="{{ number_format($averageRating ?? 0, 1) }} out of 5 stars">{{ str_repeat('★', $filledRatingStars) }}{{ str_repeat('☆', 5 - $filledRatingStars) }}</span>
+                @if(($ratingCount ?? 0) > 0)
+                    <strong>{{ number_format($averageRating, 1) }}</strong>
+                    <span class="food-detail-rating-count">({{ number_format($ratingCount) }} {{ \Illuminate\Support\Str::plural('review', $ratingCount) }})</span>
+                @else
+                    <span class="food-detail-rating-count">No approved ratings yet</span>
+                @endif
+                <a href="{{ route('restaurant.ratings.index', ['restaurant_id' => $restaurant->id, 'food_item_id' => $item->id]) }}" class="food-detail-rating-link">View all reviews <span aria-hidden="true">→</span></a>
             </div>
             <p class="food-detail-description">{{ $item->description ?: 'No description added.' }}</p>
             <div class="food-detail-summary">

@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\DB;
 use Modules\Notifications\Services\NotificationService;
 use App\Services\CacheService;
 use Modules\Restaurant\Models\Restaurant;
+use Modules\Rating\Models\Rating;
 
 class RestaurantService
 {
@@ -348,7 +349,15 @@ class RestaurantService
         $dateTo = request()->input('date_to', now()->format('Y-m-d'));
         $analytics = $analyticsService->getRestaurantAnalytics($id, $dateFrom, $dateTo);
 
-        return compact('restaurant', 'hours', 'holidays', 'analytics', 'dateFrom', 'dateTo');
+        $publicRatings = Rating::query()
+            ->where('ratable_type', Restaurant::class)
+            ->where('ratable_id', $id)
+            ->where('admin_status', 'approved')
+            ->where('status', true);
+        $ratingCount = (clone $publicRatings)->count();
+        $averageRating = $ratingCount ? (float) (clone $publicRatings)->avg('rating') : 0.0;
+
+        return compact('restaurant', 'hours', 'holidays', 'analytics', 'dateFrom', 'dateTo', 'averageRating', 'ratingCount');
     }
 
     public function getRestaurantHistory(int $id)

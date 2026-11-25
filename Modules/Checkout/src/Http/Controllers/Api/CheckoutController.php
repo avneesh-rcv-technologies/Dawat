@@ -443,6 +443,8 @@ class CheckoutController extends Controller
                     'quantity_type' => $item->quantity_type,
                     'quantity'      => $item->quantity,
                     'food_type'     => $item->food_type,
+                    'average_rating' => (float) ($item->average_rating ?? 0),
+                    'rating_count'   => (int) ($item->rating_count ?? 0),
                     'image'         => fn_get_image('food_image', $item->id)['url'] ?? null,
                     'image_gallery' => collect(fn_get_images('food_image', $item->id) ?? [])
                         ->map(fn($image) => $image['url'] ?? null)

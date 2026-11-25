@@ -248,6 +248,8 @@ class FoodItemRepository
             'name' => $item->name,
             'slug' => $item->slug,
             'description' => $item->description,
+            'average_rating' => (float) ($item->average_rating ?? 0),
+            'rating_count' => (int) ($item->rating_count ?? 0),
             'tax_percentage' => $item->tax_percentage,
             'dietary_label_ids' => $item->dietary_label_ids ?? [],
             'features' => FoodItemFeatureData::forItem($item, public: true),

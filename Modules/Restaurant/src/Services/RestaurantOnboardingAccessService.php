@@ -22,7 +22,7 @@ class RestaurantOnboardingAccessService
         if (!self::isStepEditable($status)) {
             $message = $status === OnboardingStatus::UNDER_REVIEW->value
                 ? 'This step is under review and cannot be updated until the review is complete.'
-                : 'This step cannot be updated in its current status. Ask an administrator to request changes first.';
+                : 'This step cannot be updated in its current status. Ask an administrator to Request Replacement first.';
             throw ValidationException::withMessages([$step->value => $message]);
         }
     }

@@ -12,6 +12,8 @@ use Modules\Restaurant\DataView\RestaurantGrid;
 use Modules\Restaurant\Services\RestaurantService;
 use Modules\Restaurant\Services\RestaurantDeliveryPolicy;
 use Modules\Restaurant\Services\RestaurantPayoutReport;
+use Modules\Restaurant\Services\RestaurantOwnerRoleResolver;
+use Modules\Rating\Models\Rating;
 
 class RestaurantController extends Controller
 {
@@ -324,6 +326,20 @@ class RestaurantController extends Controller
 
     public function view($id)
     {
+        $isRestaurantOwner = app(RestaurantOwnerRoleResolver::class)->isOwner(auth('admin')->user());
+        if ($isRestaurantOwner) {
+            abort_unless(\Modules\Restaurant\Models\Restaurant::whereKey($id)
+                ->where('admin_id', auth('admin')->id())->exists(), 403);
+        }
+        $reviewFilters = [];
+        if ($isRestaurantOwner && request('tab') === 'reviews') {
+            $reviewFilters = request()->validate([
+                'review_rating' => ['nullable', 'integer', 'between:1,5'],
+                'review_date_from' => ['nullable', 'date'],
+                'review_date_to' => ['nullable', 'date', 'after_or_equal:review_date_from'],
+            ]);
+        }
+
         $payoutReport = app(RestaurantPayoutReport::class);
         $payoutFilters = $payoutReport->filters(request());
         $canViewPayouts = $payoutReport->canView((int) $id, auth('admin')->user());
@@ -342,6 +358,27 @@ class RestaurantController extends Controller
             $timelineRestaurant = \Modules\Restaurant\Models\Restaurant::with('onboardingSteps.reviewer')->findOrFail($id);
             $timelineRestaurant->setRelation('onboardingStatusHistories', $history);
             $onboardingTimeline = app(\Modules\Restaurant\Services\RestaurantOnboardingDetailsService::class)->build($timelineRestaurant);
+            $restaurantReviews = null;
+            if ($isRestaurantOwner) {
+                $reviewsQuery = Rating::query()
+                    ->with(['user', 'order.customer'])
+                    ->where('ratable_type', \Modules\Restaurant\Models\Restaurant::class)
+                    ->where('ratable_id', $id)
+                    ->approved()
+                    ->active();
+                if (!empty($reviewFilters['review_rating'])) {
+                    $reviewsQuery->where('rating', $reviewFilters['review_rating']);
+                }
+                if (!empty($reviewFilters['review_date_from'])) {
+                    $reviewsQuery->whereDate('created_at', '>=', $reviewFilters['review_date_from']);
+                }
+                if (!empty($reviewFilters['review_date_to'])) {
+                    $reviewsQuery->whereDate('created_at', '<=', $reviewFilters['review_date_to']);
+                }
+                $restaurantReviews = $reviewsQuery->latest('created_at')
+                    ->paginate(5, ['*'], 'reviews_page')
+                    ->withQueryString();
+            }
 
             return view('restaurant::admin.view', array_merge($data, [
                 'history' => $history,
@@ -351,6 +388,9 @@ class RestaurantController extends Controller
                 'restaurant' => $data['restaurant'],
                 'canViewPayouts' => $canViewPayouts,
                 'payoutData' => $payoutData,
+                'isRestaurantOwner' => $isRestaurantOwner,
+                'restaurantReviews' => $restaurantReviews,
+                'reviewFilters' => $reviewFilters,
             ]));
         } catch (\Exception $e) {
             return response()->json(['error' => $e->getMessage()], 404);

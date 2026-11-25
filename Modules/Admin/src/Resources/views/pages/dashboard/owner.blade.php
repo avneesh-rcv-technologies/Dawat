@@ -27,7 +27,7 @@
 <div class="admin-dashboard" data-admin-dashboard>
     <header class="ad-heading">
         <div><p class="ad-eyebrow">DAWAT · RESTAURANT WORKSPACE</p><h1>{{ $d ? $d['restaurant']->name : 'Restaurant dashboard' }}<span class="ad-heading-dot">.</span></h1><p>Welcome back{{ $userName ? ', '.$userName : '' }}. Here’s your restaurant’s latest activity.</p></div>
-        @if($d)<div class="ad-heading-actions"><span class="ad-updated"><i></i> Updated {{ $d['updatedAt']->format('g:i A') }} <span>{{ $filters->timezone }}</span></span><a class="ad-button ad-button-secondary ad-refresh" href="{{ route('dashboard.index', request()->only(['period', 'fulfillment', 'start_date', 'end_date'])) }}" aria-label="Refresh dashboard">@include('admin::pages.dashboard.icon', ['name' => 'refresh']) Refresh</a></div>@endif
+        @if($d)<div class="ad-heading-actions"><a class="ad-button ad-button-primary" href="{{ route('restaurant.ratings.index') }}">Manage ratings</a><span class="ad-updated"><i></i> Updated {{ $d['updatedAt']->format('g:i A') }} <span>{{ $filters->timezone }}</span></span><a class="ad-button ad-button-secondary ad-refresh" href="{{ route('dashboard.index', request()->only(['period', 'fulfillment', 'start_date', 'end_date'])) }}" aria-label="Refresh dashboard">@include('admin::pages.dashboard.icon', ['name' => 'refresh']) Refresh</a></div>@endif
     </header>
 
     @if(!$d)

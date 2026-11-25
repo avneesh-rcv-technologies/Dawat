@@ -56,20 +56,29 @@ class RestaurantApprovalController
         $lists = fn_datagrid(RestaurantApprovalGrid::class)->process();
         $applications = Restaurant::query()->whereIn('approval_status', ['pending', 'approved', 'rejected']);
         $access->scope($applications, $admin);
-        $statusCounts = (clone $applications)->selectRaw('approval_status, COUNT(*) AS total')
-            ->groupBy('approval_status')->pluck('total', 'approval_status');
-        $draftCount = (clone $applications)->where('approval_status', 'pending')
-            ->whereHas('onboardingSteps', fn ($query) => $query
-                ->where('step_key', OnboardingStep::REGISTRATION->value)
-                ->where('status', OnboardingStatus::DRAFT->value))
+        $applicationIds = (clone $applications)->select('restaurants.id');
+        $stepCounts = DB::table('restaurant_onboarding_steps')
+            ->whereIn('restaurant_id', $applicationIds)
+            ->selectRaw('status, COUNT(*) AS total')
+            ->groupBy('status')
+            ->pluck('total', 'status');
+        $resubmittedSteps = DB::table('restaurant_onboarding_status_histories')
+            ->whereIn('restaurant_id', (clone $applications)->select('restaurants.id'))
+            ->where('action', 'resubmitted')
+            ->whereNotNull('step_key')
+            ->select('restaurant_id', 'step_key')
+            ->groupBy('restaurant_id', 'step_key')
+            ->get()
             ->count();
         $approvalCounts = [
-            'approved' => (int) $statusCounts->get('approved', 0),
-            'pending' => max(0, (int) $statusCounts->get('pending', 0) - $draftCount),
-            'rejected' => (int) $statusCounts->get('rejected', 0),
-            'draft' => $draftCount,
-            'resubmitted' => (clone $applications)->whereHas('onboardingStatusHistories', fn ($query) => $query
-                ->where('action', 'resubmitted'))->count(),
+            'approved' => (int) $stepCounts->get(OnboardingStatus::APPROVED->value, 0),
+            'pending' => (int) $stepCounts->get(OnboardingStatus::SUBMITTED->value, 0)
+                + (int) $stepCounts->get(OnboardingStatus::UNDER_REVIEW->value, 0)
+                + (int) $stepCounts->get('pending', 0)
+                + (int) $stepCounts->get('resubmitted', 0),
+            'rejected' => (int) $stepCounts->get(OnboardingStatus::REJECTED->value, 0),
+            'draft' => (int) $stepCounts->get(OnboardingStatus::DRAFT->value, 0),
+            'resubmitted' => $resubmittedSteps,
         ];
 
         return view('restaurant::admin.approvals.index', compact('lists', 'approvalCounts', 'ownerOnly'));
@@ -113,35 +122,15 @@ class RestaurantApprovalController
         if ($isProfile) {
             $restaurant->load(['addresses.city', 'addresses.state', 'addresses.country']);
         }
-        $registrationCountries = $registrationStates = $registrationCities = collect();
-        $registrationCountryId = $registrationStateId = $registrationCityId = null;
-        if ($activeStep === OnboardingStep::REGISTRATION && bouncer('admin')->hasPermission('admin.restaurant.approvals.registration.update')) {
-            $address = $restaurant->addresses()->orderByDesc('is_default')->orderBy('id')->first();
-            $registrationCountries = Country::orderBy('name')->get(['id', 'name']);
-            $registrationCountryId = old('country_id', $address?->country_id ?: $registrationCountries->firstWhere('name', $restaurant->country)?->id);
-            $registrationStates = CountryState::where('country_id', is_scalar($registrationCountryId) ? $registrationCountryId : null)->orderBy('name')->get(['id', 'name', 'code']);
-            $registrationStateId = old('state_id', $address?->state_id ?: ($registrationStates->firstWhere('name', $restaurant->state)?->id ?? $registrationStates->firstWhere('code', $restaurant->state)?->id));
-            $registrationCities = City::where('country_id', is_scalar($registrationCountryId) ? $registrationCountryId : null)->where('state_id', is_scalar($registrationStateId) ? $registrationStateId : null)->orderBy('name')->get(['id', 'name']);
-            $registrationCityId = old('city_id', $address?->city_id ?: $registrationCities->firstWhere('name', $restaurant->city)?->id);
-        }
         $canViewBanking = bouncer('admin')->hasPermission('admin.restaurant.approvals.banking.show');
         $canViewTax = bouncer('admin')->hasPermission('admin.restaurant.approvals.tax.show');
         $taxType = null;
         $taxRecords = collect();
-        $taxCountries = $taxStates = $taxCities = collect();
         if ($activeStep === OnboardingStep::TAX) {
             abort_unless($canViewTax, 403);
             $validated = $request->validate(['type' => ['sometimes', 'required', Rule::in(['individual', 'business'])]]);
             $taxType = $restaurant->tax_type ?? $validated['type'] ?? 'individual';
             $taxRecords = $restaurant->taxInformation()->with(['city', 'state', 'country'])->get()->keyBy('tax_type');
-            if (bouncer('admin')->hasPermission('admin.restaurant.approvals.tax.update')) {
-                $taxRecord = $taxRecords->get($taxType);
-                $countryId = old('country_id', $taxRecord?->country_id);
-                $stateId = old('state_id', $taxRecord?->state_id);
-                $taxCountries = Country::orderBy('name')->get(['id', 'name']);
-                $taxStates = CountryState::where('country_id', is_scalar($countryId) ? $countryId : null)->orderBy('name')->get(['id', 'name']);
-                $taxCities = City::where('state_id', is_scalar($stateId) ? $stateId : null)->orderBy('name')->get(['id', 'name']);
-            }
         }
         $canViewDietary = bouncer('admin')->hasPermission('admin.dietarymanagment.certifications.show');
         if ($activeStep === OnboardingStep::DIETARY_CERTIFICATES) {
@@ -153,23 +142,15 @@ class RestaurantApprovalController
         $canReviewKyc = bouncer('admin')->hasPermission('admin.kyc.submissions.review');
         $kycSubmissions = collect();
         $kycTypes = collect();
-        $bankingCountries = $bankingStates = $bankingCities = collect();
         if ($activeStep === OnboardingStep::BANKING) {
             abort_unless($canViewBanking, 403);
             $restaurant->load(['bankingDetail.city', 'bankingDetail.state', 'bankingDetail.country']);
-            if (bouncer('admin')->hasPermission('admin.restaurant.approvals.banking.update')) {
-                $countryId = old('country_id', $restaurant->bankingDetail?->country_id);
-                $stateId = old('state_id', $restaurant->bankingDetail?->state_id);
-                $bankingCountries = Country::orderBy('name')->get(['id', 'name']);
-                $bankingStates = CountryState::where('country_id', is_scalar($countryId) ? $countryId : null)->orderBy('name')->get(['id', 'name']);
-                $bankingCities = City::where('state_id', is_scalar($stateId) ? $stateId : null)->where('country_id', is_scalar($countryId) ? $countryId : null)->orderBy('name')->get(['id', 'name']);
-            }
         }
         if ($activeStep === OnboardingStep::KYC) {
             abort_unless($canViewKyc, 403);
         }
         if ($canViewKyc) {
-            $kycTypes = KycType::active()->kyc()->orderBy('name')->get(['id', 'name']);
+            $kycTypes = KycType::active()->kyc()->orderBy('id')->get(['id', 'name']);
             if ($restaurant->admin_id) {
                 $kycSubmissions = KycSubmission::where('user_id', $restaurant->admin_id)
                     ->whereHas('kycType', fn ($query) => $query->kyc())
@@ -207,7 +188,6 @@ class RestaurantApprovalController
                 'label' => $refillRequested ? 'Refill requested' : ($statusEnum?->label() ?? ($status ? Str::headline($status) : 'Not started')),
                 'color' => $refillRequested ? 'bg-orange-100 text-orange-800' : ($statusEnum?->color() ?? 'bg-gray-100 text-gray-600'),
                 'refill_requested' => $refillRequested,
-                'resubmitted' => ! $refillRequested && ($status === 'resubmitted' || $latestResubmission !== null),
                 'resubmitted_at' => $latestResubmission?->created_at,
             ];
         }
@@ -227,7 +207,7 @@ class RestaurantApprovalController
 
         $reviewSummary = $isReview ? $this->buildReviewSummary($restaurant) : null;
 
-        return view('restaurant::admin.approvals.show', compact('registrationCountries', 'registrationStates', 'registrationCities', 'registrationCountryId', 'registrationStateId', 'registrationCityId', 'restaurant', 'steps', 'stepRecords', 'tabs', 'activeStep', 'isProfile', 'isReview', 'reviewSummary', 'stepHistories', 'canViewBanking', 'canViewTax', 'taxType', 'taxRecords', 'taxCountries', 'taxStates', 'taxCities', 'bankingCountries', 'bankingStates', 'bankingCities', 'canViewKyc', 'canReviewKyc', 'kycTypes', 'kycSubmissions', 'kycCounts', 'stepTabStates', 'canViewDietary', 'dietaryCertificates'));
+        return view('restaurant::admin.approvals.show', compact('restaurant', 'steps', 'stepRecords', 'tabs', 'activeStep', 'isProfile', 'isReview', 'reviewSummary', 'stepHistories', 'canViewBanking', 'canViewTax', 'taxType', 'taxRecords', 'canViewKyc', 'canReviewKyc', 'kycTypes', 'kycSubmissions', 'kycCounts', 'stepTabStates', 'canViewDietary', 'dietaryCertificates'));
     }
 
     private function buildReviewSummary(Restaurant $restaurant): array

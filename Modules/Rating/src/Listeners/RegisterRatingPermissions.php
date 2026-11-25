@@ -24,6 +24,8 @@ class RegisterRatingPermissions
                 'ratings.toggle-status' => 'Change Rating Status',
                 'ratings.approve' => 'Approve Ratings',
                 'ratings.bulk-delete' => 'Delete Bulk Ratings',
+                'ratings.workflow.manage' => 'Manage Rating Workflow',
+                'ratings.workflow.manage' => 'Manage Rating Workflow',
             ]
         ]);
     }

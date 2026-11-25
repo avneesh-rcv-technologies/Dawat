@@ -107,38 +107,38 @@ class RestaurantApprovalGrid extends DataGrid
         ]);
 
         // Status
-        $this->addColumn([
-            'index' => 'status',
-            'label' => 'Restaurant Status',
-            'type' => 'string',
-            'filterable' => true,
-            'filterable_type' => 'dropdown',
-            'filterable_options' => [
-                ['label' => 'Draft', 'value' => 'draft'],
-                ['label' => 'Active', 'value' => 'active'],
-                ['label' => 'Inactive', 'value' => 'inactive'],
-                ['label' => 'Closed', 'value' => 'closed'],
-            ],
-            'sortable' => true,
-            'closure' => function ($row) {
-                $status = strtolower($row->status ?? '');
+        // $this->addColumn([
+        //     'index' => 'status',
+        //     'label' => 'Restaurant Status',
+        //     'type' => 'string',
+        //     'filterable' => true,
+        //     'filterable_type' => 'dropdown',
+        //     'filterable_options' => [
+        //         ['label' => 'Draft', 'value' => 'draft'],
+        //         ['label' => 'Active', 'value' => 'active'],
+        //         ['label' => 'Inactive', 'value' => 'inactive'],
+        //         ['label' => 'Closed', 'value' => 'closed'],
+        //     ],
+        //     'sortable' => true,
+        //     'closure' => function ($row) {
+        //         $status = strtolower($row->status ?? '');
 
-                $colors = [
-                    'draft' => 'bg-yellow-100 text-yellow-800',
-                    'active' => 'bg-green-100 text-green-800',
-                    'inactive' => 'bg-red-100 text-red-800',
-                    'closed' => 'bg-red-100 text-red-800',
-                ];
+        //         $colors = [
+        //             'draft' => 'bg-yellow-100 text-yellow-800',
+        //             'active' => 'bg-green-100 text-green-800',
+        //             'inactive' => 'bg-red-100 text-red-800',
+        //             'closed' => 'bg-red-100 text-red-800',
+        //         ];
 
-                $class = $colors[$status] ?? 'bg-gray-100 text-gray-800';
+        //         $class = $colors[$status] ?? 'bg-gray-100 text-gray-800';
 
-                return sprintf(
-                    '<span class="px-2 py-1 text-xs font-semibold rounded-full %s">%s</span>',
-                    $class,
-                    e($status !== '' ? ucfirst($status) : 'N/A')
-                );
-            },
-        ]);
+        //         return sprintf(
+        //             '<span class="px-2 py-1 text-xs font-semibold rounded-full %s">%s</span>',
+        //             $class,
+        //             e($status !== '' ? ucfirst($status) : 'N/A')
+        //         );
+        //     },
+        // ]);
 
         // Onboarding Status
         $this->addColumn([

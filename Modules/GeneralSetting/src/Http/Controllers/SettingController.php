@@ -45,6 +45,7 @@ class SettingController extends Controller
     {
         $request->validate([
             'default_image' => fn_image_validation_rules(),
+            'settings.general\.company\.phone' => ['nullable', 'string', 'max:32'],
         ], fn_image_validation_messages('default_image'));
 
         $settings = $request->input('settings', []);

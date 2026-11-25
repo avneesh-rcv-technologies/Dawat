@@ -1494,7 +1494,11 @@
                 showTaxFieldError(firstError.field, firstError.message, true);
                 showValidationErrors(serverErrors);
             }
-            else showAlert(err.message || 'Unable to save tax information. Please try again.', 'error');
+            else {
+                const message = err.message || 'Unable to save tax information. Please try again.';
+                const unchangedDetails = message === 'Your tax details are already up to date. No changes were made.';
+                showAlert(message, unchangedDetails ? 'info' : 'error');
+            }
         }
     });
 

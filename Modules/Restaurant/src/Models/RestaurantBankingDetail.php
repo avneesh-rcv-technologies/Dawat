@@ -49,7 +49,7 @@ class RestaurantBankingDetail extends Model
         static::updated(function (self $banking) {
             if ($banking->wasChanged($banking->getFillable())) {
                 app(\Modules\Restaurant\Services\OnboardingHistoryService::class)
-                    ->detailsUpdated($banking->restaurant, 'banking');
+                    ->detailsUpdated($banking->restaurant, 'banking', 'details_updated', array_keys($banking->getChanges()));
             }
         });
     }

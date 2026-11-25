@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use Modules\Rating\Http\Controllers\RatingController;
+use Modules\Rating\Http\Controllers\RatingWorkflowController;
 
 /*
 |--------------------------------------------------------------------------
@@ -27,5 +28,25 @@ Route::middleware(['web', 'check.permission'])->name('ratings.')->group(function
     Route::post('/ratings/bulk-delete', [RatingController::class, 'bulkDelete'])->name('bulk-delete');
 });
 
+Route::middleware(['web', 'auth:admin'])->prefix('admin/ratings')->name('ratings.workflow.admin.')->group(function () {
+    Route::get('/', [RatingWorkflowController::class, 'adminIndex'])->name('index');
+    Route::get('/{id}/details', [RatingWorkflowController::class, 'adminReviewDetails'])->whereNumber('id')->name('details');
+    Route::post('/{id}/decision', [RatingWorkflowController::class, 'decideAdmin'])->whereNumber('id')->name('decision');
+    Route::post('/{id}/approve', [RatingWorkflowController::class, 'quickApprove'])->whereNumber('id')->name('quick-approve');
+    Route::post('/{id}/reject', [RatingWorkflowController::class, 'quickReject'])->whereNumber('id')->name('quick-reject');
+});
 
-// HomeController will be generated automatically by the module generator 
+Route::middleware(['web', 'auth:admin'])->prefix('restaurant/ratings')->name('restaurant.ratings.')->group(function () {
+    Route::get('/', [RatingWorkflowController::class, 'ownerIndex'])->name('index');
+    Route::get('/{id}/details', [RatingWorkflowController::class, 'ownerReviewDetails'])->whereNumber('id')->name('details');
+    Route::post('/{id}/decision', [RatingWorkflowController::class, 'decideOwner'])->whereNumber('id')->name('decision');
+    Route::post('/{id}/reply', [RatingWorkflowController::class, 'reply'])->whereNumber('id')->name('reply');
+});
+
+Route::middleware(['web', 'auth:customer'])->prefix('orders/{orderId}/ratings')->where(['orderId' => '[0-9]+'])->name('customer.ratings.')->group(function () {
+    Route::get('/', [RatingWorkflowController::class, 'customerForm'])->name('form');
+    Route::post('/', [RatingWorkflowController::class, 'submit'])->name('submit');
+});
+
+
+// HomeController will be generated automatically by the module generator

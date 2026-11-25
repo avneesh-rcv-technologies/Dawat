@@ -116,7 +116,6 @@ class RestaurantGrid extends DataGrid
             'filterable' => true,
             'filterable_type' => 'dropdown',
             'filterable_options' => [
-                ['label' => 'Draft', 'value' => 'draft'],
                 ['label' => 'Active', 'value' => 'active'],
                 ['label' => 'Inactive', 'value' => 'inactive'],
             ],

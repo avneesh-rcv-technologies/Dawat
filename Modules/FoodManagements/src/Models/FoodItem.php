@@ -5,6 +5,8 @@ namespace Modules\FoodManagements\Models;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Builder;
+use Modules\Rating\Models\Rating;
 use Modules\Restaurant\Models\Restaurant;
 
 class FoodItem extends Model
@@ -40,9 +42,28 @@ class FoodItem extends Model
         'cost_price' => 'decimal:2',
         'list_price' => 'decimal:2',
         'quantity' => 'integer',
+        'average_rating' => 'float',
+        'rating_count' => 'integer',
     ];
 
     protected $appends = ['image', 'images'];
+
+    protected static function booted(): void
+    {
+        static::addGlobalScope('rating_summary', function (Builder $query) {
+            $table = $query->getModel()->getTable();
+            $publicRatings = Rating::query()
+                ->whereColumn('ratings.ratable_id', $table.'.id')
+                ->where('ratings.ratable_type', self::class)
+                ->where('ratings.is_approved', true)
+                ->where('ratings.status', true);
+
+            $query->addSelect([
+                'average_rating' => (clone $publicRatings)->selectRaw('ROUND(AVG(ratings.rating), 1)'),
+                'rating_count' => (clone $publicRatings)->selectRaw('COUNT(*)'),
+            ]);
+        });
+    }
 
     public function getImageAttribute(): ?array
     {

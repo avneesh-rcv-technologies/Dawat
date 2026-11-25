@@ -22,9 +22,9 @@ class RatingEventServiceProvider extends ServiceProvider
         \Modules\Core\Events\RegisterMenu::class => [
             \Modules\Rating\Listeners\RegisterMenuItems::class,
         ],
-        // RegisterSettingsMenu::class => [
-        //     Settings::class,
-        // ],
+        RegisterSettingsMenu::class => [
+            Settings::class,
+        ],
     ];
 
     /**

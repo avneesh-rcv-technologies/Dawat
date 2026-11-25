@@ -6,6 +6,8 @@ use Illuminate\Routing\Controller;
 use Illuminate\Http\Request;
 use Modules\Restaurant\Services\RestaurantService;
 use Modules\Filemanager\Services\FileService;
+use Modules\Rating\Models\Rating;
+use Modules\Restaurant\Models\Restaurant;
 use Throwable;
 
 class RestaurantController extends Controller
@@ -39,7 +41,18 @@ class RestaurantController extends Controller
         $filters['radius_miles'] = (float) fn_get_setting('general.restaurant_radius_miles', 0);
 
         $restaurants = $this->restaurantService->getAllRestaurants($filters);
-        $items = $restaurants->map(function ($restaurant) {
+        $restaurantIds = $restaurants->getCollection()->pluck('id');
+        $ratingSummaries = Rating::query()
+            ->selectRaw('ratable_id, ROUND(AVG(rating), 1) as average_rating, COUNT(*) as rating_count')
+            ->where('ratable_type', Restaurant::class)
+            ->whereIn('ratable_id', $restaurantIds)
+            ->where('admin_status', 'approved')
+            ->where('status', true)
+            ->groupBy('ratable_id')
+            ->get()
+            ->keyBy('ratable_id');
+
+        $items = $restaurants->getCollection()->map(function ($restaurant) use ($ratingSummaries) {
             $image = fn_get_image('restaurant', $restaurant->id);
             \Log::info('Restaurant ID: ' . $restaurant->id . ' - Image: ' . ($image ? $image['url'] : 'No image'));
             // Get today's hours and check if currently open
@@ -50,6 +63,8 @@ class RestaurantController extends Controller
                 'id'          => $restaurant->id,
                 'name'        => $restaurant->name,
                 'description' => $restaurant->description,
+                'average_rating' => (float) ($ratingSummaries->get($restaurant->id)?->average_rating ?? 0),
+                'rating_count' => (int) ($ratingSummaries->get($restaurant->id)?->rating_count ?? 0),
                 'image'       => $image ? $image['url'] : null,
                 // 'gallery_images' => $galleryImages,
                 "food_type"  => $restaurant->food_type,

@@ -42,42 +42,13 @@
                         <span class="kyc-document-row-status" data-status="{{ $typeStatus }}">{{ $typeStatusLabel }}</span>
                     </span>
                     @if($typeSubmission)
-                        <span class="kyc-document-row-link">Open review <span aria-hidden="true">→</span></span>
+                        <span class="kyc-document-row-link">View document <span aria-hidden="true">→</span></span>
                     @else
                         <span class="kyc-document-row-missing">Awaiting upload</span>
                     @endif
                 @if($typeSubmission)
                     </a>
                 @else
-                    </div>
-                @endif
-                @if($typeSubmission && !$typeSubmission->refill_requested && in_array($typeSubmission->status, ['pending', 'under_review'], true) && $canReviewKyc && !app(\Modules\Restaurant\Services\RestaurantApprovalAccess::class)->isOwner(auth('admin')->user()))
-                    <div class="kyc-document-actions">
-                        <form method="POST" action="{{ route('admin.kyc.submissions.review', $typeSubmission->id) }}" data-kyc-review data-kyc-review-confirm="Approve {{ $documentType->name }}?">
-                            @csrf
-                            <input type="hidden" name="action" value="approve">
-                            <button type="submit" class="ar-btn ar-btn--primary kyc-decision-button">Approve</button>
-                            <p data-kyc-review-error role="alert" class="text-sm text-red-600" hidden></p>
-                        </form>
-                        <button type="button" class="ar-btn ar-btn--danger kyc-decision-button" data-kyc-reject-open="kyc-reject-{{ $typeSubmission->id }}">Reject</button>
-                        <dialog id="kyc-reject-{{ $typeSubmission->id }}" class="kyc-reject-dialog" aria-labelledby="kyc-reject-title-{{ $typeSubmission->id }}">
-                            <form method="POST" action="{{ route('admin.kyc.submissions.review', $typeSubmission->id) }}" data-kyc-review data-kyc-review-confirm="Reject {{ $documentType->name }}?" class="space-y-4">
-                                @csrf
-                                <input type="hidden" name="action" value="reject">
-                                <div>
-                                    <h4 id="kyc-reject-title-{{ $typeSubmission->id }}">Reject {{ $documentType->name }}</h4>
-                                    <p class="review-help">The reason is shared with the restaurant owner.</p>
-                                </div>
-                                <label class="block">Rejection reason <span class="text-red-600" aria-hidden="true">*</span>
-                                    <textarea name="reason" required maxlength="500" rows="4" class="mt-2 block" placeholder="Explain what needs to be corrected…"></textarea>
-                                </label>
-                                <div class="kyc-reject-dialog-buttons">
-                                    <button type="button" class="ar-btn" data-kyc-reject-close>Cancel</button>
-                                    <button type="submit" class="ar-btn ar-btn--danger-solid">Reject document</button>
-                                </div>
-                                <p data-kyc-review-error role="alert" class="text-sm text-red-600" hidden></p>
-                            </form>
-                        </dialog>
                     </div>
                 @endif
             </li>

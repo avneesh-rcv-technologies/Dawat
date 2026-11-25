@@ -11,6 +11,9 @@ class DatabaseSeeder extends Seeder
    */
   public function run(): void
   {
+    // Register the rating workflow's in-app notification event and channel.
+    // $this->call(\Modules\Rating\Database\Seeders\RatingDatabaseSeeder::class);
+
     // $this->call([
     //   // \Modules\Core\Database\Seeders\Files::class,
     //   // \Modules\Core\Database\Seeders\Settings::class,

@@ -31,7 +31,7 @@
         document.getElementById('correction-confirm-panel').hidden = !value;
         document.getElementById('correction-edit-back').hidden = !value;
         submit.textContent = value ? 'Confirm and send request' : 'Continue';
-        document.getElementById('correction-dialog-title').textContent = value ? 'Confirm change request' : 'Request changes';
+        document.getElementById('correction-dialog-title').textContent = value ? 'Confirm change request' : 'Request Replacement';
         if (value) document.getElementById('correction-confirm-reason').textContent = reason.value;
     };
     const showError = message => { error.textContent = message; error.hidden = !message; };

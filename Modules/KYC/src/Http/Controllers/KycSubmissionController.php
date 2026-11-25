@@ -89,7 +89,9 @@ class KycSubmissionController extends Controller
             $submission = $this->submissionService->getSubmission((int)$id);
             $userSubmissions = \Modules\KYC\Models\KycSubmission::with('kycType')
                 ->where('user_id', $submission->user_id)
-                ->orderBy('created_at', 'desc')
+                ->orderBy('kyc_type_id')
+                ->orderByDesc('created_at')
+                ->orderByDesc('id')
                 ->get();
 
             $onboardingRestaurant = null;

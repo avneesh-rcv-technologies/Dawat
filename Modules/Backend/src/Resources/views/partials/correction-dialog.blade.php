@@ -1,7 +1,7 @@
 <link rel="stylesheet" href="{{ asset('css/correction-request.css') }}">
 <div id="correction-actions-menu" class="correction-actions-menu" role="menu" aria-label="Submission actions" hidden>
     <a href="#" role="menuitem" data-correction-view-link hidden>View submission</a>
-    <button type="button" role="menuitem" data-correction-request>Request changes</button>
+    <button type="button" role="menuitem" data-correction-request>Request Replacement</button>
     <p class="correction-menu-note" data-correction-menu-note hidden>Available after this step is submitted.</p>
 </div>
 <dialog id="correction-request-dialog" class="correction-dialog" aria-labelledby="correction-dialog-title" aria-describedby="correction-dialog-description"
@@ -13,8 +13,8 @@
         <input type="hidden" name="step_key" id="correction-step">
         <input type="hidden" name="action" value="request_changes" id="correction-action">
         <header class="correction-dialog-header">
-            <div><p class="correction-eyebrow">REVIEW REQUEST</p><h2 id="correction-dialog-title">Request changes</h2></div>
-            <button type="button" class="correction-dialog-close" data-correction-close aria-label="Close request changes">×</button>
+            <div><p class="correction-eyebrow">REVIEW REQUEST</p><h2 id="correction-dialog-title">Request Replacement</h2></div>
+            <button type="button" class="correction-dialog-close" data-correction-close aria-label="Close Request Replacement">×</button>
         </header>
         <div class="correction-dialog-body">
             <p class="correction-target" id="correction-target"></p>

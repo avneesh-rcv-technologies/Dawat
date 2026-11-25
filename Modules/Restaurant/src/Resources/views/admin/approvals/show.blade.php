@@ -32,7 +32,6 @@
         && !app(\Modules\Restaurant\Services\RestaurantApprovalAccess::class)->isOwner(auth('admin')->user());
     $registration = \Modules\Restaurant\Enums\OnboardingStep::REGISTRATION;
     $record = $stepRecords->get($registration->value);
-    $canEdit = $record && bouncer('admin')->hasPermission('admin.restaurant.approvals.registration.update');
     $fields = [
         'name' => 'Restaurant Name', 'phone' => 'Phone',
         'address_line1' => 'Address Line 1', 'address_line2' => 'Address Line 2',
@@ -130,8 +129,7 @@
 
                     @endphp
                     <div class="review-tab-slot">
-                    <a href="{{ route('admin.restaurant.approvals.show', ['id' => $restaurant->id, 'step' => $tab->value]) }}" @if($tab === $activeStep) aria-current="page" @endif
-                       class="review-tab {{ $tabState['resubmitted'] ? 'is-resubmitted' : '' }}">
+                    <a href="{{ route('admin.restaurant.approvals.show', ['id' => $restaurant->id, 'step' => $tab->value]) }}" @if($tab === $activeStep) aria-current="page" @endif class="review-tab">
                         <span aria-hidden="true" class="review-tab-icon">{!! $tab->icon() !!}</span>
                         @if($stepRecords->get($tab->value)?->status !== \Modules\Restaurant\Enums\OnboardingStatus::APPROVED->value)
                             <span class="review-tab-alert" role="img" aria-label="{{ $tab->label() }} is not approved: {{ $tabState['label'] }}" title="{{ $tab->label() }} is not approved: {{ $tabState['label'] }}">
@@ -141,12 +139,7 @@
                         <span class="review-tab-copy">
                             <span class="review-tab-number">Step {{ $tab->order() }}</span>
                             <span class="review-tab-label">{{ $tab->label() }}</span>
-                            <span class="review-tab-badges">
-                                <span class="review-tab-status {{ $tabState['color'] }}">@if($tabState['refill_requested'])<span aria-hidden="true">! </span>@endif{{ $tabState['label'] }}</span>
-                                @if($tabState['resubmitted'])
-                                    <span class="review-resubmitted-badge"><span aria-hidden="true">↻</span> Resubmitted</span>
-                                @endif
-                            </span>
+                            <span class="review-tab-badges"><span class="review-tab-status {{ $tabState['color'] }}">@if($tabState['refill_requested'])<span aria-hidden="true">! </span>@endif{{ $tabState['label'] }}</span></span>
                         </span>
                     </a>
                     @if($canRequestTabChanges)
@@ -198,9 +191,6 @@
                         <h3>Restaurant Information</h3>
                         <p class="review-help">Review the business and owner details before making a decision.</p>
                     </div>
-                    @if($canEdit)
-                        <button type="button" id="edit-registration" class="ar-btn" aria-expanded="false" aria-controls="registration-edit">Edit information</button>
-                    @endif
                 </div>
                 <div id="registration-details">
                     <dl class="ar-fields">
@@ -210,44 +200,6 @@
                         <div class="ar-field ar-field--wide"><dt>Description</dt><dd @class(['is-empty' => blank($restaurant->description)])>{{ $restaurant->description ?: 'Not provided' }}</dd></div>
                     </dl>
                 </div>
-                @if($canEdit)
-                    <form id="registration-edit" data-location-selects="registration"
-                        data-states-url="{{ route('api.countries.states-by-country', ['countryId' => '__ID__']) }}"
-                        data-cities-url="{{ route('api.countries.cities-by-state', ['stateId' => '__ID__']) }}"
-                        class="hidden space-y-4" action="{{ route('admin.restaurant.approvals.registration.update', $restaurant->id) }}" method="POST">
-                        @csrf
-                        @method('PUT')
-                        <input type="hidden" name="step_key" value="{{ $registration->value }}">
-                        <h4 class="review-edit-title">Edit restaurant information</h4>
-                        <p class="review-help">Fields marked * are required. Restaurant names need at least 5 characters.</p>
-                        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-                            @foreach(array_diff_key($fields, array_flip(['country', 'state', 'city'])) as $field => $label)
-                                <div>
-                                    <label for="edit-{{ $field }}" class="mb-1 block text-sm font-medium">{{ $label }}@if(in_array($field, ['name', 'phone'])) <span aria-hidden="true">*</span>@endif</label>
-                                    <input id="edit-{{ $field }}" name="{{ $field }}" type="{{ $field === 'phone' ? 'tel' : 'text' }}" value="{{ old($field, $restaurant->{$field}) }}" maxlength="{{ $field === 'name' ? 150 : ($field === 'phone' ? 20 : ($field === 'postal_code' ? 9 : 255)) }}" @if(in_array($field, ['name', 'postal_code'], true)) minlength="5" @endif @if(in_array($field, ['name', 'phone'])) required @endif aria-invalid="{{ $errors->has($field) ? 'true' : 'false' }}" class="w-full rounded-lg border border-gray-300 px-3 py-2">
-                                </div>
-                            @endforeach
-                        </div>
-                        <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
-                            @foreach(['country_id' => ['Country', $registrationCountries, $registrationCountryId], 'state_id' => ['State', $registrationStates, $registrationStateId], 'city_id' => ['City', $registrationCities, $registrationCityId]] as $field => [$label, $locations, $selected])
-                                <div>
-                                    <label for="registration-{{ $field }}" class="mb-1 block text-sm font-medium">{{ $label }} <span aria-hidden="true">*</span></label>
-                                    <select id="registration-{{ $field }}" name="{{ $field }}" required class="w-full rounded-lg border border-gray-300 px-3 py-2" aria-invalid="{{ $errors->has($field) ? 'true' : 'false' }}">
-                                        <option value="">Select {{ strtolower($label) }}</option>
-                                        @foreach($locations as $location)
-                                            <option value="{{ $location->id }}" @selected(is_scalar($selected) && (string) $selected === (string) $location->id)>{{ $location->name }}</option>
-                                        @endforeach
-                                    </select>
-                                    @error($field)<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
-                                </div>
-                            @endforeach
-                        </div>
-                        <p id="registration-location-error" class="hidden text-sm text-red-600" role="status"></p>
-                        <div><label for="edit-description" class="mb-1 block text-sm font-medium">Description</label><textarea id="edit-description" name="description" rows="4" maxlength="10000" aria-invalid="{{ $errors->has('description') ? 'true' : 'false' }}" class="w-full rounded-lg border border-gray-300 p-3">{{ old('description', $restaurant->description) }}</textarea></div>
-                        <div class="ar-form-actions"><button type="submit" class="ar-btn ar-btn--primary">Save changes</button><button id="cancel-edit" type="button" class="ar-btn">Cancel</button></div>
-                    </form>
-                @endif
-
                 <section class="ar-section" aria-labelledby="registration-owner-heading">
                     <h4 id="registration-owner-heading" class="ar-section-title">Owner Information</h4>
                     <dl class="ar-fields">
@@ -317,7 +269,7 @@
                                 default => true,
                             };
                         @endphp
-                        <li class="review-step {{ $step === $activeStep ? 'review-step-current' : '' }} {{ $timelineState['resubmitted'] ? 'review-step-resubmitted' : '' }} {{ $timelineState['refill_requested'] ? 'review-step-refill-requested' : '' }}" @if($step === $activeStep) aria-current="step" @endif>
+                        <li class="review-step {{ $step === $activeStep ? 'review-step-current' : '' }} {{ $timelineState['refill_requested'] ? 'review-step-refill-requested' : '' }}" @if($step === $activeStep) aria-current="step" @endif>
                             <span aria-hidden="true" class="review-step-marker onboarding-status-marker" data-timeline-status="{{ $timelineMarkerStatus }}">
                                 @include('restaurant::admin.partials.onboarding-status-icon', ['markerStatus' => $timelineMarkerStatus])
                             </span>
@@ -329,10 +281,7 @@
                             @endif
                                     <p class="review-step-number">Step {{ $step->order() }}@if($step === $activeStep)<span class="review-step-viewing">Viewing</span>@endif</p>
                                     <h4 class="review-step-title">{{ $step->label() }}</h4>
-                                    <div class="review-step-badges">
-                                        <span class="review-step-badge {{ $timelineState['color'] }}">@if($timelineState['refill_requested'])<span aria-hidden="true">! </span>@endif{{ $timelineState['label'] }}</span>
-                                        @if($timelineState['resubmitted'])<span class="review-step-badge review-resubmitted-badge">Resubmitted</span>@endif
-                                    </div>
+                                    <div class="review-step-badges"><span class="review-step-badge {{ $timelineState['color'] }}">@if($timelineState['refill_requested'])<span aria-hidden="true">! </span>@endif{{ $timelineState['label'] }}</span></div>
                             @if($canOpenStep)
                                 </a>
                             @else
@@ -388,9 +337,6 @@
 @push('scripts')
 <script src="{{ asset('js/kyc-step-review.js') }}" defer></script>
 <script src="{{ asset('js/onboarding-history.js') }}" defer></script>
-@if($activeStep === $registration)
-<script src="{{ asset('js/onboarding-location-selects.js') }}" defer></script>
-@endif
 <script>
 (() => {
     const tabNavigation = document.querySelector('.approval-review .review-tabs');
@@ -416,6 +362,18 @@
     }
     document.querySelectorAll('[data-step-history]').forEach(button => {
         button.addEventListener('click', () => document.getElementById(button.dataset.stepHistory)?.showModal());
+    });
+    document.querySelectorAll('[data-sensitive-toggle]').forEach(button => {
+        button.addEventListener('click', () => {
+            const visible = button.getAttribute('aria-pressed') !== 'true';
+            const display = button.parentElement.querySelector('[data-sensitive-display]');
+            const slash = button.querySelector('[data-sensitive-slash]');
+            display.textContent = visible ? button.dataset.sensitiveValue : `•••• ${button.dataset.sensitiveValue.slice(-4)}`;
+            button.setAttribute('aria-pressed', String(visible));
+            button.setAttribute('aria-label', `${visible ? 'Hide' : 'Show'} ${button.dataset.sensitiveLabel}`);
+            button.title = `${visible ? 'Hide' : 'Show'} ${button.dataset.sensitiveLabel}`;
+            slash.style.display = visible ? 'none' : '';
+        });
     });
     document.querySelectorAll('.step-history-dialog').forEach(historyDialog => {
         historyDialog.querySelector('[data-close-history]').addEventListener('click', () => historyDialog.close());
@@ -489,179 +447,7 @@
         rejectionReason.focus();
     });
     document.getElementById('cancel-rejection')?.addEventListener('click', () => dialog.close());
-    const editButton = document.getElementById('edit-registration');
-    const editForm = document.getElementById('registration-edit');
-    if (editForm) {
-        editForm.noValidate = true;
-        editForm.addEventListener('submit', event => {
-            if (!validateForm(editForm)) event.preventDefault();
-        });
-    }
-    editForm?.querySelectorAll('input:not([type="hidden"]), textarea').forEach(input => {
-        const validateField = () => {
-            const value = input.value.trim();
-            let message = '';
-            if (input.required && !value) message = 'This field is required.';
-            else if (input.name === 'name' && Array.from(value).length < 5) message = 'The restaurant name must contain at least 5 characters.';
-            else if (input.name === 'phone' && !/^(?=(?:\D*\d){7,15}\D*$)\+?[0-9][0-9 ().-]*$/.test(value)) message = 'Enter a valid phone number with 7 to 15 digits.';
-            else if (input.maxLength > 0 && Array.from(value).length > input.maxLength) message = `Use no more than ${input.maxLength} characters.`;
-            input.setCustomValidity(message);
-            return message;
-        };
-        const showError = () => {
-            validateField();
-            const message = input.validationMessage;
-            input.setAttribute('aria-invalid', String(Boolean(message)));
-        };
-        validateField();
-        input.addEventListener('input', showError);
-        input.addEventListener('blur', () => { input.value = input.value.trim(); showError(); });
-        input.addEventListener('invalid', showError);
-    });
-    const setEditing = editing => {
-        document.getElementById('registration-edit')?.classList.toggle('hidden', !editing);
-        document.getElementById('registration-details')?.classList.toggle('hidden', editing);
-        editButton?.setAttribute('aria-expanded', String(editing));
-        if (editButton) editButton.textContent = editing ? 'Close editor' : 'Edit information';
-        if (editing) document.getElementById('edit-name')?.focus();
-        else editButton?.focus();
-    };
-    editButton?.addEventListener('click', () => setEditing(editButton.getAttribute('aria-expanded') !== 'true'));
-    document.getElementById('cancel-edit')?.addEventListener('click', () => setEditing(false));
-    const bankingEditButton = document.getElementById('edit-banking');
-    const bankingEditForm = document.getElementById('banking-edit');
-    const setBankingEditing = editing => {
-        bankingEditForm?.classList.toggle('hidden', !editing);
-        document.getElementById('banking-details')?.classList.toggle('hidden', editing);
-        bankingEditButton?.setAttribute('aria-expanded', String(editing));
-        if (bankingEditButton) bankingEditButton.textContent = editing ? 'Close editor' : 'Edit information';
-        if (editing) document.getElementById('banking-account_holder_name')?.focus();
-        else bankingEditButton?.focus();
-    };
-    bankingEditButton?.addEventListener('click', () => setBankingEditing(bankingEditButton.getAttribute('aria-expanded') !== 'true'));
-    document.getElementById('cancel-banking-edit')?.addEventListener('click', () => setBankingEditing(false));
-    if (bankingEditForm) {
-        bankingEditForm.noValidate = true;
-        const accountNumber = document.getElementById('banking-account-number');
-        const accountConfirmation = document.getElementById('banking-account-confirmation');
-        const validateAccount = () => {
-            accountNumber.required = Boolean(accountConfirmation.value);
-            accountConfirmation.required = Boolean(accountNumber.value);
-            accountConfirmation.setCustomValidity(accountConfirmation.value !== accountNumber.value ? 'The account numbers do not match.' : '');
-        };
-        accountNumber.addEventListener('input', validateAccount);
-        accountConfirmation.addEventListener('input', validateAccount);
-        bankingEditForm.addEventListener('submit', event => {
-            validateAccount();
-            if (!validateForm(bankingEditForm)) event.preventDefault();
-        });
-    }
-    @if($errors->any() && old('_banking_edit')) setBankingEditing(true); @endif
-    const taxEditButton = document.getElementById('edit-tax');
-    const taxTypeSelection = document.getElementById('tax-type-selection');
-    const originalTaxType = taxTypeSelection?.querySelector('input[type="radio"]:checked')?.value;
-    let changingTaxType = false;
-    taxTypeSelection?.addEventListener('submit', async event => {
-        event.preventDefault();
-        const selected = taxTypeSelection.querySelector('input[type="radio"]:checked');
-        if (changingTaxType || !selected || selected.value === originalTaxType) return;
-        const label = selected.value === 'business' ? 'Business' : 'Individual';
-        const confirmed = await appConfirm({
-            title: `Change tax type to ${label}?`,
-            message: 'Its saved information will be submitted for review again.',
-            confirmText: 'Change tax type',
-            tone: 'warning',
-        });
-        if (!confirmed) {
-            taxTypeSelection.querySelectorAll('input[type="radio"]').forEach(radio => { radio.checked = radio.value === originalTaxType; });
-            return;
-        }
-        changingTaxType = true;
-        taxTypeSelection.setAttribute('aria-busy', 'true');
-        taxTypeSelection.submit();
-    });
-    taxTypeSelection?.querySelectorAll('input[type="radio"]').forEach(radio => {
-        radio.addEventListener('change', () => taxTypeSelection.requestSubmit());
-    });
-    const taxEditForm = document.getElementById('tax-edit');
-    const setTaxEditing = editing => {
-        taxEditForm?.classList.toggle('hidden', !editing);
-        document.getElementById('tax-details')?.classList.toggle('hidden', editing);
-        taxEditButton?.setAttribute('aria-expanded', String(editing));
-        if (taxEditButton) taxEditButton.textContent = editing ? 'Close editor' : 'Edit information';
-        if (editing) taxEditForm?.querySelector('input:not([type="hidden"])')?.focus();
-        else taxEditButton?.focus();
-    };
-    taxEditButton?.addEventListener('click', () => setTaxEditing(taxEditButton.getAttribute('aria-expanded') !== 'true'));
-    document.getElementById('cancel-tax-edit')?.addEventListener('click', () => setTaxEditing(false));
-    if (taxEditForm) {
-        const mailingSelect = document.getElementById('tax-same_mailing_address');
-        const mailingFields = document.getElementById('tax-mailing-fields');
-        const updateMailing = () => {
-            const separate = mailingSelect.value === '0';
-            mailingFields.classList.toggle('hidden', !separate);
-            mailingFields.disabled = !separate;
-            mailingFields.querySelectorAll('input').forEach(input => { input.required = separate; });
-        };
-        mailingSelect.addEventListener('change', updateMailing);
-        updateMailing();
-        const country = document.getElementById('tax-country_id');
-        const state = document.getElementById('tax-state_id');
-        const city = document.getElementById('tax-city_id');
-        const locationError = document.getElementById('tax-location-error');
-        const stateUrl = @json(route('api.countries.states-by-country', ['countryId' => '__ID__']));
-        const cityUrl = @json(route('api.countries.cities-by-state', ['stateId' => '__ID__']));
-        let stateRequest, cityRequest;
-        const resetSelect = (select, label) => {
-            select.replaceChildren(new Option(`Select ${label}`, ''));
-            select.disabled = false;
-        };
-        const loadLocations = async (select, url, key, signal) => {
-            select.disabled = true;
-            locationError.classList.add('hidden');
-            try {
-                const response = await fetch(url, { signal, headers: { Accept: 'application/json' } });
-                if (!response.ok) throw new Error('Request failed');
-                const result = await response.json();
-                if (!result.success || !Array.isArray(result[key])) throw new Error('Invalid response');
-                result[key].forEach(option => select.add(new Option(option.name, option.id)));
-            } catch (error) {
-                if (error.name !== 'AbortError') {
-                    locationError.textContent = 'Could not load locations. Select the country or state again to retry.';
-                    locationError.classList.remove('hidden');
-                }
-            } finally {
-                if (!signal.aborted) select.disabled = false;
-            }
-        };
-        country.addEventListener('change', () => {
-            stateRequest?.abort(); cityRequest?.abort();
-            resetSelect(state, 'state'); resetSelect(city, 'city');
-            if (country.value) {
-                stateRequest = new AbortController();
-                loadLocations(state, stateUrl.replace('__ID__', encodeURIComponent(country.value)), 'states', stateRequest.signal);
-            }
-        });
-        state.addEventListener('change', () => {
-            cityRequest?.abort(); resetSelect(city, 'city');
-            if (state.value) {
-                cityRequest = new AbortController();
-                loadLocations(city, cityUrl.replace('__ID__', encodeURIComponent(state.value)), 'cities', cityRequest.signal);
-            }
-        });
-        taxEditForm.noValidate = true;
-        taxEditForm.addEventListener('submit', event => {
-            if (state.disabled || city.disabled) {
-                event.preventDefault();
-                notifyError('Wait for locations to finish loading.');
-            } else if (!validateForm(taxEditForm)) {
-                event.preventDefault();
-            }
-        });
-    }
-    @if($errors->any() && old('_tax_edit')) setTaxEditing(true); @endif
     @if($errors->has('rejection_reason')) dialog?.showModal(); @endif
-    @if($canEdit && collect(array_keys($fields))->merge(['description', 'country_id', 'state_id', 'city_id'])->contains(fn ($field) => $errors->has($field))) setEditing(true); @endif
 })();
 </script>
 @endpush

@@ -38,6 +38,8 @@ class FoodItemTaxController extends Controller
                     'food_item' => [
                         'id' => $foodItem->id,
                         'name' => $foodItem->name,
+                        'average_rating' => (float) ($foodItem->average_rating ?? 0),
+                        'rating_count' => (int) ($foodItem->rating_count ?? 0),
                         'base_price' => $foodItem->sale_price,
                     ],
                     'tax_calculation' => $calculation,

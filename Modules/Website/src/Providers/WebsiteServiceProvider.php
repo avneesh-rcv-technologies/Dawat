@@ -37,6 +37,14 @@ class WebsiteServiceProvider extends ServiceProvider
         $this->registerCommands();
         $this->registerRoutes();
         $this->registerViews();
+        View::composer('website::*', static function ($view) {
+            $phone = trim((string) fn_get_setting('general.company.phone', ''));
+            $view->with([
+                'companyEmail' => trim((string) fn_get_setting('general.company.mail', '')),
+                'companyPhone' => $phone,
+                'companyPhoneHref' => preg_replace('/[^0-9+]/', '', $phone),
+            ]);
+        });
         $this->registerTranslations();
         $this->registerMigrations();
         $this->registerMiddleware();

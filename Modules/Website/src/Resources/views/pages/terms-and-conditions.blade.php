@@ -33,7 +33,7 @@
             ['title' => 'Content and Third-Party Services', 'paragraphs' => ['Dawat branding, website content, and platform features must not be copied or reused without the relevant permission. Restaurant materials and third-party services may be subject to their own terms. Review those terms when using a linked service.']],
             ['title' => 'Privacy', 'paragraphs' => ['Our Privacy Policy describes how information is collected, used, and protected when you use Dawat. Please review it to understand the choices available to you.']],
             ['title' => 'Updates to These Terms', 'paragraphs' => ['We may update these terms as our platform and services change. The date at the top of this page identifies the latest version. Check this page when you need the current terms.']],
-            ['title' => 'Contact Us', 'paragraphs' => ['If you have questions about these terms or need assistance with an order, please contact us at hello@dawat.com.']],
+            ['title' => 'Contact Us', 'paragraphs' => ['If you have questions about these terms or need assistance with an order, please contact us via {company_email}.']],
         ];
     @endphp
 
@@ -48,7 +48,7 @@
                 <section data-aos="fade-up" data-aos-delay="{{ min($index * 35, 210) }}" class="max-w-[1550px]">
                     <h2 class="font-urbanist text-[24px] font-semibold leading-tight text-white md:text-[30px]">{{ $index + 1 }}. {{ $section['title'] }}</h2>
                     @foreach($section['paragraphs'] as $paragraph)
-                        <p class="mt-4 font-urbanist text-sm leading-relaxed text-white/70 md:text-base">{!! str_replace('hello@dawat.com', '<a class="text-[#FF6210] hover:underline" href="mailto:hello@dawat.com">hello@dawat.com</a>', e($paragraph)) !!}</p>
+                        <p class="mt-4 font-urbanist text-sm leading-relaxed text-white/70 md:text-base">{!! str_replace('{company_email}', $companyEmail !== '' ? '<a class="text-[#FF6210] hover:underline" href="mailto:'.e($companyEmail).'">'.e($companyEmail).'</a>' : '<a class="text-[#FF6210] hover:underline" href="'.e(route('website.contact')).'">our contact form</a>', e($paragraph)) !!}</p>
                     @endforeach
                     @if(isset($section['bullets']))
                         <ul class="mt-4 space-y-1 font-urbanist text-sm text-white/70 md:text-base">

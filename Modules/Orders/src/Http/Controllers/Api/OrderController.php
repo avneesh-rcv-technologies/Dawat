@@ -7,6 +7,7 @@ use Illuminate\Routing\Controller;
 use Modules\Orders\Models\Order;
 use Modules\Orders\Services\OrderService;
 use Modules\Orders\Services\OrderPresentationService;
+use Modules\Orders\Services\OrderTrackingService;
 
 class OrderController extends Controller
 {
@@ -164,6 +165,8 @@ class OrderController extends Controller
             }
 
             $order->load(['items.item', 'vendor', 'refunds']);
+            $location = app(OrderTrackingService::class)->getRestaurantLocation($order);
+            $restaurantDetails = $location['restaurant_details'];
 
             return response()->json([
                 'success' => true,
@@ -182,12 +185,17 @@ class OrderController extends Controller
                         'id' => $order->vendor?->id,
                         'name' => $order->vendor?->name,
                         'phone' => $order->vendor?->phone,
+                        'address' => $restaurantDetails['address'] ?? '',
+                        'pickup_address' => $location['pickup_address'],
                     ],
+                    'restaurant_details' => $restaurantDetails,
+                    'is_pickup_order' => $location['is_pickup_order'],
                     'items' => $order->items->map(fn ($item) => app(OrderPresentationService::class)->item($item)),
                     'refunds' => $order->refunds->map->customerData()->all(),
                     'pricing' => app(OrderPresentationService::class)->pricing($order),
                     ...app(OrderPresentationService::class)->metadata($order),
-                    'delivery_address' => $order->delivery_address,
+                    'delivery_address' => $location['is_pickup_order'] ? null : $order->delivery_address,
+                    'pickup_address' => $location['pickup_address'],
                     'estimated_delivery_time' => $order->estimated_delivery_time,
                     'actual_delivery_time' => $order->actual_delivery_time,
                     'created_at' => $order->created_at,

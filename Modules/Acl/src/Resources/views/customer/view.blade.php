@@ -56,8 +56,14 @@
             <div class="flex items-center justify-between mb-4">
                 <h3 class="text-lg font-semibold text-gray-900">Customer Analytics</h3>
                 <form method="GET" class="flex items-center gap-2">
-                    <input type="date" name="date_from" value="{{ $dateFrom }}" class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 bg-white">
-                    <input type="date" name="date_to" value="{{ $dateTo }}" class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 bg-white">
+                    <label class="flex items-center gap-2 text-sm text-gray-600">
+                        <span>From</span>
+                        <input type="date" name="date_from" value="{{ $dateFrom }}" class="px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 focus:ring-2 focus:ring-blue-500 bg-white">
+                    </label>
+                    <label class="flex items-center gap-2 text-sm text-gray-600">
+                        <span>To</span>
+                        <input type="date" name="date_to" value="{{ $dateTo }}" class="px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 focus:ring-2 focus:ring-blue-500 bg-white">
+                    </label>
                     <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition-colors flex items-center gap-1 shadow-sm">
                         <i class="fas fa-filter"></i> <span>Filter</span>
                     </button>

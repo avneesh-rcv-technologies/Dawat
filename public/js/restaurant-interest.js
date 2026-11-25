@@ -56,15 +56,15 @@
             (value.length < 2 || value.length > 150 || !/\p{L}/u.test(value))) {
             message = 'Enter a restaurant name with 2 to 150 characters, including at least one letter.';
         } else if (input.name === 'phone' &&
-            (!/^[0-9]+$/.test(value) || value.length > 20)) {
-            message = 'Enter a phone number using digits only (up to 20 digits).';
+            !/^[0-9]{7,16}$/.test(value)) {
+            message = 'Enter a phone number with 7 to 16 digits.';
         } else if (input.name === 'phone' && phoneCountry.value &&
             value.length + (phoneCountries.find(item => String(item.id) === phoneCountry.value)?.dialCode.length || 0) + 1 > 20) {
             message = 'Keep the phone number and country code to 20 characters or fewer.';
         } else if (input.name === 'address' && value.length > 100) {
             message = 'Please keep your full address to 100 characters or fewer.';
-        } else if (input.name === 'postal_code' && value.length > 20) {
-            message = 'Please keep your ZIP / postal code to 20 characters or fewer.';
+        } else if (input.name === 'postal_code' && (value.length < 5 || value.length > 9)) {
+            message = 'Enter a ZIP / postal code with 5 to 9 characters.';
         }
         return showError(input, message);
     };
@@ -122,7 +122,7 @@
             }
             if (!items.length) {
                 reset(select, `No ${label} available`);
-                status.textContent = `No ${label} are available. Please choose another location.`;
+                status.textContent = select === city ? 'No cities available. You can continue without selecting a city.' : `No ${label} are available. Please choose another location.`;
                 return;
             }
             select.replaceChildren(new Option(`Select ${label}`, ''));

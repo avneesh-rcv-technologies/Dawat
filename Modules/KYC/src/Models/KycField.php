@@ -109,6 +109,7 @@ class KycField extends Model
                         : explode(',', $stored['allowed_types']))
                     : ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx'];
                 $rules[] = 'mimes:' . implode(',', array_map('trim', $types));
+                $rules[] = 'extensions:' . implode(',', array_map('trim', $types));
                 break;
 
             case 'date':

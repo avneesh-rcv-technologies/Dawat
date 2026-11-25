@@ -67,6 +67,7 @@
             "Modules\\Orders\\": "Modules/Orders/src/",
             "Modules\\Payments\\": "Modules/Payments/src/",
             "Modules\\Restaurant\\": "Modules/Restaurant/src/",
+            "Modules\\Rating\\": "Modules/Rating/src/",
             "Modules\\Seo\\": "Modules/Seo/src/",
             "Modules\\Stripe\\": "Modules/Stripe/src/",
             "Modules\\Tax\\": "Modules/Tax/src/",

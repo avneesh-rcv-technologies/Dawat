@@ -20,7 +20,7 @@
         ['label' => 'Total submissions', 'value' => $statistics['total'], 'icon' => 'description', 'tone' => 'indigo'],
         ['label' => 'Pending review', 'value' => $statistics['pending'], 'icon' => 'schedule', 'tone' => 'violet'],
         ['label' => 'Approved', 'value' => $statistics['approved'], 'icon' => 'check_circle', 'tone' => 'emerald'],
-        ['label' => 'Rejected', 'value' => $statistics['rejected'], 'icon' => 'cancel', 'tone' => 'cyan'],
+        ['label' => 'Rejected/Replacement', 'value' => $statistics['rejected'], 'icon' => 'cancel', 'tone' => 'cyan'],
     ],
 ])
 

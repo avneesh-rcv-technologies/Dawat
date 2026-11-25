@@ -23,6 +23,7 @@ class RatingController extends Controller
      */
     public function index()
     {
+        abort_unless($this->isSuperAdmin(), 403);
         $lists = fn_datagrid(RatingsGrid::class)->process();
         return view('rating::index', compact('lists'));
     }
@@ -32,6 +33,7 @@ class RatingController extends Controller
      */
     public function create()
     {
+        abort_unless($this->isSuperAdmin(), 403);
         return view('rating::create');
     }
 
@@ -40,6 +42,7 @@ class RatingController extends Controller
      */
     public function store(Request $request)
     {
+        abort(403, 'Ratings must be submitted against a completed customer order.');
         $validator = Validator::make($request->all(), [
             'ratable_type' => 'required|string',
             'ratable_id' => 'required|integer',
@@ -78,6 +81,7 @@ class RatingController extends Controller
      */
     public function show($id)
     {
+        abort_unless($this->isSuperAdmin(), 403);
         $rating = $this->ratingService->getById($id);
         
         if (!$rating) {
@@ -98,6 +102,7 @@ class RatingController extends Controller
      */
     public function edit($id)
     {
+        abort_unless($this->isSuperAdmin(), 403);
         $rating = $this->ratingService->getById($id);
         
         if (!$rating) {
@@ -112,6 +117,7 @@ class RatingController extends Controller
      */
     public function update(Request $request, $id)
     {
+        abort_unless($this->isSuperAdmin(), 403);
         $validator = Validator::make($request->all(), [
             'rating' => 'sometimes|integer|min:1|max:5',
             'review' => 'nullable|string|max:1000',
@@ -155,6 +161,7 @@ class RatingController extends Controller
      */
     public function destroy($id)
     {
+        abort_unless($this->isSuperAdmin(), 403);
         try {
             $result = $this->ratingService->delete($id);
 
@@ -186,6 +193,7 @@ class RatingController extends Controller
      */
     public function approve($id)
     {
+        abort_unless($this->isSuperAdmin(), 403);
         try {
             $rating = $this->ratingService->approve($id);
 
@@ -217,6 +225,7 @@ class RatingController extends Controller
      */
     public function toggleStatus($id)
     {
+        abort_unless($this->isSuperAdmin(), 403);
         try {
             $rating = $this->ratingService->toggleStatus($id);
 
@@ -248,6 +257,7 @@ class RatingController extends Controller
      */
     public function bulkDelete(Request $request)
     {
+        abort_unless($this->isSuperAdmin(), 403);
         $validator = Validator::make($request->all(), [
             'ids' => 'required|array',
             'ids.*' => 'integer|exists:ratings,id'
@@ -277,5 +287,11 @@ class RatingController extends Controller
                 'redirect_url' => route('ratings.index')
             ], 400);
         }
+    }
+
+    private function isSuperAdmin(): bool
+    {
+        $admin = auth('admin')->user();
+        return $admin && ($admin->role?->permission_type === 'all' || $admin->hasPermission('ratings.workflow.manage'));
     }
 }

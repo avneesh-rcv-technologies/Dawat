@@ -98,19 +98,25 @@ about a bulk order or about partnering with us, our team is happy to help.
 
         {{-- Contact details strip --}}
         <div class="mt-8 grid gap-5 rounded-2xl border border-white/20 px-5 py-6 sm:grid-cols-2 sm:px-7 md:mt-9 md:grid-cols-[1fr_1fr_auto] md:items-center md:gap-0 md:px-6 md:py-5">
-            <a data-aos="fade-up" href="mailto:hello@uiwiki.co" class="flex items-center gap-4 md:border-r md:border-white/30 md:py-2 md:pr-8">
+            @if($companyEmail !== '')
+            <a data-aos="fade-up" href="mailto:{{ $companyEmail }}" class="flex items-center gap-4 md:border-r md:border-white/30 md:py-2 md:pr-8">
                 <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.06] text-white/80" aria-hidden="true">
                     <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3.5" y="5" width="17" height="14" rx="2.5"/><path d="m4.5 7 7.5 6 7.5-6"/></svg>
                 </span>
-                <span class="flex flex-col gap-1 font-urbanist"><span class="text-base text-white">Email</span><span class="text-sm text-white/45">hello@uiwiki.co</span></span>
+                <span class="flex flex-col gap-1 font-urbanist"><span class="text-base text-white">Email</span><span class="text-sm text-white/45">{{ $companyEmail }}</span></span>
             </a>
 
-            <a data-aos="fade-up" data-aos-delay="120" href="tel:+162321512211" class="flex items-center gap-4 md:border-r md:border-white/30 md:px-8 md:py-2">
+            @endif
+
+            @if($companyPhoneHref !== '')
+            <a data-aos="fade-up" data-aos-delay="120" href="tel:{{ $companyPhoneHref }}" class="flex items-center gap-4 md:border-r md:border-white/30 md:px-8 md:py-2">
                 <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.06] text-white/80" aria-hidden="true">
                     <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M7 3.5h3l1.5 4-2 1.5a15 15 0 0 0 5.5 5.5l1.5-2 4 1.5v3c0 1.1-.9 2-2 2C10.5 21 3 13.5 3 5.5c0-1.1.9-2 2-2h2Z"/></svg>
                 </span>
-                <span class="flex flex-col gap-1 font-urbanist"><span class="text-base text-white">Phone</span><span class="text-sm text-white/45">6232 1151 2211</span></span>
+                <span class="flex flex-col gap-1 font-urbanist"><span class="text-base text-white">Phone</span><span class="text-sm text-white/45">{{ $companyPhone }}</span></span>
             </a>
+
+            @endif
 
             <div data-aos="fade-up" data-aos-delay="240" class="flex items-center justify-between gap-4 border-t border-white/15 pt-5 sm:col-span-2 md:col-span-1 md:justify-end md:border-0 md:pl-8 md:pt-0">
                 <span class="font-urbanist text-sm text-white">Follow us</span>

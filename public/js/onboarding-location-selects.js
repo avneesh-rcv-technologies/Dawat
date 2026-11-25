@@ -30,7 +30,7 @@
                 if (!result.success || !Array.isArray(result[key])) throw new Error('Invalid response');
                 if (!result[key].length) {
                     reset(select, `No ${key} available`);
-                    message(`No ${key} are available for this selection. Choose another location.`);
+                    message(key === 'cities' ? '' : `No ${key} are available for this selection. Choose another location.`);
                     return;
                 }
                 select.replaceChildren(new Option(key === 'states' ? 'Select state' : 'Select city', ''));
@@ -65,11 +65,11 @@
         });
         city.addEventListener('change', () => message(''));
         form.addEventListener('submit', event => {
-            if (state.disabled || city.disabled || !country.value || !state.value || !city.value) {
+            if (state.disabled || !country.value || !state.value) {
                 event.preventDefault();
                 event.stopImmediatePropagation();
-                message('Select a country, state and city, and wait for the lists to finish loading.');
-                (!country.value ? country : !state.disabled && !state.value ? state : !city.disabled ? city : country).focus();
+                message('Select a country and state, and wait for the state list to finish loading.');
+                (!country.value ? country : !state.disabled && !state.value ? state : country).focus();
             }
         }, true);
     });

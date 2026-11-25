@@ -144,7 +144,7 @@ class RestaurantTaxService
                 return $tax;
             }
             $tax->save();
-            app(OnboardingHistoryService::class)->detailsUpdated($restaurant, OnboardingStep::TAX->value);
+            app(OnboardingHistoryService::class)->detailsUpdated($restaurant, OnboardingStep::TAX->value, 'details_updated', array_keys($tax->getChanges()));
 
             return $tax->fresh();
         }
@@ -155,6 +155,11 @@ class RestaurantTaxService
             $tax->tax_certified_at = $type === 'business' ? now() : null;
         }
         $tax->save();
+        if (!$creating && !$newEntityRecord && $tax->wasChanged()) {
+            app(OnboardingHistoryService::class)->detailsUpdated(
+                $restaurant, OnboardingStep::TAX->value, 'details_updated', array_keys($tax->getChanges())
+            );
+        }
         $step = $restaurant->onboardingSteps()->updateOrCreate(
             ['step_key' => OnboardingStep::TAX->value],
             [
