@@ -44,7 +44,7 @@ trait InteractsWithRequestThreats
                 return $next($request);
             }
 
-            if ($this->isClearlySuspiciousRequest($request) && ! $this->isAllowedAdminIp($ipAddress) && ! $this->isAllowedAdminRoute($request)) {
+            if ($this->isClearlySuspiciousRequest($request) && ! $this->isAllowedAdminIp($ipAddress, false) && ! $this->isAllowedAdminRoute($request)) {
                 $reason = 'Suspicious request detected. Access has been blocked for security reasons.';
                 $this->autoBlockIp($ipAddress, $reason, ActivityLogSettings::getInt('block_minutes_on_brute_force', 240));
 
@@ -55,7 +55,7 @@ trait InteractsWithRequestThreats
                 );
             }
 
-            if ($this->isRateLimitExceeded($request) && ! $this->isAllowedAdminIp($ipAddress) && ! $this->isAllowedAdminRoute($request)) {
+            if ($this->isRateLimitExceeded($request) && ! $this->isAllowedAdminIp($ipAddress, false) && ! $this->isAllowedAdminRoute($request)) {
                 $reason = 'Too many requests in a short time. Please try again later.';
                 $this->autoBlockIp($ipAddress, $reason, ActivityLogSettings::getInt('block_minutes_on_rate_limit', 60));
 
@@ -86,7 +86,7 @@ trait InteractsWithRequestThreats
             if (
                 $this->isPotentialBruteForce($request, $response)
                 && $this->isBruteForceThresholdExceeded($request)
-                && ! $this->isAllowedAdminIp($ipAddress)
+                && ! $this->isAllowedAdminIp($ipAddress, false)
                 && ! $this->isAllowedAdminRoute($request)
             ) {
                 $this->autoBlockIp($ipAddress, 'Brute force pattern detected', ActivityLogSettings::getInt('block_minutes_on_brute_force', 240));
@@ -270,12 +270,13 @@ trait InteractsWithRequestThreats
         ];
     }
 
-    protected function isAllowedAdminIp(string $ipAddress): bool
+    protected function isAllowedAdminIp(string $ipAddress, bool $allowWhenEmpty = true): bool
     {
         $allowedIps = ThreatProtectionCache::allowedAdminIpAddresses();
 
         if ($allowedIps === []) {
-            return true;
+            // An empty list permits admin access, but grants no threat-protection exemption.
+            return $allowWhenEmpty;
         }
 
         return in_array($ipAddress, $allowedIps, true);

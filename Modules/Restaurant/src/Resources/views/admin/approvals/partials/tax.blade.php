@@ -1,7 +1,6 @@
 @php
     $tax = $taxRecords->get($taxType);
     $taxStep = $stepRecords->get(\Modules\Restaurant\Enums\OnboardingStep::TAX->value);
-    $canEditTax = $tax && bouncer('admin')->hasPermission('admin.restaurant.approvals.tax.update');
 @endphp
 <div id="tax-panel">
     <div class="ar-panel-head">
@@ -10,33 +9,13 @@
             <h3>Tax Information</h3>
             <p class="review-help">Review the owner's individual and business tax information.</p>
         </div>
-        <form id="tax-type-selection" method="POST" action="{{ route('admin.restaurant.approvals.tax.type', $restaurant->id) }}">
-            @csrf
-            @method('PATCH')
-            <fieldset @disabled(!bouncer('admin')->hasPermission('admin.restaurant.approvals.tax.type'))>
-                <legend>Tax type</legend>
-                <div class="ar-segmented">
-                @foreach(['individual' => 'Individual', 'business' => 'Business'] as $value => $label)
-                    <label @class(['is-unavailable' => !$taxRecords->has($value)]) @if(!$taxRecords->has($value)) title="No {{ strtolower($label) }} tax information has been submitted" @endif>
-                        <input type="radio" name="tax_type" value="{{ $value }}" @checked($taxType === $value) @disabled(!$taxRecords->has($value)) required>
-                        {{ $label }}
-                    </label>
-                @endforeach
-                </div>
-            </fieldset>
-            @error('tax_type')<p class="mt-2 text-sm text-red-600">{{ $message }}</p>@enderror
-            @if($taxRecords->count() < 2)<p class="mt-2 text-xs text-gray-500">A tax type can be selected after its information has been submitted.</p>@endif
-        </form>
+        <div class="ar-tax-type"><span>Tax type</span><strong>{{ ucfirst($taxType) }}</strong></div>
     </div>
     <div class="ar-callout ar-callout--info" role="note">
         <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/></svg>
-        <p>Only the selected tax type is used for review. Changing the tax type submits its saved information for review again.</p>
+        <p>The selected tax type is used for this review.</p>
     </div>
     @if($tax)
-        @if($canEditTax)
-            <div class="flex justify-end"><button type="button" id="edit-tax" class="ar-btn" aria-expanded="false" aria-controls="tax-edit">Edit information</button></div>
-            @include('restaurant::admin.approvals.partials.tax-edit')
-        @endif
         <div id="tax-details" class="space-y-6">
         <section class="ar-section" aria-labelledby="tax-details-heading">
         <h4 id="tax-details-heading" class="ar-section-title">{{ $taxType === 'individual' ? 'Individual' : 'Business' }} tax details</h4>
@@ -49,7 +28,8 @@
             @foreach($taxFields as $field => $label)
                 <div class="ar-field"><dt>{{ $label }}</dt><dd @class(['is-empty' => blank($tax->{$field})])>{{ $tax->{$field} ?: 'Not provided' }}</dd></div>
             @endforeach
-            <div class="ar-field"><dt>{{ $taxType === 'individual' ? 'SSN' : 'EIN' }}</dt><dd class="tabular-nums">{{ filled($taxType === 'individual' ? $tax->ssn : $tax->ein) ? '•••• ' . substr($taxType === 'individual' ? $tax->ssn : $tax->ein, -4) : 'Not provided' }}</dd></div>
+            @php $taxIdentifierLabel = $taxType === 'individual' ? 'SSN' : 'EIN'; $taxIdentifier = $taxType === 'individual' ? $tax->ssn : $tax->ein; @endphp
+            <div class="ar-field"><dt>{{ $taxIdentifierLabel }}</dt><dd class="ar-sensitive-value tabular-nums"><span data-sensitive-display>{{ filled($taxIdentifier) ? '•••• ' . substr($taxIdentifier, -4) : 'Not provided' }}</span>@if(filled($taxIdentifier))<button type="button" class="ar-sensitive-toggle" data-sensitive-toggle data-sensitive-label="{{ $taxIdentifierLabel }}" data-sensitive-value="{{ $taxIdentifier }}" aria-label="Show {{ $taxIdentifierLabel }}" aria-pressed="false" title="Show {{ $taxIdentifierLabel }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/><path data-sensitive-slash d="m3 3 18 18" style="display:none"/></svg></button>@endif</dd></div>
             @foreach([
                 'Address' => $tax->address,
                 'City' => $tax->city?->name,

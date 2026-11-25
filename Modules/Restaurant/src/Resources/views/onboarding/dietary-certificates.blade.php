@@ -82,7 +82,9 @@
             </button>
         </form>
     </div>
-    <div class="dietary-modal-body"><img id="dietary-preview-image" alt="Certificate preview"></div>
+    <div class="dietary-modal-body">
+        <iframe id="dietary-preview-pdf" title="Certificate PDF preview" loading="lazy"></iframe>
+    </div>
 </dialog>
 <style>
     .dietary-certificates { margin-top: 24px; }
@@ -112,38 +114,37 @@
     .dietary-upload button:hover, .dietary-skip button:hover, .dietary-continue:hover { background: #FF6611; transform: translateY(-1px); box-shadow: 0 6px 22px rgba(255, 85, 0, 0.32); }
     .dietary-upload button:focus-visible, .dietary-skip button:focus-visible, .dietary-continue:focus-visible { outline: 3px solid rgba(255, 98, 16, 0.45); outline-offset: 3px; }
     .dietary-skip { margin-top: 24px; padding-top: 24px; border-top: 1px solid #232328; }
-    .dietary-preview-modal { width: 100%; max-width: min(92vw, 680px); max-height: min(88dvh, 760px); padding: 0; overflow: hidden; border: 1px solid #27272A; border-radius: 20px; background: #121215; color: #FFFFFF; box-shadow: 0 25px 60px rgba(0, 0, 0, .85); }
+    .dietary-preview-modal { position: fixed; inset: 0; margin: auto; box-sizing: border-box; width: min(92vw, 680px); max-width: 92vw; max-height: min(88dvh, 760px); padding: 0; overflow: hidden; border: 1px solid #27272A; border-radius: 20px; background: #121215; color: #FFFFFF; box-shadow: 0 25px 60px rgba(0, 0, 0, .85); }
     .dietary-preview-modal::backdrop { background: rgba(0, 0, 0, .75); backdrop-filter: blur(4px); }
     .dietary-modal-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 24px; border-bottom: 1px solid #232328; background: #141418; }
-    .dietary-modal-header h4 { margin: 0; overflow: hidden; color: #FFFFFF; font-size: 16px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+    .dietary-modal-header h4 { min-width: 0; margin: 0; overflow: hidden; color: #FFFFFF; font-size: 16px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+    .dietary-modal-header form { display: flex; flex-shrink: 0; }
     .dietary-preview-modal .dietary-modal-close { display: inline-flex !important; width: 36px !important; min-width: 36px !important; height: 36px !important; min-height: 36px !important; flex-shrink: 0; align-items: center; justify-content: center; padding: 0 !important; border: 1px solid #383842 !important; border-radius: 10px !important; background: #1F1F26 !important; color: #A1A1AA !important; cursor: pointer; }
     .dietary-preview-modal .dietary-modal-close svg { display: block; width: 18px; height: 18px; stroke: #A1A1AA; }
     .dietary-preview-modal .dietary-modal-close:hover { border-color: rgba(239, 68, 68, .45) !important; background: rgba(239, 68, 68, .14) !important; color: #FCA5A5 !important; }
     .dietary-preview-modal .dietary-modal-close:hover svg { stroke: #FCA5A5; }
-    .dietary-modal-body { display: flex; min-height: 180px; max-height: calc(min(88dvh, 760px) - 73px); align-items: center; justify-content: center; overflow: auto; padding: 24px; background: #0A0A0C; }
-    .dietary-modal-body img { max-width: 100%; max-height: 64vh; border: 1px solid #27272A; border-radius: 12px; object-fit: contain; }
+    .dietary-modal-body { display: flex; box-sizing: border-box; width: 100%; align-items: center; justify-content: center; overflow: auto; padding: 24px; background: #0A0A0C; }
+    .dietary-modal-body iframe { display: block; box-sizing: border-box; width: 100%; min-width: 0; height: min(64dvh, calc(min(88dvh, 760px) - 124px)); margin: 0; border: 1px solid #27272A; border-radius: 12px; background: #fff; }
     @media(max-width: 600px) { .dietary-card { padding: 18px; } .dietary-upload button, .dietary-skip button, .dietary-continue { width: 100%; text-align: center; } }
 </style>
 <script>
 (() => {
     const dialog = document.getElementById('dietary-preview-dialog');
-    const image = document.getElementById('dietary-preview-image');
+    const pdf = document.getElementById('dietary-preview-pdf');
     const title = document.getElementById('dietary-preview-title');
-    if (!dialog || !image || !title) return;
+    if (!dialog || !pdf || !title) return;
 
-    dialog.addEventListener('close', () => image.removeAttribute('src'));
+    dialog.addEventListener('close', () => {
+        pdf.removeAttribute('src');
+    });
     document.querySelectorAll('.dietary-preview-btn').forEach(button => {
         button.addEventListener('click', () => {
             const url = button.dataset.previewUrl;
             if (!url) return;
-            if (button.dataset.previewImage === 'true') {
-                image.src = url;
-                image.alt = button.dataset.previewName || 'Certificate preview';
-                title.textContent = button.dataset.previewName || 'Document preview';
-                dialog.showModal();
-            } else {
-                window.open(url, '_blank', 'noopener,noreferrer');
-            }
+            pdf.src = url;
+            pdf.title = button.dataset.previewName || 'Certificate document preview';
+            title.textContent = button.dataset.previewName || 'Document preview';
+            dialog.showModal();
         });
     });
 })();

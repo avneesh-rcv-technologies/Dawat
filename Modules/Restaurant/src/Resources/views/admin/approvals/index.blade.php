@@ -17,14 +17,14 @@
 
 @section('content')
     <section class="approval-counts-section" aria-label="Restaurant application summary">
-        <p class="approval-counts-help">{{ $ownerOnly ? 'Your restaurant applications' : 'Across all restaurant applications' }}</p>
+        <p class="approval-counts-help">{{ $ownerOnly ? 'Your restaurant onboarding steps' : 'Across all restaurant onboarding steps' }}</p>
         <dl class="approval-counts">
             @foreach([
-                'approved' => ['label' => 'Total Approved', 'help' => 'Registration approved'],
-                'pending' => ['label' => 'Total Pending', 'help' => 'Awaiting registration review'],
-                'rejected' => ['label' => 'Total Rejected', 'help' => 'Registration rejected'],
-                'draft' => ['label' => 'Total Draft', 'help' => 'Registration not submitted'],
-                'resubmitted' => ['label' => 'Total Resubmitted', 'help' => 'Resubmitted at least once'],
+                'approved' => ['label' => 'Approved Steps', 'help' => 'Onboarding steps approved'],
+                'pending' => ['label' => 'Steps In Review', 'help' => 'Submitted or under review'],
+                'rejected' => ['label' => 'Rejected Steps', 'help' => 'Onboarding steps rejected'],
+                'draft' => ['label' => 'Draft Steps', 'help' => 'Steps not yet submitted'],
+                'resubmitted' => ['label' => 'Steps Resubmitted', 'help' => 'Steps resubmitted at least once'],
             ] as $key => $card)
                 <div class="approval-count-card approval-count-{{ $key }}">
                     <dt><span class="approval-count-dot" aria-hidden="true"></span>{{ $card['label'] }}</dt>

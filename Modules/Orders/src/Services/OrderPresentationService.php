@@ -2,6 +2,7 @@
 
 namespace Modules\Orders\Services;
 
+use Modules\FoodManagements\Models\FoodItem;
 use Modules\Orders\Models\Order;
 use Modules\Orders\Models\OrderItem;
 
@@ -12,6 +13,8 @@ class OrderPresentationService
         return [
             'id' => $item->id, 'item_id' => $item->item_id, 'item_type' => $item->item_type,
             'name' => $item->item_name, 'item_name' => $item->item_name,
+            'average_rating' => $item->item instanceof FoodItem ? (float) ($item->item->average_rating ?? 0) : null,
+            'rating_count' => $item->item instanceof FoodItem ? (int) ($item->item->rating_count ?? 0) : 0,
             'quantity' => (int) $item->quantity, 'price' => $item->price, 'unit_price' => $item->price,
             'total_price' => $item->total_price, 'subtotal' => $item->total_price,
             'serving_option_id' => $item->serving_option_id, 'serve_type' => $item->serve_type,

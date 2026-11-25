@@ -245,9 +245,9 @@ class CustomerAuthController extends Controller
             return back()->withErrors(['email' => __('This password reset token is invalid.')]);
         }
 
-        // Check if the token is expired (default: 60 minutes)
-        $expires = 60 * 60; // 1 hour in seconds
-        if (time() - strtotime($tokenData->created_at) > $expires) {
+        // Keep token validation aligned with the customer password broker lifetime.
+        $expires = (int) config('auth.passwords.customers.expire', 30) * 60;
+        if (time() - strtotime($tokenData->created_at) >= $expires) {
             if(request()->ajax()) {
                 return response()->json([
                     'success' => false,

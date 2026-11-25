@@ -156,7 +156,18 @@ class RatingService
      */
     public function approve(int $id)
     {
-        return $this->repository->approve($id);
+        $rating = $this->repository->getById($id);
+        if (!$rating) {
+            return null;
+        }
+        $rating->update([
+            'is_approved' => true,
+            'admin_status' => 'approved',
+            'admin_approved_by' => auth('admin')->id(),
+            'admin_approved_at' => now(),
+            'rejection_reason' => null,
+        ]);
+        return $rating->refresh();
     }
 
     /**

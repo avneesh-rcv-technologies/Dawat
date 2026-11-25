@@ -250,6 +250,16 @@ $breadcrumbs = [
                                 class="input-field w-full">
                         </div>
                     </div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 pt-6 border-t border-gray-200">
+                        <div class="md:col-span-1">
+                            <label for="company_phone" class="custom-label">Company Phone Number</label>
+                        </div>
+                        <div class="md:col-span-2">
+                            <input type="tel" id="company_phone" name="settings[general.company.phone]"
+                                value="{{ old('general.company.phone', fn_get_setting('general.company.phone')) }}"
+                                maxlength="32" autocomplete="tel" class="input-field w-full">
+                        </div>
+                    </div>
                     @hook('generalsetting:company_address.pre')
 
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-6 pt-6 border-t border-gray-200">

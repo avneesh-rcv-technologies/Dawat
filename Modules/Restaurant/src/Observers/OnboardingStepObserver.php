@@ -40,6 +40,10 @@ class OnboardingStepObserver
 
         if ($status === OnboardingStatus::APPROVED) {
             app(RestaurantOnboardingCompletionService::class)->complete($restaurant);
+        } elseif ($status === OnboardingStatus::ACTION_REQUIRED
+            && $restaurant->onboarding_status !== $status
+            && $restaurant->onboarding_status === OnboardingStatus::APPROVED) {
+            $restaurant->markOnboardingActionRequiredFromReview();
         } elseif ($restaurant->onboarding_status !== $status) {
             $restaurant->update(['onboarding_status' => $status->value]);
         }

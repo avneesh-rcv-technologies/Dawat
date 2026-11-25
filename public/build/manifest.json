@@ -1,6 +1,6 @@
 {
   "Modules/Backend/src/Resources/assets/css/app.css": {
-    "file": "assets/app-CgPUuaeo.css",
+    "file": "assets/app-DNpbTk_T.css",
     "src": "Modules/Backend/src/Resources/assets/css/app.css",
     "isEntry": true,
     "names": [
@@ -16,7 +16,7 @@
     ]
   },
   "Modules/Backend/src/Resources/assets/js/app.js": {
-    "file": "assets/app-DgOJso9w.js",
+    "file": "assets/app-DQ6L5fs-.js",
     "name": "app",
     "src": "Modules/Backend/src/Resources/assets/js/app.js",
     "isEntry": true,
@@ -43,7 +43,7 @@
     "name": "index"
   },
   "resources/css/app.css": {
-    "file": "assets/app-Uhe0m6VO.css",
+    "file": "assets/app-B4GpAbM7.css",
     "src": "resources/css/app.css",
     "isEntry": true,
     "names": [

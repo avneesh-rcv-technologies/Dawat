@@ -23,7 +23,7 @@
         $privacySections = [
             ['title' => 'Information We Collect', 'paragraphs' => ['We collect information you provide when creating an account, placing an order, contacting support, or partnering with Dawat. This may include your name, email address, phone number, delivery address, and order details.']],
             ['title' => 'How We Use Your Information', 'paragraphs' => ['We use your information to provide and improve Dawat services, process orders, communicate updates, respond to requests, and maintain a safe, reliable experience.'], 'bullets' => ['Process and deliver your orders.', 'Personalise restaurant and food recommendations.', 'Send service updates and support communications.', 'Improve our platform, products, and customer experience.']],
-            ['title' => 'Account Access and Security', 'paragraphs' => ['You are responsible for keeping your account credentials confidential. Notify us immediately at hello@dawat.com if you believe your account has been accessed without your permission.']],
+            ['title' => 'Account Access and Security', 'paragraphs' => ['You are responsible for keeping your account credentials confidential. Notify us immediately via {company_email} if you believe your account has been accessed without your permission.']],
             ['title' => 'Cookies and Similar Technologies', 'paragraphs' => ['We may use cookies and similar technologies to remember preferences, understand how the platform is used, and improve the performance of our services.']],
             ['title' => 'Payment Information', 'paragraphs' => ['Payments are processed through authorised payment providers. Dawat does not store complete payment card details on its own systems.']],
             ['title' => 'Third-Party Services', 'paragraphs' => ['Our platform may connect with third-party services such as payment processors, analytics providers, and delivery partners. These services handle information according to their own privacy policies.']],
@@ -31,7 +31,7 @@
             ['title' => 'Your Choices', 'paragraphs' => ['You may update certain account details through the platform. You can also contact us to request access, correction, or deletion of your personal information, subject to applicable law.']],
             ['title' => 'Children’s Privacy', 'paragraphs' => ['Dawat is not intended for individuals under the age required to use our services in their location. We do not knowingly collect personal information from children.']],
             ['title' => 'Changes to This Policy', 'paragraphs' => ['We may update this Privacy Policy from time to time. Continued use of Dawat after a policy update means you acknowledge the revised policy.']],
-            ['title' => 'Contact Us', 'paragraphs' => ['For questions or concerns about this Privacy Policy, please contact us at hello@dawat.com.']],
+            ['title' => 'Contact Us', 'paragraphs' => ['For questions or concerns about this Privacy Policy, please contact us via {company_email}.']],
         ];
     @endphp
 
@@ -46,7 +46,7 @@
                 <section data-aos="fade-up" data-aos-delay="{{ min($index * 35, 210) }}" class="max-w-[1550px]">
                     <h2 class="font-urbanist text-[24px] font-semibold leading-tight text-white md:text-[30px]">{{ $index + 1 }}. {{ $section['title'] }}</h2>
                     @foreach($section['paragraphs'] as $paragraph)
-                        <p class="mt-4 font-urbanist text-sm leading-relaxed text-white/70 md:text-base">{!! str_replace('hello@dawat.com', '<a class="text-[#FF6210] hover:underline" href="mailto:hello@dawat.com">hello@dawat.com</a>', e($paragraph)) !!}</p>
+                        <p class="mt-4 font-urbanist text-sm leading-relaxed text-white/70 md:text-base">{!! str_replace('{company_email}', $companyEmail !== '' ? '<a class="text-[#FF6210] hover:underline" href="mailto:'.e($companyEmail).'">'.e($companyEmail).'</a>' : '<a class="text-[#FF6210] hover:underline" href="'.e(route('website.contact')).'">our contact form</a>', e($paragraph)) !!}</p>
                     @endforeach
                     @if(isset($section['bullets']))
                         <ul class="mt-4 space-y-1 font-urbanist text-sm text-white/70 md:text-base">

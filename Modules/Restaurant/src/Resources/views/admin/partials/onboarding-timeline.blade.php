@@ -49,8 +49,6 @@
                         <h4>{{ $timelineStep['label'] }}</h4>
                         <div class="rot-badges">
                             <span class="rot-status">{{ $timelineStep['status_label'] }}</span>
-                            @if($timelineIsCurrent)<span class="rot-current-label">Current</span>@endif
-                            @if($timelineStep['resubmitted'])<span class="rot-resubmitted">Resubmitted</span>@endif
                         </div>
                         <dl class="rot-dates">
                             @foreach(['submitted_at' => 'Submitted', 'resubmitted_at' => 'Resubmitted', 'reviewed_at' => 'Reviewed'] as $dateField => $dateLabel)

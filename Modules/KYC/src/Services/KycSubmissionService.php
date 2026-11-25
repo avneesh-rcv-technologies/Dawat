@@ -475,6 +475,8 @@ class KycSubmissionService
                 throw new \Exception('Submission is not editable in current status');
             }
 
+            $this->validateFieldData($submission->kycType, $data, true);
+
             // Reset status to pending BEFORE file upload
             if ($submission->status === 'rejected') {
                 $submission->update([
@@ -592,6 +594,24 @@ class KycSubmissionService
                 'errors' => $validator->errors()->toArray()
             ]);
             throw KycException::validationFailed($validator->errors()->toArray());
+        }
+
+        // Scan the whole batch before any existing documents are replaced.
+        foreach ($kycType->fields as $field) {
+            $file = $data[$field->field_key] ?? null;
+            if (!$field->isFileType() || !($file instanceof UploadedFile)) {
+                continue;
+            }
+            try {
+                $name = $file->getClientOriginalName();
+                if (strlen($name) > 255 || substr_count($name, '.') !== 1 || preg_match('/[\x00-\x1F\x7F<>:"\/\\\\|?*%]/', $name)) {
+                    throw new \InvalidArgumentException('Please use a simple filename with a single extension.');
+                }
+                $extension = strtolower($file->getClientOriginalExtension());
+                app(\Modules\Filemanager\Services\FileSecurityScanner::class)->assertSafe($file, $extension === 'jpeg' ? 'jpg' : $extension);
+            } catch (\InvalidArgumentException $exception) {
+                throw KycException::validationFailed([$field->field_key => [$exception->getMessage()]]);
+            }
         }
     }
 

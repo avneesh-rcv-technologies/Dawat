@@ -14,6 +14,10 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->prependToPriorityList(
+            \Illuminate\Routing\Middleware\SubstituteBindings::class,
+            \Modules\Acl\Http\Middleware\DecryptRouteIds::class,
+        );
         $middleware->redirectGuestsTo(fn (Request $request) => app(\Modules\Acl\Services\LoginRedirector::class)->url($request));
 
         $middleware->web(append: [
@@ -33,6 +37,13 @@ return Application::configure(basePath: dirname(__DIR__))
      ->withExceptions(function (Exceptions $exceptions) {
 
         $exceptions->render(function (HttpExceptionInterface $e, Request $request) {
+            if ($e->getStatusCode() === 419 && $request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Your session has expired. Please refresh the page and try again.',
+                ], 419);
+            }
+
             if ($e->getStatusCode() === 404 && !$request->expectsJson()) {
                 return response()->view('errors.404', [], 404, $e->getHeaders());
             }

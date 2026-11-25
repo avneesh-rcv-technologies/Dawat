@@ -180,6 +180,8 @@ class FoodCategoryRepository
             'description' => $item->description,
             'sale_price' => $item->sale_price,
             'list_price' => $item->list_price,
+            'average_rating' => (float) ($item->average_rating ?? 0),
+            'rating_count' => (int) ($item->rating_count ?? 0),
             'primary_image' => fn_get_image('food_image', $item->id)['url'] ?? '',
             'tags' => $item->tags->pluck('name'),
             'in_stock' => $item->in_stock,

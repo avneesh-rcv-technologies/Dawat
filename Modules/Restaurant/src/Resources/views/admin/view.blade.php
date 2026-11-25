@@ -18,7 +18,13 @@ $breadcrumbs = [
 @php
     $restaurantTabs = ['details', 'orders', 'customers', 'transactions'];
     if ($canViewPayouts ?? false) $restaurantTabs[] = 'payouts';
+    if ($isRestaurantOwner ?? false) $restaurantTabs[] = 'reviews';
     $activeRestaurantTab = in_array(request('tab'), $restaurantTabs, true) ? request('tab') : 'details';
+    $restaurantRatingStars = (int) round($averageRating ?? 0);
+    $canViewRatingReviews = !$isRestaurantOwner && bouncer('admin')->hasPermission('ratings.workflow.manage');
+    $ratingReviewsUrl = $isRestaurantOwner
+        ? route('restaurant.ratings.index', ['restaurant_id' => $restaurant->id])
+        : route('ratings.workflow.admin.index', ['restaurant_id' => $restaurant->id]);
 @endphp
 <div class="mx-auto">
     <!-- Header -->
@@ -49,6 +55,21 @@ $breadcrumbs = [
                         <span class="px-2 py-1 text-xs font-semibold rounded-full {{ $onboardingStatus->color() }}">
                             {{ $onboardingStatus->label() }}
                         </span>
+                    </div>
+                    <div class="mt-2 flex flex-wrap items-center gap-2" aria-label="Restaurant customer rating">
+                        @if(($ratingCount ?? 0) > 0)
+                            @php($filledStars = (int) round($averageRating))
+                            <span class="text-base leading-none tracking-[.12em] text-amber-500" aria-label="{{ number_format($averageRating, 1) }} out of 5 stars">{{ str_repeat('★', $filledStars) }}{{ str_repeat('☆', 5 - $filledStars) }}</span>
+                            <strong class="text-sm font-bold text-gray-900">{{ number_format($averageRating, 1) }}</strong>
+                            <span class="text-xs text-gray-500">({{ number_format($ratingCount) }} approved {{ $ratingCount === 1 ? 'review' : 'reviews' }})</span>
+                        @else
+                            <span class="text-xs text-gray-500">No approved customer ratings yet</span>
+                        @endif
+                        @if($canViewRatingReviews)
+                            <a href="{{ $ratingReviewsUrl }}" class="ml-1 inline-flex items-center gap-1 text-xs font-semibold text-orange-700 transition hover:text-orange-800 hover:underline">
+                                View all reviews <span aria-hidden="true">→</span>
+                            </a>
+                        @endif
                     </div>
                 </div>
             </div>
@@ -213,6 +234,11 @@ $breadcrumbs = [
             @if($canViewPayouts ?? false)
                 <button type="button" class="tab-btn {{ $activeRestaurantTab === 'payouts' ? 'tab-active' : '' }}" data-tab="payouts"><i class="fas fa-file-invoice-dollar mr-2" aria-hidden="true"></i>Payouts</button>
             @endif
+            @if($isRestaurantOwner)
+                <button type="button" class="tab-btn {{ $activeRestaurantTab === 'reviews' ? 'tab-active' : '' }}" data-tab="reviews">
+                    <i class="fas fa-star mr-2 text-amber-500" aria-hidden="true"></i>Customer reviews
+                </button>
+            @endif
         </div>
     </div>
 
@@ -222,6 +248,78 @@ $breadcrumbs = [
             @include('restaurant::admin.partials.details', ['restaurant' => $restaurant])
         </div>
     </div>
+
+    @if($isRestaurantOwner)
+        <div class="tab-content {{ $activeRestaurantTab !== 'reviews' ? 'hidden' : '' }}" id="tab-reviews">
+            <section class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                <header class="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 px-5 py-5 sm:px-6">
+                    <div>
+                        <p class="text-[10px] font-extrabold uppercase tracking-[.14em] text-orange-700">Customer feedback</p>
+                        <h2 class="mt-1 text-xl font-bold text-slate-900">Restaurant reviews</h2>
+                        <p class="mt-1 text-sm text-slate-500">Latest approved customer ratings and comments for your restaurant.</p>
+                    </div>
+                    <div class="flex items-center gap-3 rounded-xl bg-amber-50 px-4 py-3">
+                        <span class="text-xl tracking-wider text-amber-500" aria-label="{{ number_format($averageRating ?? 0, 1) }} out of 5 stars">{{ str_repeat('★', $restaurantRatingStars) }}{{ str_repeat('☆', 5 - $restaurantRatingStars) }}</span>
+                        <span><strong class="block text-lg leading-5 text-slate-900">{{ number_format($averageRating ?? 0, 1) }}</strong><small class="text-xs text-slate-500">{{ number_format($ratingCount ?? 0) }} {{ \Illuminate\Support\Str::plural('rating', $ratingCount ?? 0) }}</small></span>
+                    </div>
+                </header>
+
+                <form method="GET" action="{{ url()->current() }}" class="grid grid-cols-1 gap-3 border-b border-slate-100 bg-slate-50/70 p-4 sm:grid-cols-2 lg:grid-cols-5 lg:items-end">
+                    <input type="hidden" name="tab" value="reviews">
+                    <label class="text-xs font-semibold text-slate-600">Star rating
+                        <select name="review_rating" class="mt-1 block h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800">
+                            <option value="">All ratings</option>
+                            @foreach([5, 4, 3, 2, 1] as $stars)
+                                <option value="{{ $stars }}" @selected(($reviewFilters['review_rating'] ?? '') == $stars)>{{ $stars }} {{ $stars === 1 ? 'star' : 'stars' }}</option>
+                            @endforeach
+                        </select>
+                    </label>
+                    <label class="text-xs font-semibold text-slate-600">From date
+                        <input type="date" name="review_date_from" value="{{ $reviewFilters['review_date_from'] ?? '' }}" class="mt-1 block h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800">
+                    </label>
+                    <label class="text-xs font-semibold text-slate-600">To date
+                        <input type="date" name="review_date_to" value="{{ $reviewFilters['review_date_to'] ?? '' }}" class="mt-1 block h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800">
+                    </label>
+                    <button type="submit" class="h-10 rounded-lg bg-orange-600 px-4 text-sm font-bold text-white transition hover:bg-orange-700">Apply filters</button>
+                    <a href="{{ url()->current() }}?tab=reviews" class="inline-flex h-10 items-center justify-center rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-600 hover:bg-slate-100">Reset</a>
+                </form>
+
+                <div class="divide-y divide-slate-100">
+                    @if($restaurantReviews->count() > 0)
+                    @foreach($restaurantReviews as $review)
+                        <article class="px-5 py-5 sm:px-6">
+                            <div class="flex flex-wrap items-start justify-between gap-3">
+                                <div class="flex min-w-0 items-center gap-3">
+                                    <span class="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-orange-50 text-sm font-bold text-orange-700">{{ \Illuminate\Support\Str::upper(\Illuminate\Support\Str::substr($review->order?->customer?->name ?? $review->user?->name ?? $review->guest_name ?? 'Customer', 0, 1)) }}</span>
+                                    <div class="min-w-0"><h3 class="truncate text-sm font-bold text-slate-900">{{ $review->order?->customer?->name ?? $review->user?->name ?? $review->guest_name ?? 'Customer' }}</h3><p class="mt-0.5 text-xs text-slate-500">{{ $review->created_at?->format('M j, Y · g:i A') }}</p></div>
+                                </div>
+                                <div class="flex items-center gap-2" aria-label="{{ (int) $review->rating }} out of 5 stars">
+                                    <span class="text-base tracking-wider text-amber-500">{{ str_repeat('★', max(0, min(5, (int) $review->rating))) }}{{ str_repeat('☆', max(0, 5 - min(5, (int) $review->rating))) }}</span>
+                                    <strong class="rounded-md bg-amber-50 px-2 py-1 text-xs text-amber-800">{{ (int) $review->rating }}.0</strong>
+                                </div>
+                            </div>
+                            <p class="mt-4 whitespace-pre-wrap break-words rounded-xl bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-700">{{ $review->review ?: 'No written message was left with this rating.' }}</p>
+                        </article>
+                    @endforeach
+                    @else
+                        <div class="px-6 py-12 text-center">
+                            @if(($ratingCount ?? 0) > 0)
+                                <p class="font-semibold text-slate-800">No customer reviews match these filters.</p>
+                                <p class="mt-1 text-sm text-slate-500">Try another rating or date range.</p>
+                            @else
+                                <p class="font-semibold text-slate-800">No approved customer reviews yet.</p>
+                                <p class="mt-1 text-sm text-slate-500">Approved restaurant ratings and messages will appear here.</p>
+                            @endif
+                        </div>
+                    @endif
+                </div>
+
+                @if($restaurantReviews->hasPages())
+                    <footer class="border-t border-slate-100 px-5 py-4 sm:px-6">{{ $restaurantReviews->links() }}</footer>
+                @endif
+            </section>
+        </div>
+    @endif
 
     @if(isset($analytics))
     <div class="tab-content {{ $activeRestaurantTab !== 'orders' ? 'hidden' : '' }}" id="tab-orders">

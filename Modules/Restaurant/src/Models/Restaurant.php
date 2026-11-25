@@ -23,6 +23,8 @@ class Restaurant extends Model
 {
     use HasFactory;
 
+    protected bool $allowApprovedOnboardingReopen = false;
+
     public function certifications(): HasMany
     {
         return $this->hasMany(RestaurantCertification::class);
@@ -144,6 +146,18 @@ class Restaurant extends Model
             && $this->approval_status === 'approved';
     }
 
+    /** Reopen an approved onboarding record only when a reviewer requests corrections. */
+    public function markOnboardingActionRequiredFromReview(): void
+    {
+        $this->allowApprovedOnboardingReopen = true;
+
+        try {
+            $this->update(['onboarding_status' => OnboardingStatus::ACTION_REQUIRED->value]);
+        } finally {
+            $this->allowApprovedOnboardingReopen = false;
+        }
+    }
+
     public function holidays()
     {
         return $this->hasMany(RestaurantHoliday::class);
@@ -178,7 +192,9 @@ class Restaurant extends Model
     {
         static::updating(function (Restaurant $restaurant) {
             if ($restaurant->getRawOriginal('onboarding_status') === OnboardingStatus::APPROVED->value
-                && $restaurant->isDirty('onboarding_status')) {
+                && $restaurant->isDirty('onboarding_status')
+                && !($restaurant->allowApprovedOnboardingReopen
+                    && $restaurant->onboarding_status === OnboardingStatus::ACTION_REQUIRED)) {
                 throw ValidationException::withMessages([
                     'onboarding_status' => 'Onboarding is fully approved. Its status can no longer be changed.',
                 ]);
@@ -196,8 +212,16 @@ class Restaurant extends Model
                 'name', 'phone', 'address_line1', 'address_line2', 'city', 'state',
                 'country', 'country_id', 'state_id', 'city_id', 'postal_code', 'description', 'business_license',
             ])) {
+                $fields = array_values(array_intersect(array_keys($restaurant->getChanges()), [
+                    'name', 'phone', 'address_line1', 'address_line2', 'city', 'state',
+                    'country', 'country_id', 'state_id', 'city_id', 'postal_code', 'description', 'business_license',
+                ]));
                 app(OnboardingHistoryService::class)
-                    ->detailsUpdated($restaurant, 'registration');
+                    ->detailsUpdated($restaurant, 'registration', 'details_updated', $fields);
+            }
+            if ($restaurant->wasChanged('tax_type')) {
+                app(OnboardingHistoryService::class)
+                    ->detailsUpdated($restaurant, 'tax', 'details_updated', ['tax_type']);
             }
             if ($restaurant->wasChanged('onboarding_status')) {
                 try {

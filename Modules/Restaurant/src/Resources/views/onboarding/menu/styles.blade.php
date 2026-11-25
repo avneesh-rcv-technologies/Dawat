@@ -255,6 +255,12 @@
     .menu-wrap .food-detail-intro h2 { margin: 0 0 14px; color: var(--m-text); font-size: clamp(22px, 2vw, 30px); font-weight: 700; letter-spacing: -.5px; line-height: 1.25; overflow-wrap: anywhere; }
     .menu-wrap .food-detail-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
     .menu-wrap .food-detail-hero .menu-chip { font-size: 12px; padding: 4px 10px; font-weight: 500; }
+    .menu-wrap .food-detail-rating { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; margin-top: 12px; font-size: 12px; }
+    .menu-wrap .food-detail-rating-stars { color: #f59e0b; font-size: 16px; letter-spacing: 1px; line-height: 1; }
+    .menu-wrap .food-detail-rating > strong { color: var(--m-text); font-size: 13px; }
+    .menu-wrap .food-detail-rating-count { color: var(--m-muted); }
+    .menu-wrap .food-detail-rating-link { margin-left: 4px; color: var(--m-accent); font-weight: 600; text-decoration: none; }
+    .menu-wrap .food-detail-rating-link:hover { text-decoration: underline; }
     .menu-wrap .food-detail-description { white-space: pre-line; overflow-wrap: anywhere; color: var(--m-muted-2); font-size: 14px; line-height: 1.7; margin: 14px 0; }
     .menu-wrap .food-detail-summary { display: flex; flex-wrap: wrap; gap: 8px 18px; color: var(--m-muted); font-size: 12px; }
     .menu-wrap .food-detail-summary span { display: inline-flex; align-items: center; gap: 7px; }

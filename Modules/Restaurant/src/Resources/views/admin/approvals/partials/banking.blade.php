@@ -1,14 +1,6 @@
 @php
     $banking = $restaurant->bankingDetail;
     $bankingStep = $stepRecords->get(\Modules\Restaurant\Enums\OnboardingStep::BANKING->value);
-    $canEditBanking = $banking && bouncer('admin')->hasPermission('admin.restaurant.approvals.banking.update');
-    $bankingFields = [
-        'account_holder_name' => ['Name of Account Holder', 150],
-        'routing_number' => ['Routing Number', 9],
-        'business_legal_name' => ['Business Legal Entity Name', 150],
-        'doing_business_as' => ['DBA / Doing Business As', 150],
-        'address' => ['Address', 255], 'postal_code' => ['Zip / Postal Code', 9],
-    ];
 @endphp
 <div id="banking-panel">
     <div class="ar-panel-head">
@@ -17,9 +9,6 @@
             <h3>Banking Information</h3>
             <p class="review-help">Bank account and company information submitted by the restaurant owner.</p>
         </div>
-        @if($canEditBanking)
-            <button type="button" id="edit-banking" class="ar-btn" aria-expanded="false" aria-controls="banking-edit">Edit information</button>
-        @endif
     </div>
     @if($banking)
         <div id="banking-details" class="space-y-6">
@@ -28,7 +17,7 @@
                 <dl class="ar-fields">
                     <div class="ar-field"><dt>Name of Account Holder</dt><dd>{{ $banking->account_holder_name }}</dd></div>
                     <div class="ar-field"><dt>Routing Number</dt><dd class="tabular-nums">{{ $banking->routing_number }}</dd></div>
-                    <div class="ar-field ar-field--wide"><dt>Bank Account Number</dt><dd class="tabular-nums">{{ $banking->maskedAccountNumber() }}</dd></div>
+                    <div class="ar-field ar-field--wide"><dt>Bank Account Number</dt><dd class="ar-sensitive-value tabular-nums"><span data-sensitive-display>{{ $banking->maskedAccountNumber() }}</span>@if(filled($banking->account_number))<button type="button" class="ar-sensitive-toggle" data-sensitive-toggle data-sensitive-label="bank account number" data-sensitive-value="{{ $banking->account_number }}" aria-label="Show bank account number" aria-pressed="false" title="Show bank account number"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/><path data-sensitive-slash d="m3 3 18 18" style="display:none"/></svg></button>@endif</dd></div>
                 </dl>
             </section>
             @php $commission = \Modules\Restaurant\Support\PlatformCommission::forRestaurant($restaurant); @endphp
@@ -62,52 +51,6 @@
                 </dl>
             </section>
         </div>
-        @if($canEditBanking)
-            <form id="banking-edit" data-location-selects="banking"
-                data-states-url="{{ route('api.countries.states-by-country', ['countryId' => '__ID__']) }}"
-                data-cities-url="{{ route('api.countries.cities-by-state', ['stateId' => '__ID__']) }}"
-                class="hidden space-y-4" action="{{ route('admin.restaurant.approvals.banking.update', $restaurant->id) }}" method="POST">
-                @csrf
-                @method('PATCH')
-                <input type="hidden" name="_banking_edit" value="1">
-                <h4 class="review-edit-title">Edit banking information</h4>
-                <p class="review-help">Fields marked * are required. The current review status will be preserved.</p>
-                <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-                    @foreach($bankingFields as $field => [$label, $maxLength])
-                        <div>
-                            <label for="banking-{{ $field }}" class="mb-1 block text-sm font-medium">{{ $label }}@if($field !== 'doing_business_as') <span aria-hidden="true">*</span>@endif</label>
-                            <input id="banking-{{ $field }}" name="{{ $field }}" type="text" value="{{ old($field, $banking->{$field}) }}" maxlength="{{ $maxLength }}" @if($field === 'postal_code') minlength="5" @endif @if($field !== 'doing_business_as') required @endif @if($field === 'routing_number') inputmode="numeric" pattern="[0-9]{9}" @endif aria-invalid="{{ $errors->has($field) ? 'true' : 'false' }}" class="w-full rounded-lg border border-gray-300 px-3 py-2">
-                            @error($field)<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
-                        </div>
-                    @endforeach
-                    @foreach(['country_id' => ['Country', $bankingCountries], 'state_id' => ['State', $bankingStates], 'city_id' => ['City', $bankingCities]] as $field => [$label, $locations])
-                        <div>
-                            <label for="banking-{{ $field }}" class="mb-1 block text-sm font-medium">{{ $label }} @if($field !== 'city_id')<span aria-hidden="true">*</span>@else (optional) @endif</label>
-                            <select id="banking-{{ $field }}" name="{{ $field }}" @required($field !== 'city_id') class="w-full rounded-lg border border-gray-300 px-3 py-2" aria-invalid="{{ $errors->has($field) ? 'true' : 'false' }}">
-                                <option value="">Select {{ strtolower($label) }}</option>
-                                @foreach($locations as $location)
-                                    <option value="{{ $location->id }}" @selected(is_scalar(old($field, $banking->{$field})) && (string) old($field, $banking->{$field}) === (string) $location->id)>{{ $location->name }}</option>
-                                @endforeach
-                            </select>
-                            @error($field)<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
-                        </div>
-                    @endforeach
-                    <p id="banking-location-error" class="hidden text-sm text-red-600 md:col-span-2" role="status"></p>
-                    <div>
-                        <label for="banking-account-number" class="mb-1 block text-sm font-medium">New Bank Account Number</label>
-                        <input id="banking-account-number" name="account_number" type="password" inputmode="numeric" autocomplete="new-password" pattern="[0-9]{4,17}" minlength="4" maxlength="17" class="w-full rounded-lg border border-gray-300 px-3 py-2">
-                        <p class="review-help">Leave blank to keep the current account number ({{ $banking->maskedAccountNumber() }}).</p>
-                        @error('account_number')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
-                    </div>
-                    <div>
-                        <label for="banking-account-confirmation" class="mb-1 block text-sm font-medium">Confirm New Bank Account Number</label>
-                        <input id="banking-account-confirmation" name="account_number_confirmation" type="password" inputmode="numeric" autocomplete="new-password" maxlength="17" class="w-full rounded-lg border border-gray-300 px-3 py-2">
-                        @error('account_number_confirmation')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
-                    </div>
-                </div>
-                <div class="ar-form-actions"><button type="submit" class="ar-btn ar-btn--primary">Save changes</button><button id="cancel-banking-edit" type="button" class="ar-btn">Cancel</button></div>
-            </form>
-        @endif
         @if($bankingStep?->rejection_reason && $bankingStep->status !== 'action_required')
             <div class="ar-callout ar-callout--danger" role="note">
                 <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m15 9-6 6M9 9l6 6"/></svg>
@@ -122,7 +65,3 @@
         </div>
     @endif
 </div>
-
-@push('scripts')
-    <script src="{{ asset('js/onboarding-location-selects.js') }}" defer></script>
-@endpush

@@ -6,6 +6,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
+use Modules\Filemanager\Exceptions\FileServiceException;
 use Modules\FoodManagements\Repositories\FoodItemRepository;
 use Modules\FoodManagements\Models\FoodItem;
 
@@ -157,11 +159,17 @@ class FoodItemService
             $position = $replace ? 0 : ((int) ($links->max('position') ?? -1)) + 1;
             $files = app(\Modules\Filemanager\Services\FileService::class);
             // Check the entire batch before writing any files or removing old links.
-            foreach ($images as $image) {
-                $files->assertValidUpload($image);
-            }
-            foreach (array_values($images) as $image) {
-                $files->uploadFile($image, 'food_image', $foodItem->id, 'A', $position++);
+            try {
+                foreach ($images as $image) {
+                    $files->assertValidUpload($image);
+                }
+                foreach (array_values($images) as $image) {
+                    $files->uploadFile($image, 'food_image', $foodItem->id, 'A', $position++);
+                }
+            } catch (FileServiceException $e) {
+                throw ValidationException::withMessages([
+                    $field => 'The image could not be uploaded. Please choose a valid JPG, JPEG, PNG or WebP image and try again.',
+                ]);
             }
             if ($replace) {
                 foreach ($links as $link) {
@@ -265,6 +273,8 @@ class FoodItemService
             'name' => $item->name,
             'slug' => $item->slug,
             'description' => $item->description,
+            'average_rating' => (float) ($item->average_rating ?? 0),
+            'rating_count' => (int) ($item->rating_count ?? 0),
             'dietary_label_ids' => $item->dietary_label_ids ?? [],
             'features' => FoodItemFeatureData::forItem($item, public: true),
             'tax_percentage' => $item->tax_percentage,

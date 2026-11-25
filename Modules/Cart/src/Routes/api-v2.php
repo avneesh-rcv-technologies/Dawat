@@ -11,6 +11,7 @@ Route::prefix('api/v2/cart')->name('api.v2.cart.')
         Route::get('/', [CartController::class, 'index'])->name('index');
         Route::post('add-items', [CartController::class, 'store'])->name('store');
         Route::delete('items', [CartController::class, 'clear'])->name('clear');
+        Route::get('items', [CartController::class, 'items'])->name('items.index');
         Route::get('items/{cartItemId}', [CartController::class, 'show'])
             ->whereNumber('cartItemId')->name('show');
         Route::match(['put', 'patch'], 'items/{cartItemId}', [CartController::class, 'update'])

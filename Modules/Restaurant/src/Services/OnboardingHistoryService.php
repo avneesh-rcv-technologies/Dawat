@@ -53,10 +53,31 @@ class OnboardingHistoryService
         $this->record($step->restaurant_id, $step->step_key, $action, $oldStatus, $step->status, $actor, $step->rejection_reason);
     }
 
-    public function detailsUpdated(Restaurant $restaurant, string $step, string $action = 'details_updated'): void
+    public function detailsUpdated(Restaurant $restaurant, string $step, string $action = 'details_updated', array $fields = []): void
     {
         $status = $restaurant->onboardingSteps()->where('step_key', $step)->value('status') ?? 'draft';
-        $this->record($restaurant->id, $step, $action, $status, $status, $restaurant->admin_id);
+        $labels = [
+            'name' => 'Restaurant name', 'phone' => 'Phone', 'address_line1' => 'Address line 1',
+            'address_line2' => 'Address line 2', 'city' => 'City', 'state' => 'State',
+            'country' => 'Country', 'postal_code' => 'ZIP / postal code', 'description' => 'Description',
+            'business_license' => 'Business license',
+            'account_holder_name' => 'Account holder name', 'account_number' => 'Bank account number',
+            'routing_number' => 'Routing number', 'business_legal_name' => 'Business legal name',
+            'doing_business_as' => 'Doing business as', 'address' => 'Address',
+            'city_id' => 'City', 'state_id' => 'State', 'country_id' => 'Country',
+            'tax_type' => 'Tax type', 'full_name' => 'Full name', 'company_legal_name' => 'Business legal name',
+            'ssn' => 'SSN', 'ein' => 'EIN', 'zip_code' => 'ZIP code',
+            'same_mailing_address' => 'Mailing address preference', 'mailing_address' => 'Mailing address',
+            'mailing_city' => 'Mailing city', 'mailing_state' => 'Mailing state',
+            'mailing_zip_code' => 'Mailing ZIP code', 'receive_1099_electronically' => '1099 delivery preference',
+            'backup_tax_withholding' => 'Backup tax withholding', 'tax_certification' => 'Tax certification',
+            'tax_certified_at' => 'Tax certification date', 'email_verified_at' => 'Owner email verification',
+        ];
+        $fields = array_values(array_unique(array_filter($fields, fn ($field) => is_string($field) && $field !== 'updated_at')));
+        $reason = $fields
+            ? 'Updated details: '.implode(', ', array_map(fn ($field) => $labels[$field] ?? \Illuminate\Support\Str::headline($field), $fields)).'.'
+            : null;
+        $this->record($restaurant->id, $step, $action, $status, $status, $restaurant->admin_id, $reason);
     }
 
     public function kycSaved(KycSubmission $submission, bool $created): void

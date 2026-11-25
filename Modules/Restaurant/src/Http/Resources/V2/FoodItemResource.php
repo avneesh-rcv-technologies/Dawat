@@ -37,6 +37,8 @@ class FoodItemResource extends JsonResource
             'restaurant_id' => $this->restaurant_id,
             'name' => $this->name,
             'description' => $this->description,
+            'average_rating' => (float) ($this->average_rating ?? 0),
+            'rating_count' => (int) ($this->rating_count ?? 0),
             'features' => $features,
             'feature_mapping' => (object) FoodItemFeatureData::mapping($features),
             'category_id' => $this->categories->first()?->id,

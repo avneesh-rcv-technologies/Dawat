@@ -3,10 +3,6 @@
         <h4 class="font-semibold text-gray-900">{{ $certificate->certificationType?->name ?? 'Certificate' }}</h4>
         @include('dietarymanagment::certifications.partials.status', ['status' => $certificate->status])
     </div>
-    <div class="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg bg-gray-50 p-4">
-        <p class="min-w-0 break-words text-sm text-gray-700">{{ $certificate->file_name ?: 'Uploaded certificate' }}</p>
-        <a href="{{ route('restaurant.onboarding.certificates.document', ['id' => $certificate->id, 'preview' => 1]) }}" target="_blank" rel="noopener noreferrer" class="shrink-0 text-sm font-medium text-orange-600 underline">View document <span class="sr-only">(opens in a new tab)</span></a>
-    </div>
     @if($certificate->status !== 'approved' && $certificate->admin_notes)<p class="mt-4 whitespace-pre-wrap rounded-lg bg-gray-50 p-3 text-sm">{{ $certificate->admin_notes }}</p>@endif
     @if(in_array($certificate->status, ['submitted', 'under_review'], true) && \Modules\DietaryManagment\Services\OnboardingCertificateService::canReview(auth('admin')->user()))
         <form method="POST" action="{{ route('admin.dietarymanagment.certifications.review', $certificate->id) }}" class="mt-5 space-y-4">
@@ -17,7 +13,7 @@
             <div><label for="certificate-status-{{ $certificate->id }}" class="block text-sm font-medium">Review action</label>
                 <select name="status" id="certificate-status-{{ $certificate->id }}" class="input-field mt-2" required>
                     <option value="">Select action</option>
-                    @foreach(['under_review' => 'Mark under review', 'approved' => 'Approve', 'rejected' => 'Reject', 'changes_requested' => 'Request changes'] as $value => $label)
+                    @foreach(['under_review' => 'Mark under review', 'approved' => 'Approve', 'rejected' => 'Reject', 'changes_requested' => 'Request Replacement'] as $value => $label)
                         @if($certificate->status !== $value)<option value="{{ $value }}">{{ $label }}</option>@endif
                     @endforeach
                 </select>

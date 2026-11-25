@@ -5,8 +5,13 @@ namespace Modules\Rating\Http\Controllers\Api;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Validator;
+use Modules\FoodManagements\Models\FoodItem;
+use Modules\Acl\Models\Customer;
+use Modules\Orders\Models\Order;
 use Modules\Rating\Services\RatingService;
+use Modules\Rating\Models\Rating;
 use Modules\Activitylog\Exceptions\ApiExceptionHandler;
+use Modules\Restaurant\Models\Restaurant;
 
 class RatingApiController extends Controller
 {
@@ -17,6 +22,67 @@ class RatingApiController extends Controller
         $this->ratingService = $ratingService;
     }
 
+    /** Return all ratings submitted for an order owned by the authenticated customer. */
+    public function byOrder(Request $request, int $orderId)
+    {
+        $customer = $request->user('sanctum');
+        if (!$customer) {
+            return response()->json(['success' => false, 'message' => 'Please sign in to view order ratings.'], 401);
+        }
+
+        $order = Order::find($orderId);
+        if (!$order) {
+            return response()->json(['success' => false, 'message' => 'Order not found.'], 404);
+        }
+
+        $allowedCustomerTypes = array_unique([get_class($customer), Customer::class, \App\Models\User::class]);
+        if ((int) $order->customer_id !== (int) $customer->getAuthIdentifier()
+            || !in_array($order->customer_type, $allowedCustomerTypes, true)) {
+            return response()->json(['success' => false, 'message' => 'You are not allowed to view ratings for this order.'], 403);
+        }
+
+        $ratings = Rating::with('ratable')
+            ->where('order_id', $order->id)
+            ->orderBy('id')
+            ->get()
+            ->map(function (Rating $rating) {
+                $isRestaurant = $rating->ratable_type === Restaurant::class;
+                $effectiveStatus = $isRestaurant
+                    ? ($rating->admin_status ?: ($rating->is_approved ? 'approved' : 'pending'))
+                    : (in_array($rating->admin_status, ['approved', 'rejected'], true)
+                        ? $rating->admin_status
+                        : ($rating->restaurant_status ?: 'pending'));
+
+                return [
+                    'id' => $rating->id,
+                    'order_id' => $rating->order_id,
+                    'order_item_id' => $rating->order_item_id,
+                    'type' => $isRestaurant ? 'restaurant' : 'food_item',
+                    'ratable_id' => $rating->ratable_id,
+                    'name' => $rating->ratable?->name,
+                    'rating' => (int) $rating->rating,
+                    'review' => $rating->review,
+                    'status' => $effectiveStatus,
+                    'is_public' => (bool) ($rating->is_approved && $rating->status),
+                    'restaurant_reply' => $rating->restaurant_reply,
+                    'rejection_reason' => $effectiveStatus === 'rejected' ? $rating->rejection_reason : null,
+                    'created_at' => $rating->created_at?->toIso8601String(),
+                ];
+            })
+            ->values();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Order ratings retrieved successfully.',
+            'data' => [
+                'order_id' => $order->id,
+                'order_number' => $order->order_number,
+                'ratings' => $ratings,
+                'count' => $ratings->count(),
+            ],
+        ]);
+    }
+
     /**
      * Get list of ratings for a specific item.
      *
@@ -25,20 +91,27 @@ class RatingApiController extends Controller
      */
     public function index(Request $request)
     {
+        $validated = $request->validate([
+            'per_page' => ['nullable', 'integer', 'between:1,50'],
+            'ratable_type' => ['nullable', 'string', 'required_with:ratable_id', 'in:restaurant,food_item,' . Restaurant::class . ',' . FoodItem::class],
+            'ratable_id' => ['nullable', 'integer', 'required_with:ratable_type'],
+        ]);
+
         try {
-            $perPage = $request->get('per_page', 10);
+            $perPage = (int) ($validated['per_page'] ?? 10);
             
             // If ratable_type and ratable_id are provided, get ratings for that item
-            if ($request->has('ratable_type') && $request->has('ratable_id')) {
+            if (isset($validated['ratable_type'], $validated['ratable_id'])) {
+                $ratableType = $this->resolveRatableType($validated['ratable_type']);
                 $ratings = $this->ratingService->getByRatable(
-                    $request->ratable_type,
-                    $request->ratable_id,
+                    $ratableType,
+                    (int) $validated['ratable_id'],
                     $perPage
                 );
                 
                 $stats = $this->ratingService->getRatingStats(
-                    $request->ratable_type,
-                    $request->ratable_id
+                    $ratableType,
+                    (int) $validated['ratable_id']
                 );
             } else {
                 // Get all approved ratings
@@ -68,57 +141,10 @@ class RatingApiController extends Controller
      */
     public function store(Request $request)
     {
-        $rules = [
-            'ratable_type' => 'required|string',
-            'ratable_id' => 'required|integer',
-            'rating' => 'required|integer|min:' . fn_get_setting('rating.min_rating', 1) . '|max:' . fn_get_setting('rating.max_rating', 5),
-        ];
-
-        // Check if review text is required
-        if (fn_get_setting('rating.require_review_text', false)) {
-            $rules['review'] = 'required|string|max:1000';
-        } else {
-            $rules['review'] = 'nullable|string|max:1000';
-        }
-
-        // Check who can review
-        $whoCanReview = fn_get_setting('rating.who_can_review', 'both');
-        
-        if ($whoCanReview !== 'logged_in') {
-            // Guest reviewer fields
-            $rules['guest_name'] = 'required|string|max:255';
-            $rules['guest_email'] = 'required|email|max:255';
-        }
-
-        $validator = Validator::make($request->all(), $rules);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validation failed',
-                'errors' => $validator->errors()
-            ], 422);
-        }
-
-        try {
-            $rating = $this->ratingService->create($request->all());
-
-            $message = fn_get_setting('rating.require_approval', true)
-                ? 'Thank you! Your review has been submitted and is pending approval.'
-                : 'Thank you! Your review has been submitted successfully.';
-
-            return response()->json([
-                'success' => true,
-                'message' => $message,
-                'data' => $rating
-            ], 201);
-        } catch (\Throwable $e) {
-            ApiExceptionHandler::handle($e);
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage()
-            ], 400);
-        }
+        return response()->json([
+            'success' => false,
+            'message' => 'Submit ratings for a delivered order using /api/v1/ratings/orders/submit.',
+        ], 410);
     }
 
     /**
@@ -130,7 +156,7 @@ class RatingApiController extends Controller
     public function stats(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'ratable_type' => 'required|string',
+            'ratable_type' => ['required', 'string', 'in:restaurant,food_item,' . Restaurant::class . ',' . FoodItem::class],
             'ratable_id' => 'required|integer',
         ]);
 
@@ -143,9 +169,10 @@ class RatingApiController extends Controller
         }
 
         try {
+            $ratableType = $this->resolveRatableType($request->input('ratable_type'));
             $stats = $this->ratingService->getRatingStats(
-                $request->ratable_type,
-                $request->ratable_id
+                $ratableType,
+                (int) $request->ratable_id
             );
 
             return response()->json([
@@ -170,7 +197,7 @@ class RatingApiController extends Controller
     public function show($id)
     {
         try {
-            $rating = $this->ratingService->getById($id);
+            $rating = \Modules\Rating\Models\Rating::approved()->active()->find($id);
 
             if (!$rating) {
                 return response()->json([
@@ -190,5 +217,15 @@ class RatingApiController extends Controller
                 'message' => $e->getMessage()
             ], 500);
         }
+    }
+
+    /** Accept stable mobile aliases and the model class names used by older clients. */
+    private function resolveRatableType(string $type): string
+    {
+        return match ($type) {
+            'restaurant', Restaurant::class => Restaurant::class,
+            'food_item', FoodItem::class => FoodItem::class,
+            default => abort(422, 'ratable_type must be restaurant or food_item.'),
+        };
     }
 }

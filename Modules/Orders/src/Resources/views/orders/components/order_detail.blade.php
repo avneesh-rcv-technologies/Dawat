@@ -110,6 +110,32 @@ $isCod = $is_cod_order ?? app(\Modules\Orders\Services\CodPaymentService::class)
                     </div>
                 </div>
 
+                @if(($is_restaurant_owner ?? false) && isset($owner_food_reviews) && $owner_food_reviews->isNotEmpty())
+                    <section class="rounded-lg border border-gray-200 bg-white p-6 shadow-sm" aria-labelledby="order-food-reviews-title">
+                        <div class="mb-4">
+                            <h2 id="order-food-reviews-title" class="text-lg font-semibold text-gray-900">Customer reviews for food items</h2>
+                            <p class="mt-1 text-sm text-gray-500">Food item ratings submitted for this order.</p>
+                        </div>
+                        <div class="divide-y divide-gray-100">
+                            @foreach($owner_food_reviews as $foodReview)
+                                <article class="py-4 first:pt-0 last:pb-0">
+                                    <div class="flex flex-wrap items-center justify-between gap-3">
+                                        <div class="flex min-w-0 items-center gap-3">
+                                            <span class="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-orange-50 text-sm font-bold text-orange-700">{{ \Illuminate\Support\Str::upper(\Illuminate\Support\Str::substr($foodReview->order?->customer?->name ?? $foodReview->user?->name ?? $foodReview->guest_name ?? 'Customer', 0, 1)) }}</span>
+                                            <div class="min-w-0"><h3 class="truncate text-sm font-semibold text-gray-900">{{ $foodReview->order?->customer?->name ?? $foodReview->user?->name ?? $foodReview->guest_name ?? 'Customer' }}</h3><p class="mt-0.5 text-xs text-gray-500">{{ $foodReview->created_at?->format('M j, Y · g:i A') }}</p></div>
+                                        </div>
+                                        <div class="flex items-center gap-2" aria-label="{{ (int) $foodReview->rating }} out of 5 stars">
+                                            <span class="text-base tracking-wider text-amber-500">{{ str_repeat('★', max(0, min(5, (int) $foodReview->rating))) }}{{ str_repeat('☆', max(0, 5 - min(5, (int) $foodReview->rating))) }}</span>
+                                            <strong class="rounded-md bg-amber-50 px-2 py-1 text-xs text-amber-800">{{ (int) $foodReview->rating }}.0</strong>
+                                        </div>
+                                    </div>
+                                    <p class="mt-3 whitespace-pre-wrap break-words rounded-lg bg-gray-50 px-4 py-3 text-sm leading-6 text-gray-700">{{ $foodReview->review ?: 'No written message was left with this rating.' }}</p>
+                                </article>
+                            @endforeach
+                        </div>
+                    </section>
+                @endif
+
                 @include('orders::orders.components.price-breakdown')
 
                 @include('orders::orders.components.timeline')

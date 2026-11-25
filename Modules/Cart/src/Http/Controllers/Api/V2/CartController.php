@@ -16,34 +16,26 @@ class CartController extends Controller
 {
     public function __construct(private CartV2Service $cart) {}
 
-    private function customer(Request $request): ?Customer
+    private function customer(Request $request): Customer
     {
         return $request->attributes->get('cart_customer');
     }
 
-    private function sessionId(Request $request): ?string
-    {
-        return $request->attributes->get('cart_session_id');
-    }
-
     public function index(Request $request): JsonResponse
     {
-        $data = $request->validate(['restaurant_id' => ['required', 'integer', 'min:1']], [
-            'restaurant_id.required' => 'Please select a restaurant to view your cart.',
-            'restaurant_id.integer' => 'Please select a valid restaurant.',
-            'restaurant_id.min' => 'Please select a valid restaurant.',
-        ]);
-        $cart = $this->cart->get($this->customer($request), (int) $data['restaurant_id'], $this->sessionId($request));
+        $cart = $this->cart->get($this->customer($request));
 
         return response()->json([
             'success' => true, 'message' => 'Cart retrieved successfully.',
-            'data' => $cart ? (new CartResource($cart))->resolve($request) : CartResource::emptyCart((int) $data['restaurant_id'], $this->sessionId($request)),
+            'data' => $cart
+                ? (new CartResource($cart))->resolve($request)
+                : CartResource::emptyCart(null),
         ]);
     }
 
     public function store(AddCartItemRequest $request): JsonResponse
     {
-        $cart = $this->cart->add($this->customer($request), $request->validated(), $this->sessionId($request));
+        $cart = $this->cart->add($this->customer($request), $request->validated());
 
         return response()->json([
             'success' => true, 'message' => 'Item added to cart.',
@@ -55,43 +47,52 @@ class CartController extends Controller
     {
         return response()->json([
             'success' => true, 'message' => 'Cart item retrieved successfully.',
-            'data' => (new CartItemResource($this->cart->getItem($this->customer($request), $cartItemId, $this->sessionId($request))))->resolve($request),
+            'data' => (new CartItemResource($this->cart->getItem($this->customer($request), $cartItemId)))->resolve($request),
         ]);
     }
 
     public function clear(Request $request): JsonResponse
     {
-        $data = $request->validate(['restaurant_id' => ['required', 'integer', 'min:1']], [
-            'restaurant_id.required' => 'Please select a restaurant to clear your cart.',
-            'restaurant_id.integer' => 'Please select a valid restaurant.',
-            'restaurant_id.min' => 'Please select a valid restaurant.',
-        ]);
-        $restaurantId = (int) $data['restaurant_id'];
-        $this->cart->clear($this->customer($request), $restaurantId, $this->sessionId($request));
+        $this->cart->clear($this->customer($request));
 
         return response()->json([
             'success' => true, 'message' => 'Cart cleared successfully.',
-            'data' => CartResource::emptyCart($restaurantId, $this->sessionId($request)),
+            'data' => CartResource::emptyCart(null),
         ]);
     }
 
     public function destroy(Request $request, int $cartItemId): JsonResponse
     {
-        $cart = $this->cart->remove($this->customer($request), $cartItemId, $this->sessionId($request));
+        $cart = $this->cart->remove($this->customer($request), $cartItemId);
 
         return response()->json([
             'success' => true, 'message' => 'Cart item removed.',
-            'data' => $cart ? (new CartResource($cart))->resolve($request) : CartResource::emptyCart(null, $this->sessionId($request)),
+            'data' => $cart ? (new CartResource($cart))->resolve($request) : CartResource::emptyCart(null),
         ]);
     }
 
     public function update(UpdateCartItemRequest $request, int $cartItemId): JsonResponse
     {
-        $cart = $this->cart->updateItem($this->customer($request), $cartItemId, $request->validated(), $this->sessionId($request));
+        $cart = $this->cart->updateItem($this->customer($request), $cartItemId, $request->validated());
 
         return response()->json([
             'success' => true, 'message' => 'Cart item updated successfully.',
             'data' => (new CartResource($cart))->resolve($request),
+        ]);
+    }
+
+    public function items(Request $request): JsonResponse
+    {
+        $cart = $this->cart->get($this->customer($request));
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Cart items retrieved successfully.',
+            'data' => $cart ? CartItemResource::collection($cart->items)->resolve($request) : [],
+            'meta' => [
+                'restaurant_id' => $cart?->cartable_id ? (int) $cart->cartable_id : null,
+                'line_count' => $cart?->items->count() ?? 0,
+            ],
         ]);
     }
 }

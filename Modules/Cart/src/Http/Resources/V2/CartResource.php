@@ -4,6 +4,7 @@ namespace Modules\Cart\Http\Resources\V2;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Modules\Restaurant\Models\Restaurant;
 
 class CartResource extends JsonResource
 {
@@ -16,6 +17,7 @@ class CartResource extends JsonResource
             'id' => $this->id,
             'session_id' => $this->session_id,
             'restaurant_id' => $this->cartable_id,
+            'restaurant' => self::restaurantSummary((int) $this->cartable_id),
             'event_guest_count' => $this->event_guest_count,
             'delivery_address_id' => $this->delivery_address_id,
             'delivery_fee' => $this->delivery_fee,
@@ -49,7 +51,9 @@ class CartResource extends JsonResource
     public static function emptyCart(?int $restaurantId, ?string $sessionId = null): array
     {
         return [
-            'id' => null, 'session_id' => $sessionId, 'restaurant_id' => $restaurantId, 'event_guest_count' => null, 'items' => [],
+            'id' => null, 'session_id' => $sessionId, 'restaurant_id' => $restaurantId,
+            'restaurant' => $restaurantId ? self::restaurantSummary($restaurantId) : null,
+            'event_guest_count' => null, 'items' => [],
             'line_count' => 0, 'counts' => ['fixed_option_quantity' => 0, 'per_person_selection_count' => 0, 'legacy_line_count' => 0],
             'subtotal_before_discount' => '0.00', 'subtotal' => '0.00', 'tax_amount' => '0.00',
             'item_discount_amount' => '0.00', 'coupon_discount_amount' => '0.00',
@@ -59,6 +63,40 @@ class CartResource extends JsonResource
             'delivery_available' => false, 'delivery_unavailable_reason' => 'empty_cart',
             'is_free_delivery' => false,
             'estimated_delivery_minutes' => null, 'estimated_delivery_at' => null,
+        ];
+    }
+
+    private static function restaurantSummary(int $restaurantId): ?array
+    {
+        $restaurant = Restaurant::with(['addresses.city', 'addresses.state', 'addresses.country'])->find($restaurantId);
+        if (!$restaurant) {
+            return null;
+        }
+
+        $address = $restaurant->addresses->firstWhere('address_type', 'primary')
+            ?? $restaurant->addresses->firstWhere('is_default', true)
+            ?? $restaurant->addresses->first();
+        $line1 = $address?->address_line_1 ?: $restaurant->address_line1;
+        $line2 = $address?->address_line_2 ?: $restaurant->address_line2;
+        $city = $address?->city?->name ?: ($address?->city_name ?: $restaurant->city);
+        $state = $address?->state?->name ?: $restaurant->state;
+        $country = $address?->country?->name ?: $restaurant->country;
+        $zipCode = $address?->zip_code ?: $restaurant->postal_code;
+
+        return [
+            'id' => $restaurant->id,
+            'name' => $restaurant->name,
+            'address' => [
+                'address_line_1' => $line1,
+                'address_line_2' => $line2,
+                'city' => $city,
+                'state' => $state,
+                'country' => $country,
+                'zip_code' => $zipCode,
+                'latitude' => $address?->latitude ?? $restaurant->latitude,
+                'longitude' => $address?->longitude ?? $restaurant->longitude,
+                'full_address' => implode(', ', array_filter([$line1, $line2, $city, $state, $country, $zipCode])),
+            ],
         ];
     }
 }

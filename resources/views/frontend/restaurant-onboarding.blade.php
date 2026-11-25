@@ -312,14 +312,14 @@
                     <div id="partner-location"
                         data-states-url="{{ route('api.countries.states-by-country', ['countryId' => '__id__']) }}"
                         data-cities-url="{{ route('api.countries.cities-by-state', ['stateId' => '__id__']) }}">
-                        <p id="location-help" class="text-sm text-white/60 mb-3">Choose your country, then state and city to locate your restaurant.</p>
+                        <p id="location-help" class="text-sm text-white/60 mb-3">Choose your country and state. You may also select a city.</p>
                         <div class="partner-location-grid">
                             @foreach (['country' => ['Country', $countries], 'state' => ['State / Province', $states], 'city' => ['City', $cities]] as $key => [$label, $locations])
                                 <div class="group">
                                     <label for="partner-{{ $key }}" class="block text-sm font-medium mb-2 text-white/80">
-                                        {{ $label }} <span class="text-red-400" aria-hidden="true">*</span>
+                                        {{ $label }} @if($key !== 'city')<span class="text-red-400" aria-hidden="true">*</span>@else (optional) @endif
                                     </label>
-                                    <select id="partner-{{ $key }}" name="{{ $key }}_id" required
+                                    <select id="partner-{{ $key }}" name="{{ $key }}_id" @required($key !== 'city')
                                         autocomplete="{{ ['country' => 'country', 'state' => 'address-level1', 'city' => 'address-level2'][$key] }}"
                                         aria-describedby="location-help {{ $key }}-error" aria-invalid="{{ $errors->has($key.'_id') ? 'true' : 'false' }}"
                                         class="partner-location-select" @disabled($key !== 'country' && $locations->isEmpty())>
@@ -361,7 +361,7 @@
                         <label for="partner-postal-code" class="block text-sm font-medium mb-2 text-white/80">
                             ZIP / Postal Code <span class="text-red-400">*</span>
                         </label>
-                        <input id="partner-postal-code" name="postal_code" type="text" required maxlength="20"
+                        <input id="partner-postal-code" name="postal_code" minlength="5" maxlength="9" type="text" required
                             autocomplete="postal-code" value="{{ old('postal_code') }}"
                             aria-invalid="{{ $errors->has('postal_code') ? 'true' : 'false' }}" aria-describedby="postal-code-error"
                             class="w-full px-4 py-3.5 bg-white/5 border border-white/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-white/30 text-white placeholder-white/40"

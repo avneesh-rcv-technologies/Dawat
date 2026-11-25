@@ -8,6 +8,7 @@ use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Modules\Acl\Models\Admin;
 use Modules\Restaurant\Models\TaxInformation;
+use Modules\Restaurant\Services\OnboardingChanges;
 use Modules\Restaurant\Services\RestaurantTaxService;
 
 class TaxInformationController
@@ -58,8 +59,17 @@ class TaxInformationController
         try {
             $tax = $this->service->save($request->user(), $request->all(), $creating);
         } catch (ValidationException $exception) {
+            $unchangedTaxDetails = in_array(
+                OnboardingChanges::MESSAGE,
+                $exception->errors()['tax_information'] ?? [],
+                true
+            );
+
             return response()->json([
-                'success' => false, 'message' => 'Please check your tax information.',
+                'success' => false,
+                'message' => $unchangedTaxDetails
+                    ? 'Your tax details are already up to date. No changes were made.'
+                    : 'Please check your tax information.',
                 'errors' => $exception->errors(),
             ], 422);
         }

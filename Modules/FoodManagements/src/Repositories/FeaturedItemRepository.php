@@ -112,6 +112,8 @@ class FeaturedItemRepository
                     'name' => $item->name,
                     'slug' => $item->slug,
                     'description' => $item->description,
+                    'average_rating' => (float) ($item->average_rating ?? 0),
+                    'rating_count' => (int) ($item->rating_count ?? 0),
                     'sale_price' => $item->sale_price,
                     'list_price' => $item->list_price,
                     'tax' => $item->tax,

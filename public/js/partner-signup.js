@@ -156,12 +156,13 @@
         try { draft = JSON.parse(sessionStorage.getItem(draftKey) || 'null'); } catch { /* Handled below. */ }
         if (!draft || typeof draft !== 'object' ||
             !['restaurant_name', 'phone', 'address', 'postal_code'].every(key => typeof draft[key] === 'string' && draft[key].trim()) ||
-            !['country_id', 'state_id', 'city_id'].every(key => /^\d+$/.test(String(draft[key] || ''))) ||
+            !['country_id', 'state_id'].every(key => /^\d+$/.test(String(draft[key] || ''))) ||
+            (draft.city_id != null && draft.city_id !== '' && !/^[0-9]+$/.test(String(draft.city_id))) ||
             (draft.phone_country_id != null && !/^[0-9]+$/.test(String(draft.phone_country_id))) ||
             draft.restaurant_name.trim().length < 2 || draft.restaurant_name.length > 150 ||
-            !/\p{L}/u.test(draft.restaurant_name) || draft.address.length > 100 || draft.phone.length > 20 ||
-            draft.postal_code.trim().length > 20 ||
-            !/^[0-9]+$/.test(draft.phone)) {
+            !/\p{L}/u.test(draft.restaurant_name) || draft.address.length > 100 ||
+            (draft.postal_code.trim().length < 5 || draft.postal_code.trim().length > 9) ||
+            !/^[0-9]{7,16}$/.test(draft.phone)) {
             const error = new Error('Your restaurant information is missing or incomplete. Please complete it on the Partner with us page before signing up.');
             error.code = 'missing_restaurant_information';
             throw error;
@@ -318,7 +319,7 @@
         const data = await request(form.action, {
             restaurant_name: draft.restaurant_name.trim(), phone: draft.phone.trim(),
             phone_country_id: draft.phone_country_id || draft.country_id,
-            country_id: draft.country_id, state_id: draft.state_id, city_id: draft.city_id,
+            country_id: draft.country_id, state_id: draft.state_id, city_id: draft.city_id || null,
             address_line1: draft.address.trim(), owner_name: field('owner_name').value.trim(), email: email(),
             postal_code: draft.postal_code.trim(),
             password: field('password').value, password_confirmation: field('password_confirmation').value,

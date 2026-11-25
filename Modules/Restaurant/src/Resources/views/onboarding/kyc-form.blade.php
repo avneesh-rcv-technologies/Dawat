@@ -975,8 +975,13 @@
     const previewDialog = document.getElementById('kyc-image-dialog');
     const previewTitle = document.getElementById('kyc-modal-title');
     const previewImage = document.getElementById('kyc-image-full');
+    let previewObjectUrl = null;
 
-    previewDialog.addEventListener('close', () => previewImage.removeAttribute('src'));
+    previewDialog.addEventListener('close', () => {
+        previewImage.removeAttribute('src');
+        if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
+        previewObjectUrl = null;
+    });
 
     const figmaDescriptions = {
         'Business Registration': 'Certificate of formation or incorporation.',
@@ -1445,7 +1450,19 @@
                 if (previewBtn) {
                     previewBtn.addEventListener('click', (e) => {
                         e.stopPropagation();
-                        if (savedFile.is_image) {
+                        const selectedFile = row.selectedFile;
+                        const isSelectedImage = selectedFile?.type?.startsWith('image/');
+                        if (selectedFile && isSelectedImage) {
+                            previewObjectUrl = URL.createObjectURL(selectedFile);
+                            previewImage.src = previewObjectUrl;
+                            previewImage.alt = selectedFile.name || type.name;
+                            previewTitle.textContent = selectedFile.name || `${type.name} preview`;
+                            previewDialog.showModal();
+                        } else if (selectedFile) {
+                            const fileUrl = URL.createObjectURL(selectedFile);
+                            window.open(fileUrl, '_blank', 'noopener,noreferrer');
+                            window.setTimeout(() => URL.revokeObjectURL(fileUrl), 60000);
+                        } else if (savedFile.is_image) {
                             previewImage.src = savedFile.url;
                             previewImage.alt = savedFile.name || type.name;
                             previewTitle.textContent = savedFile.name || `${type.name} preview`;

@@ -23,6 +23,7 @@ use Modules\FoodManagements\Services\FoodItemFeatureData;
 use Modules\Restaurant\Models\Restaurant;
 use Modules\Restaurant\Support\MenuContext;
 use Modules\Restaurant\Services\RestaurantOnboardingAccessService;
+use Modules\Rating\Models\Rating;
 
 /**
  * Optional "Menu details" section of restaurant onboarding.
@@ -106,10 +107,19 @@ class OnboardingMenuController extends Controller
             'categories.parent', 'servingOptions', 'tags', 'optionGroups.options',
             'options', ...FoodItemFeatureData::RELATIONS,
         ]);
+        $approvedRatings = Rating::query()
+            ->where('ratable_type', FoodItem::class)
+            ->where('ratable_id', $item->id)
+            ->approved()
+            ->active();
+        $ratingCount = (clone $approvedRatings)->count();
+        $averageRating = $ratingCount ? (float) (clone $approvedRatings)->avg('rating') : 0.0;
 
         return response()->view('restaurant::onboarding.menu.item-show', [
             'restaurant' => $restaurant,
             'item' => $item,
+            'averageRating' => $averageRating,
+            'ratingCount' => $ratingCount,
             'itemFeatures' => FoodItemFeatureData::forItem($item),
             'dietaryLabels' => DietaryLabel::whereIn('id', $item->dietary_label_ids ?? [])
                 ->orderBy('display_order')->get(),
@@ -124,7 +134,7 @@ class OnboardingMenuController extends Controller
         $item = $this->items->create($request, $data);
         $this->saveItemFeatures($request, $restaurant, $item->id);
 
-        return redirect($this->menu->route('items.edit', ['id' => $item->id]))
+        return redirect($this->menu->route('index', ['tab' => 'items']))
             ->with('success', 'Food item saved successfully.');
     }
 
@@ -140,7 +150,7 @@ class OnboardingMenuController extends Controller
         $this->saveItemFeatures($request, $restaurant, $id);
         CacheService::forgetFoodItem($id);
 
-        return redirect($this->menu->route('items.edit', ['id' => $id]))
+        return redirect($this->menu->route('index', ['tab' => 'items']))
             ->with('success', 'Food item updated successfully.');
     }
 

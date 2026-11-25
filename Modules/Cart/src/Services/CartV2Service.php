@@ -3,8 +3,6 @@
 namespace Modules\Cart\Services;
 
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Contracts\Cache\LockTimeoutException;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Modules\Acl\Models\Customer;
@@ -21,67 +19,59 @@ class CartV2Service
         private CartCacheService $cache,
     ) {}
 
-    private function scopeOwner(Builder $query, ?Customer $customer, ?string $sessionId): Builder
+    private function scopeOwner(Builder $query, Customer $customer): Builder
     {
-        if ($customer !== null) {
-            return $query->where('owner_type', $customer->getMorphClass())->where('owner_id', $customer->id);
-        }
-        if ($sessionId === null || ! preg_match('/\A[a-f0-9]{64}\z/', $sessionId)) {
-            throw ValidationException::withMessages(['session_id' => 'Please send a valid cart session ID in the X-Session-ID header, or sign in.']);
-        }
-
-        return $query->whereNull('owner_type')->whereNull('owner_id')->where('session_id', $sessionId);
+        return $query->where('owner_type', $customer->getMorphClass())->where('owner_id', $customer->id);
     }
 
-    private function ownedCarts(?Customer $customer, int $restaurantId, ?string $sessionId): Builder
+    private function ownedCarts(Customer $customer, int $restaurantId): Builder
     {
-        return $this->scopeOwner(Cart::query(), $customer, $sessionId)
+        return $this->scopeOwner(Cart::query(), $customer)
             ->where('cartable_type', (new Restaurant)->getMorphClass())->where('cartable_id', $restaurantId);
     }
 
-    private function lockOwner(?Customer $customer, int $restaurantId): void
+    private function lockOwner(Customer $customer): void
     {
-        if ($customer !== null) {
-            Customer::whereKey($customer->id)->lockForUpdate()->firstOrFail();
-        } else {
-            // Serialize guest mutations, including the first cart creation, without a new schema.
-            Restaurant::whereKey($restaurantId)->lockForUpdate()->first()
-                ?? abort(404, 'This restaurant is no longer available. Please choose another restaurant.');
-        }
+        Customer::whereKey($customer->id)->lockForUpdate()->firstOrFail();
     }
 
-    private function forgetCustomerCart(?Customer $customer, int $restaurantId): void
+    private function forgetCustomerCart(Customer $customer, int $restaurantId): void
     {
-        if ($customer !== null) {
-            DB::afterCommit(fn () => $this->cache->forgetCart($customer->id, $restaurantId));
-        }
-        // Guest v2 carts are read directly and do not use the customer cart cache.
+        DB::afterCommit(fn () => $this->cache->forgetCart($customer->id, $restaurantId));
     }
 
-    public function get(?Customer $customer, int $restaurantId, ?string $sessionId = null): ?Cart
+    public function get(Customer $customer): ?Cart
     {
-        return DB::transaction(function () use ($customer, $restaurantId, $sessionId) {
-            $this->lockOwner($customer, $restaurantId);
-            $cart = $this->ownedCarts($customer, $restaurantId, $sessionId)->with(['items.item', 'items.servingOption'])->lockForUpdate()->first();
-            if ($cart) $cart->updateTotals();
+        return DB::transaction(function () use ($customer) {
+            $this->lockOwner($customer);
+            $cart = $this->scopeOwner(Cart::query(), $customer)
+                ->where('cartable_type', (new Restaurant)->getMorphClass())
+                ->whereHas('items')
+                ->with(['items.item', 'items.servingOption'])
+                ->lockForUpdate()
+                ->orderByDesc('updated_at')
+                ->first();
+            if ($cart) {
+                $cart->updateTotals();
+            }
+
             return $cart;
         });
     }
 
-    public function getItem(?Customer $customer, int $lineId, ?string $sessionId = null): CartItem
+    public function getItem(Customer $customer, int $lineId): CartItem
     {
-        return CartItem::whereHas('cart', fn (Builder $query) => $this->scopeOwner($query, $customer, $sessionId)
+        return CartItem::whereHas('cart', fn (Builder $query) => $this->scopeOwner($query, $customer)
             ->where('cartable_type', (new Restaurant)->getMorphClass()))
             ->with(['item', 'servingOption'])->find($lineId)
             ?? abort(404, 'This item is no longer in your cart. Please refresh your cart.');
     }
 
-    public function add(?Customer $customer, array $data, ?string $sessionId = null): Cart
+    public function add(Customer $customer, array $data): Cart
     {
-        $add = fn () => DB::transaction(function () use ($customer, $data, $sessionId) {
-            $this->scopeOwner(Cart::query(), $customer, $sessionId);
-            $this->lockOwner($customer, (int) $data['restaurant_id']);
-            $otherRestaurantHasItems = $this->scopeOwner(Cart::query(), $customer, $sessionId)
+        return DB::transaction(function () use ($customer, $data) {
+            $this->lockOwner($customer);
+            $otherRestaurantHasItems = $this->scopeOwner(Cart::query(), $customer)
                 ->where('cartable_type', (new Restaurant)->getMorphClass())
                 ->where('cartable_id', '!=', (int) $data['restaurant_id'])
                 ->whereHas('items')->exists();
@@ -94,11 +84,11 @@ class CartV2Service
                 (int) $data['restaurant_id'], (int) $data['item_id'], (int) $data['serving_option_id']
             );
             $attributes = $this->pricing->calculate($food, $option, (int) $data['quantity'], $data['guest_count'] ?? null);
-            $cart = $this->ownedCarts($customer, $restaurant->id, $sessionId)->lockForUpdate()->first();
+            $cart = $this->ownedCarts($customer, $restaurant->id)->lockForUpdate()->first();
             if (! $cart) {
                 $cart = Cart::create([
-                    'owner_type' => $customer?->getMorphClass(), 'owner_id' => $customer?->id,
-                    'session_id' => $customer === null ? $sessionId : null,
+                    'owner_type' => $customer->getMorphClass(), 'owner_id' => $customer->id,
+                    'session_id' => null,
                     'cartable_type' => $restaurant->getMorphClass(), 'cartable_id' => $restaurant->id,
                     'is_tax_inclusive' => false,
                 ]);
@@ -134,36 +124,26 @@ class CartV2Service
 
             return $cart->load(['items.item', 'items.servingOption']);
         }, 3);
-
-        if ($customer !== null) {
-            return $add();
-        }
-        $this->scopeOwner(Cart::query(), null, $sessionId);
-        try {
-            // Restaurant row locks alone cannot serialize two different restaurants for one guest.
-            return Cache::lock('cart.v2.guest-add.'.hash('sha256', $sessionId), 60)->block(5, $add);
-        } catch (LockTimeoutException $e) {
-            throw ValidationException::withMessages(['cart' => 'Your cart is being updated. Please try again.']);
-        }
     }
 
-    public function clear(?Customer $customer, int $restaurantId, ?string $sessionId = null): void
+    public function clear(Customer $customer): void
     {
-        DB::transaction(function () use ($customer, $restaurantId, $sessionId) {
-            $query = $this->ownedCarts($customer, $restaurantId, $sessionId);
-            $this->lockOwner($customer, $restaurantId);
+        DB::transaction(function () use ($customer) {
+            $this->lockOwner($customer);
+            $query = $this->scopeOwner(Cart::query(), $customer)
+                ->where('cartable_type', (new Restaurant)->getMorphClass());
             foreach ($query->lockForUpdate()->get() as $cart) {
                 $cart->items()->delete();
                 $cart->delete();
+                $this->forgetCustomerCart($customer, (int) $cart->cartable_id);
             }
-            $this->forgetCustomerCart($customer, $restaurantId);
         }, 3);
     }
 
-    public function remove(?Customer $customer, int $lineId, ?string $sessionId = null): ?Cart
+    public function remove(Customer $customer, int $lineId): ?Cart
     {
-        return DB::transaction(function () use ($customer, $lineId, $sessionId) {
-            [$cart, $line] = $this->lockedLine($customer, $lineId, $sessionId);
+        return DB::transaction(function () use ($customer, $lineId) {
+            [$cart, $line] = $this->lockedLine($customer, $lineId);
             $line->delete();
             $restaurantId = $cart->cartable_id;
             $this->forgetCustomerCart($customer, $restaurantId);
@@ -178,10 +158,10 @@ class CartV2Service
         }, 3);
     }
 
-    public function updateItem(?Customer $customer, int $lineId, array $data, ?string $sessionId = null): Cart
+    public function updateItem(Customer $customer, int $lineId, array $data): Cart
     {
-        return DB::transaction(function () use ($customer, $lineId, $data, $sessionId) {
-            [$cart, $line] = $this->lockedLine($customer, $lineId, $sessionId);
+        return DB::transaction(function () use ($customer, $lineId, $data) {
+            [$cart, $line] = $this->lockedLine($customer, $lineId);
             if ($line->item_type !== (new FoodItem)->getMorphClass()
                 || $cart->cartable_type !== (new Restaurant)->getMorphClass()) {
                 throw ValidationException::withMessages(['item_id' => 'This cart item cannot be updated here. Please remove it and add your selection again.']);
@@ -224,12 +204,12 @@ class CartV2Service
         }, 3);
     }
 
-    private function lockedLine(?Customer $customer, int $lineId, ?string $sessionId): array
+    private function lockedLine(Customer $customer, int $lineId): array
     {
-        // Find only an owned line before taking a guest restaurant lock.
-        $line = $this->getItem($customer, $lineId, $sessionId);
-        $this->lockOwner($customer, $line->cart->cartable_id);
-        $cart = $this->scopeOwner(Cart::query(), $customer, $sessionId)
+        // Resolve ownership before locking or modifying a cart line.
+        $line = $this->getItem($customer, $lineId);
+        $this->lockOwner($customer);
+        $cart = $this->scopeOwner(Cart::query(), $customer)
             ->whereKey($line->cart_id)->lockForUpdate()->first()
             ?? abort(404, 'This item is no longer in your cart. Please refresh your cart.');
         $line = $cart->items()->whereKey($lineId)->lockForUpdate()->first()

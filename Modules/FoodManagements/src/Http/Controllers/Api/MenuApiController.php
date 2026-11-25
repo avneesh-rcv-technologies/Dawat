@@ -319,6 +319,8 @@ class MenuApiController extends Controller
                     'item_id' => $item->id,
                     'restaurant_id' => $item->restaurant_id,
                     'item_name' => $item->name,
+                    'average_rating' => (float) ($item->average_rating ?? 0),
+                    'rating_count' => (int) ($item->rating_count ?? 0),
                     'serving_option' => [
                         'id' => $option->id,
                         'serve_type' => $option->serve_type,

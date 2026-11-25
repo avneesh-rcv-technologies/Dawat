@@ -522,8 +522,10 @@
 
           if (res.errors) {
             errorCreate(res.errors, thisForm);
-          } else if (res.success === false) {
+            return;
+          } else if (res.success !== true) {
             displayError(thisForm, res.message || 'Unable to complete your request. Please try again.', btnText);
+            return;
           }
 
           if (res.success) {

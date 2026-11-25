@@ -23,6 +23,9 @@ use Modules\Orders\Http\Requests\OrderRequest;
 use Modules\Payments\Models\PaymentConfiguration;
 use Carbon\Carbon;
 use Modules\Restaurant\Models\Restaurant;
+use Modules\Restaurant\Services\RestaurantOwnerRoleResolver;
+use Modules\FoodManagements\Models\FoodItem;
+use Modules\Rating\Models\Rating;
 
 class OrderController extends Controller
 {
@@ -87,6 +90,20 @@ class OrderController extends Controller
         Session::forget('cart');
         $order = Order::with(['customer', 'vendor', 'items', 'transactions'])->findOrFail($id);
         $orderData = $this->orderService->getOrder($id);
+        $isRestaurantOwner = app(RestaurantOwnerRoleResolver::class)->isOwner(auth('admin')->user());
+        $ownerFoodReviews = collect();
+        if ($isRestaurantOwner) {
+            $ownerRestaurant = Restaurant::where('admin_id', auth('admin')->id())->firstOrFail();
+            abort_unless($order->vendor_type === Restaurant::class
+                && (int) $order->vendor_id === (int) $ownerRestaurant->id, 404);
+
+            $ownerFoodReviews = Rating::with(['user', 'order.customer', 'ratable'])
+                ->where('order_id', $order->id)
+                ->where('ratable_type', FoodItem::class)
+                ->whereHasMorph('ratable', [FoodItem::class], fn ($food) => $food->where('restaurant_id', $ownerRestaurant->id))
+                ->latest('created_at')
+                ->get();
+        }
         $canViewPayoutDetails = OrderCommissionAccess::visibleInSidebar();
         $orderPayout = $canViewPayoutDetails
             ? app(OrderCommissionAccess::class)->query(auth('admin')->user())->where('order_id', $order->id)->first()
@@ -104,7 +121,9 @@ class OrderController extends Controller
                     'can_view_payout_details' => $canViewPayoutDetails,
                     'order_payout' => $orderPayout,
                     'order' => $order,
-                    'order_id' => $order->id
+                    'order_id' => $order->id,
+                    'is_restaurant_owner' => $isRestaurantOwner,
+                    'owner_food_reviews' => $ownerFoodReviews,
                 ]
             ))->render();
 
@@ -138,6 +157,8 @@ class OrderController extends Controller
                 'order_payout' => $orderPayout,
                 'order' => $order,
                 'order_id' => $order->id,
+                'is_restaurant_owner' => $isRestaurantOwner,
+                'owner_food_reviews' => $ownerFoodReviews,
 
             ]
         ));

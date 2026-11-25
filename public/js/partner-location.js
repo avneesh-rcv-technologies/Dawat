@@ -43,13 +43,13 @@
             const items = data[key];
             if (!items.length) {
                 reset(select, `No ${key} available`);
-                message(`No ${key} are available for this selection. Please choose another ${key === 'states' ? 'country' : 'state'}.`, true);
+                message(key === 'cities' ? 'No cities available. You can continue without selecting a city.' : 'No states available. Please choose another country.', key !== 'cities');
                 return;
             }
             select.replaceChildren(new Option(`Select ${key === 'states' ? 'state / province' : 'city'}`, ''));
             items.forEach(item => select.add(new Option(item.name, item.id)));
             select.disabled = false;
-            message(key === 'states' ? 'Now choose your state or province.' : 'Now choose your city.');
+            message(key === 'states' ? 'Now choose your state or province.' : 'You may select a city, or continue without one.');
         } catch (error) {
             if (error.name === 'AbortError' || pending !== controller) return;
             reset(select, `Unable to load ${key}`);
@@ -84,16 +84,16 @@
     });
     city.addEventListener('change', () => {
         clearError(city);
-        message(city.value ? 'Restaurant location selected.' : 'Please choose your city.');
+        message(city.value ? 'Restaurant location selected.' : 'City selection is optional.');
     });
     retry.addEventListener('click', () => retryLoad?.());
     // Disabled dependent fields are skipped by browser validation; validate before OTP.
     form.addEventListener('submit', (event) => {
-        if (!country.value || !state.value || !city.value || state.disabled || city.disabled) {
+        if (!country.value || !state.value || state.disabled) {
             event.preventDefault();
             event.stopImmediatePropagation();
-            message('Please select a country, state and city before continuing.', true);
-            const target = !country.value ? country : !state.value && !state.disabled ? state : !city.disabled ? city : country;
+            message('Please select a country and state before continuing.', true);
+            const target = !country.value ? country : !state.value && !state.disabled ? state : country;
             target.focus();
         }
     }, true);

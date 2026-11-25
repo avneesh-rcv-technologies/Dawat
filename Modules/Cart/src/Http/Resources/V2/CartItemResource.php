@@ -24,6 +24,8 @@ class CartItemResource extends JsonResource
             'id' => $this->id,
             'item_id' => $this->item_id,
             'item_name' => $snapshot['item_name'] ?? $this->item?->name ?? 'Unavailable item',
+            'average_rating' => $this->item ? (float) ($this->item->average_rating ?? 0) : 0.0,
+            'rating_count' => $this->item ? (int) ($this->item->rating_count ?? 0) : 0,
             'image' => $this->item?->image['url'] ?? null,
             'serving_option_id' => $this->serving_option_id,
             'serving_option' => $snapshot === null ? null : [

@@ -101,6 +101,8 @@ class FoodEventService
                     'id' => $item->id,
                     'name' => $item->name,
                     'slug' => $item->slug,
+                    'average_rating' => (float) ($item->average_rating ?? 0),
+                    'rating_count' => (int) ($item->rating_count ?? 0),
                     'sale_price' => $item->sale_price,
                     'list_price' => $item->list_price,
                     'primary_image' => fn_get_image('food_image', $item->id)['url'] ?? '',

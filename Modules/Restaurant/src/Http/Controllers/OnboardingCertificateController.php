@@ -40,6 +40,14 @@ class OnboardingCertificateController
         if ($request->boolean('preview')) {
             $mime = Storage::disk('local')->mimeType($certificate->file_path);
             abort_unless(in_array($mime, ['application/pdf', 'image/jpeg', 'image/png'], true), 415);
+            if (str_starts_with($mime, 'image/')) {
+                return response()->view('restaurant::onboarding.certificate-image-preview', [
+                    'image' => 'data:'.$mime.';base64,'.base64_encode(Storage::disk('local')->get($certificate->file_path)),
+                    'fileName' => $certificate->file_name ?: 'Certificate image',
+                ])->header('X-Content-Type-Options', 'nosniff')
+                    ->header('Cache-Control', 'private, no-store')
+                    ->header('Content-Security-Policy', "default-src 'none'; img-src data:; style-src 'unsafe-inline'; sandbox");
+            }
             return Storage::disk('local')->response($certificate->file_path, $certificate->file_name ?: 'certificate', [
                 'Content-Type' => $mime, 'X-Content-Type-Options' => 'nosniff', 'Cache-Control' => 'private, no-store',
                 'Content-Security-Policy' => "sandbox; default-src 'none'",

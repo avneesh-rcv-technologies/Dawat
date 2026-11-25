@@ -191,7 +191,7 @@
                         @error('email')<p class="error-message">{{ $message }}</p>@enderror
                     </div>
 
-                    @if($showPasswordField ?? true)
+                    {{-- @if($showPasswordField ?? true)
                         <div class="form-group span-all">
                             <label for="gi-password" class="form-label">Password @unless($restaurantId)<span class="req">*</span>@endunless</label>
                             <input id="gi-password" type="password" name="password" autocomplete="new-password"
@@ -199,7 +199,7 @@
                                 placeholder="{{ $restaurantId ? 'Leave blank to keep current password' : 'Enter a secure password' }}">
                             @error('password')<p class="error-message">{{ $message }}</p>@enderror
                         </div>
-                    @endif
+                    @endif --}}
                 </div>
             </div>
 

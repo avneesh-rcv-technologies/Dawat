@@ -28,6 +28,6 @@ Route::prefix(config('core::prefix.admin'))->middleware('web')->name('admin.')->
 Route::prefix(config('core::prefix.admin'))->middleware(['web', 'auth:admin'])
     ->name('admin.refunds.')->controller(\Modules\Payments\Http\Controllers\RefundController::class)->group(function () {
         Route::get('refunds', 'index')->name('index');
-        Route::get('refunds/{id}', 'show')->whereNumber('id')->name('show');
-        Route::patch('refunds/{id}', 'update')->whereNumber('id')->middleware('throttle:30,1')->name('update');
+        Route::get('refunds/{id}', 'show')->middleware('route.ids:id')->name('show');
+        Route::patch('refunds/{id}', 'update')->middleware(['route.ids:id', 'throttle:30,1'])->name('update');
     });
